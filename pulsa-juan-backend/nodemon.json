@@ -1,0 +1,6 @@
+{
+  "ignore": [".git", "node_modules", "dist"],
+  "watch": ["./src", "../pulsa-juan-common/src"],
+  "exec": "npm run build -w pulsa-juan-common --prefix .. >/dev/null && ts-node ./src/server.ts",
+  "ext": "ts"
+}

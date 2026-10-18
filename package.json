@@ -1,0 +1,21 @@
+{
+  "name": "pulsa-juan",
+  "private": true,
+  "workspaces": [
+    "pulsa-juan-common",
+    "pulsa-juan-backend",
+    "pulsa-juan-dashboard",
+    "pulsa-juan-app"
+  ],
+  "engines": {
+    "node": ">=20 <21"
+  },
+  "scripts": {
+    "build:common": "npm run build -w pulsa-juan-common",
+    "test:common": "npm test -w pulsa-juan-common",
+    "test:backend": "npm test -w pulsa-juan-backend",
+    "dev:backend": "npm run build:common && npm run dev -w pulsa-juan-backend",
+    "dev:dashboard": "npm run dev -w pulsa-juan-dashboard",
+    "dev:app": "npm run web -w pulsa-juan-app"
+  }
+}

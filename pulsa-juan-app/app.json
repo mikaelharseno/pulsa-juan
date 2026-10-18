@@ -1,0 +1,55 @@
+{
+  "expo": {
+    "name": "Pulsa Juan",
+    "slug": "pulsa-juan",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "pulsajuan",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "android": {
+      "package": "com.pulsajuan.agent",
+      "adaptiveIcon": {
+        "backgroundColor": "#1E9C8F",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-web-browser",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#1E9C8F"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "apiBase": "http://localhost:3030/api",
+      "googleWebClientId": "",
+      "googleAndroidClientId": "",
+      "router": {},
+      "eas": {
+        "projectId": "f936e2e0-f960-4dbe-aced-905f72adcd51"
+      }
+    },
+    "owner": "mikhrs"
+  }
+}

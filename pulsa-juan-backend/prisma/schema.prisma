@@ -1,0 +1,317 @@
+generator client {
+  provider      = "prisma-client-js"
+  output        = "./generated/"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum AdminRole {
+  OWNER
+  ADMIN
+  STAFF
+}
+
+enum AdminStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum AgentStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum TopUpStatus {
+  PENDING
+  CLAIMED
+  PAID
+  REJECTED
+  EXPIRED
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum LedgerType {
+  TOPUP
+  PURCHASE
+  REFUND
+  ADJUSTMENT
+  COMMISSION
+}
+
+enum BankCode {
+  BRI
+  BCA
+}
+
+enum Provider {
+  TELKOMSEL
+  XL
+  AXIS
+  INDOSAT
+  TRI
+  SMARTFREN
+}
+
+enum CommissionStatus {
+  UNCLAIMED
+  CLAIMED
+  VOIDED
+}
+
+model AdminUser {
+  id           String      @id @default(cuid())
+  email        String      @unique
+  passwordHash String
+  name         String
+  role         AdminRole   @default(ADMIN)
+  status       AdminStatus @default(ACTIVE)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  auditLogs AdminAuditLog[]
+}
+
+model Agent {
+  id           String      @id @default(cuid())
+  name         String
+  email        String      @unique
+  phone        String?     @unique
+  passwordHash String?
+  googleSub    String?     @unique
+  avatarUrl    String?
+  status       AgentStatus @default(ACTIVE)
+  /// cached balance; SaldoLedger is the audit trail
+  saldo        Decimal     @default(0) @db.Decimal(14, 2)
+  /// outstanding line-of-credit debt (OWNER confirms a top-up on credit)
+  hutang       Decimal     @default(0) @db.Decimal(14, 2)
+  /// rewards points — field only for now
+  poin         Int         @default(0)
+  /// referral "crown": referral code + key for MitraConnection / commissions; transferable by OWNER
+  commisionUniqueId String @unique
+  /// lifetime total claimed from commissions (tracker only)
+  saldoKomisi  Decimal     @default(0) @db.Decimal(14, 2)
+  /// markup applied to mitra who register with this agent's code
+  referralMarkup Int       @default(0)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  ledger       SaldoLedger[]
+  topUps       TopUpOrder[]
+  transactions Transaction[]
+  commissionsGenerated AgentMarkupCommision[] @relation("commissionSource")
+}
+
+model MitraConnection {
+  id                String   @id @default(cuid())
+  parentCommisionId String
+  childCommisionId  String   @unique
+  commisionAmount   Int
+  createdAt         DateTime @default(now())
+
+  @@index([parentCommisionId])
+}
+
+model AgentMarkupCommision {
+  id                     String           @id @default(cuid())
+  transactionId          String
+  transaction            Transaction      @relation(fields: [transactionId], references: [id])
+  sourceAgentId          String
+  sourceAgent            Agent            @relation("commissionSource", fields: [sourceAgentId], references: [id])
+  beneficiaryCommisionId String
+  /// 1 = parent, 2 = grandparent
+  level                  Int
+  amount                 Int
+  status                 CommissionStatus @default(UNCLAIMED)
+  claimedAt              DateTime?
+  createdAt              DateTime         @default(now())
+
+  @@index([beneficiaryCommisionId, status])
+  @@index([transactionId])
+}
+
+model SaldoLedger {
+  id           String     @id @default(cuid())
+  agentId      String
+  agent        Agent      @relation(fields: [agentId], references: [id])
+  type         LedgerType
+  delta        Decimal    @db.Decimal(14, 2)
+  balanceAfter Decimal    @db.Decimal(14, 2)
+  referenceId  String?
+  note         String?
+  createdAt    DateTime   @default(now())
+
+  @@index([agentId, createdAt])
+}
+
+model TopUpOrder {
+  id            String      @id @default(cuid())
+  orderNumber   Int         @unique @default(autoincrement())
+  agentId       String
+  agent         Agent       @relation(fields: [agentId], references: [id])
+  amount        Decimal     @db.Decimal(14, 2)
+  kodeUnik      Int
+  totalTransfer Decimal     @db.Decimal(14, 2)
+  bank          BankCode?
+  status        TopUpStatus @default(PENDING)
+  claimedAt     DateTime?
+  paidAt        DateTime?
+  confirmedById String?
+  /// bank-mutation screenshot uploaded by the admin on confirmation (required unless isCredit)
+  proofImageUrl String?
+  /// confirmed on line of credit by an OWNER — no proof, Agent.hutang grows instead
+  isCredit      Boolean     @default(false)
+  rejectReason  String?
+  expiresAt     DateTime
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([status, createdAt])
+  @@index([agentId, createdAt])
+}
+
+model Segment {
+  id                 String    @id @default(cuid())
+  slug               String    @unique
+  label              String
+  iconUrl            String?
+  groupLabel         String?
+  badge              String?
+  sortOrder          Int       @default(0)
+  isActive           Boolean   @default(true)
+  maintenanceMessage String?
+  draftTree          Json?
+  draftUpdatedAt     DateTime?
+  publishedVersionId String?   @unique
+  publishedVersion   SegmentTreeVersion? @relation("published", fields: [publishedVersionId], references: [id])
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  versions     SegmentTreeVersion[] @relation("versions")
+  transactions Transaction[]
+}
+
+model SegmentTreeVersion {
+  id          String   @id @default(cuid())
+  segmentId   String
+  segment     Segment  @relation("versions", fields: [segmentId], references: [id])
+  version     Int
+  /// immutable snapshot of the tree
+  tree        Json
+  publishedAt DateTime @default(now())
+  publishedBy String
+
+  publishedFor Segment?      @relation("published")
+  transactions Transaction[]
+
+  @@unique([segmentId, version])
+}
+
+model Package {
+  id           String    @id @default(cuid())
+  code         String    @unique
+  name         String
+  description  String?
+  category     String
+  provider     Provider?
+  /// debited from the agent's saldo
+  hargaAgen    Int
+  /// supplier cost, admin-only
+  hargaBeli    Int       @default(0)
+  imageUrl     String?
+  supplierName String?
+  supplierSku  String?
+  isActive     Boolean   @default(true)
+  sortOrder    Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  transactions Transaction[]
+
+  @@index([category, isActive, sortOrder])
+}
+
+model ProviderPrefix {
+  id       String   @id @default(cuid())
+  prefix   String   @unique
+  provider Provider
+  isActive Boolean  @default(true)
+}
+
+model Transaction {
+  id             String            @id @default(cuid())
+  trxNumber      Int               @unique @default(autoincrement())
+  agentId        String
+  agent          Agent             @relation(fields: [agentId], references: [id])
+  segmentId      String
+  segment        Segment           @relation(fields: [segmentId], references: [id])
+  segmentLabel   String
+  treeVersionId  String
+  treeVersion    SegmentTreeVersion @relation(fields: [treeVersionId], references: [id])
+  packageId      String?
+  package        Package?          @relation(fields: [packageId], references: [id])
+  /// FlowStep[] as walked server-side
+  steps          Json
+  /// ConfirmationRow[] frozen at purchase time
+  summary        Json
+  phoneNumber    String?
+  customerId     String?
+  amountBase     Int
+  adminFee       Int               @default(0)
+  markupTotal    Int               @default(0)
+  total          Int
+  status         TransactionStatus @default(PENDING)
+  serialNumber   String?
+  failReason     String?
+  idempotencyKey String            @unique
+  processedById  String?
+  processedAt    DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  commissions AgentMarkupCommision[]
+
+  @@index([agentId, createdAt])
+  @@index([status, createdAt])
+  @@index([phoneNumber])
+}
+
+model StoreConfig {
+  id                String   @id @default("singleton")
+  appName           String   @default("Pulsa Juan")
+  csWhatsapp        String   @default("")
+  csTelegram        String   @default("")
+  topUpMin          Int      @default(10000)
+  topUpMax          Int      @default(5000000)
+  topUpExpiryHours  Int      @default(24)
+  briAccountNumber  String   @default("")
+  briAccountName    String   @default("")
+  bcaAccountNumber  String   @default("")
+  bcaAccountName    String   @default("")
+  /// ordered [{imageUrl, linkUrl?}] — one carousel for the whole app
+  banners           Json     @default("[]")
+  maxReferralMarkup Int      @default(2000)
+  updatedAt         DateTime @updatedAt
+}
+
+model AdminAuditLog {
+  id         String    @id @default(cuid())
+  adminId    String
+  admin      AdminUser @relation(fields: [adminId], references: [id])
+  action     String
+  targetType String
+  targetId   String
+  payload    Json?
+  createdAt  DateTime  @default(now())
+
+  @@index([targetType, targetId])
+}
