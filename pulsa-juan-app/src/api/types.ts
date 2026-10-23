@@ -1,10 +1,11 @@
-import { ConfirmationRow, FlowStep, PackagePublic, PrefixEntry, SegmentTree } from 'pulsa-juan-common';
+import { ConfirmationRow, FlowStep, PackagePublic, PrefixEntry, SegmentTree, TopUpStatus, TransactionStatus } from 'pulsa-juan-common';
 
 export interface AgentProfile {
   id: string;
   name: string;
-  email: string;
-  phone: string | null;
+  email: string | null;
+  phone: string;
+  nik: string | null;
   avatarUrl: string | null;
   status: 'ACTIVE' | 'DISABLED';
   saldo: number;
@@ -13,14 +14,55 @@ export interface AgentProfile {
   commisionUniqueId: string;
   saldoKomisi: number;
   referralMarkup: number;
+  referrerMarkup: number;
   markupTotal: number;
+  hasPin: boolean;
+  hasPassword: boolean;
+  googleLinked: boolean;
+  phoneVerified: boolean;
+  joinedAt: string;
   createdAt: string;
 }
 
 export interface Session {
   token: string;
   agent: AgentProfile;
-  created?: boolean;
+}
+
+export type OtpPurpose = 'REGISTER' | 'RESET_PIN' | 'VERIFY_PHONE';
+
+export interface OtpRequestResult {
+  phone: string;
+  purpose: OtpPurpose;
+  expiresAt: string;
+  resendAfter: number;
+  /** only when the server runs with OTP_DEBUG=1 (dev) */
+  debugCode?: string;
+}
+
+export interface OtpVerifyResult {
+  otpTicket: string;
+  phone: string;
+  purpose: OtpPurpose;
+}
+
+export type GoogleLoginResult = ({ needsPhone: false } & Session) | { needsPhone: true; googleTicket: string; profile: { name: string; email: string } };
+
+export interface LedgerEntry {
+  id: string;
+  type: 'TOPUP' | 'PURCHASE' | 'REFUND' | 'ADJUSTMENT' | 'COMMISSION';
+  delta: number;
+  balanceAfter: number;
+  referenceId: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+export interface LedgerList {
+  total: number;
+  page: number;
+  pageSize: number;
+  entries: LedgerEntry[];
 }
 
 export interface SegmentSummary {
@@ -72,7 +114,7 @@ export interface TopUpOrder {
   kodeUnik: number;
   totalTransfer: number;
   bank: 'BRI' | 'BCA' | null;
-  status: 'PENDING' | 'CLAIMED' | 'PAID' | 'REJECTED' | 'EXPIRED';
+  status: TopUpStatus;
   claimedAt: string | null;
   paidAt: string | null;
   expiresAt: string;
@@ -97,9 +139,11 @@ export interface Transaction {
   adminFee: number;
   markupTotal: number;
   total: number;
-  status: 'PENDING' | 'SUCCESS' | 'FAILED';
+  status: TransactionStatus;
   serialNumber: string | null;
   failReason: string | null;
+  refundReason?: string | null;
+  refundedAt?: string | null;
   createdAt: string;
   processedAt: string | null;
 }

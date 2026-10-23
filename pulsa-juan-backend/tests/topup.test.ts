@@ -1,4 +1,4 @@
-import { kodeUnikBase } from 'pulsa-juan-common';
+import { kodeUnikBase, nextKodeUnik } from 'pulsa-juan-common';
 
 import { expireStaleTopUps } from '../src/service/topup.service';
 import { adminToken, app, auth, prisma, registerAgent, request, resetDb } from './helpers';
@@ -13,12 +13,11 @@ afterAll(async () => {
 });
 
 describe('top up flow', () => {
-  it('create → bank → claim → admin confirm with proof credits saldo', async () => {
+  it('create → bank → claim → admin confirm with proof credits amount + kode unik', async () => {
     const { token, agent } = await registerAgent('Budi');
     const created = await request(app).post('/api/agent/topups').set(auth(token)).send({ amount: 100000 });
     expect(created.status).toBe(201);
-    expect(created.body.kodeUnik).toBeGreaterThanOrEqual(100);
-    expect(created.body.kodeUnik).toBeLessThanOrEqual(999);
+    expect(created.body.kodeUnik).toBe(kodeUnikBase(created.body.orderNumber));
     expect(created.body.totalTransfer).toBe(100000 + created.body.kodeUnik);
     const id = created.body.id;
 
@@ -46,7 +45,7 @@ describe('top up flow', () => {
     expect(paid.body.proofImageUrl).toMatch(/\/uploads\/topup-proof\//);
 
     const me = await request(app).get('/api/agent/me').set(auth(token));
-    expect(me.body.saldo).toBe(100000);
+    expect(me.body.saldo).toBe(100000 + created.body.kodeUnik);
 
     const again = await request(app).put(`/api/admin/topups/${id}`).set(auth(admin)).field('status', 'PAID').attach('proof', PNG, 'bukti.png');
     expect(again.status).toBe(409);
@@ -77,11 +76,12 @@ describe('top up flow', () => {
     expect(ok.status).toBe(200);
     expect(ok.body.isCredit).toBe(true);
     const me = await request(app).get('/api/agent/me').set(auth(token));
-    expect(me.body.saldo).toBe(50000);
-    expect(me.body.hutang).toBe(50000);
-    const tooMuch = await request(app).post(`/api/admin/agents/${agent.id}/hutang-payment`).set(auth(owner)).send({ amount: 60000 });
+    const total = created.body.totalTransfer;
+    expect(me.body.saldo).toBe(total);
+    expect(me.body.hutang).toBe(total);
+    const tooMuch = await request(app).post(`/api/admin/agents/${agent.id}/hutang-payment`).set(auth(owner)).send({ amount: total + 10000 });
     expect(tooMuch.status).toBe(400);
-    const paid = await request(app).post(`/api/admin/agents/${agent.id}/hutang-payment`).set(auth(owner)).field('amount', '50000').attach('proof', PNG, 'bukti.png');
+    const paid = await request(app).post(`/api/admin/agents/${agent.id}/hutang-payment`).set(auth(owner)).field('amount', String(total)).attach('proof', PNG, 'bukti.png');
     expect(paid.status).toBe(200);
     expect(paid.body.hutang).toBe(0);
   });
@@ -93,7 +93,7 @@ describe('top up flow', () => {
     await prisma.topUpOrder.update({ where: { id: a.body.id }, data: { kodeUnik: nextBase, totalTransfer: 75000 + nextBase } });
     const b = await request(app).post('/api/agent/topups').set(auth(token)).send({ amount: 75000 });
     expect(b.body.orderNumber).toBe(a.body.orderNumber + 1);
-    expect(b.body.kodeUnik).toBe(nextBase + 1);
+    expect(b.body.kodeUnik).toBe(nextKodeUnik(nextBase));
 
     await prisma.topUpOrder.update({ where: { id: b.body.id }, data: { expiresAt: new Date(Date.now() - 1000) } });
     expect(await expireStaleTopUps()).toBeGreaterThanOrEqual(1);

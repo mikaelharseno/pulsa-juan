@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, TextInputProps, View, ViewStyle } from 'react-native';
-import { formatNumberId } from 'pulsa-juan-common';
+import { formatNumberId, statusMeta, StatusTone } from 'pulsa-juan-common';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, font, shadow, size, track } from '../theme';
@@ -120,6 +120,64 @@ export function Field({
         {right}
       </View>
       {error ? <Text style={styles.fieldError}>{error}</Text> : hint ? <Text style={styles.fieldHint}>{hint}</Text> : null}
+    </View>
+  );
+}
+
+/**
+ * 6 boxes over one transparent TextInput (OTP / PIN). The input covers the boxes
+ * so a tap focuses it on native and web alike; `secure` masks digits as dots.
+ */
+export function CodeInput({
+  label,
+  value,
+  onChange,
+  length = 6,
+  secure,
+  autoFocus,
+  error,
+  testID,
+}: {
+  label?: string;
+  value: string;
+  onChange: (v: string) => void;
+  length?: number;
+  secure?: boolean;
+  autoFocus?: boolean;
+  error?: string | null;
+  testID?: string;
+}) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <View style={{ marginBottom: 14 }}>
+      {label ? <Text style={styles.fieldLabel}>{label}</Text> : null}
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        {Array.from({ length }).map((_, i) => {
+          const ch = value[i];
+          const active = focused && (i === value.length || (i === length - 1 && value.length === length));
+          return (
+            <View key={i} style={[styles.codeBox, active && styles.inputFocused, !!error && { borderColor: colors.danger }]}>
+              <Text style={styles.codeChar}>{ch ? (secure ? '•' : ch) : ''}</Text>
+            </View>
+          );
+        })}
+        <TextInput
+          testID={testID}
+          value={value}
+          onChangeText={(t) => onChange(t.replace(/\D/g, '').slice(0, length))}
+          keyboardType="number-pad"
+          maxLength={length}
+          autoFocus={autoFocus}
+          caretHidden
+          secureTextEntry={secure}
+          textContentType={secure ? 'password' : 'oneTimeCode'}
+          autoComplete={secure ? 'off' : 'sms-otp'}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          style={styles.codeOverlay}
+        />
+      </View>
+      {error ? <Text style={styles.fieldError}>{error}</Text> : null}
     </View>
   );
 }
@@ -315,17 +373,17 @@ export function Pill({ label, tone = 'teal' }: { label: string; tone?: 'teal' | 
   );
 }
 
+const TONE: Record<StatusTone, { bg: string; fg: string }> = {
+  warning: { bg: '#FFF4DE', fg: '#B45309' },
+  info: { bg: '#FFF4DE', fg: '#B45309' },
+  success: { bg: colors.tealSoft, fg: colors.tealDark },
+  error: { bg: '#FEE2E2', fg: colors.danger },
+  neutral: { bg: colors.divider, fg: colors.muted },
+};
+
 export function StatusPill({ status }: { status: string }) {
-  const map: Record<string, { bg: string; fg: string; label: string }> = {
-    PENDING: { bg: '#FFF4DE', fg: '#B45309', label: 'Diproses' },
-    CLAIMED: { bg: '#FFF4DE', fg: '#B45309', label: 'Menunggu konfirmasi' },
-    SUCCESS: { bg: colors.tealSoft, fg: colors.tealDark, label: 'Sukses' },
-    PAID: { bg: colors.tealSoft, fg: colors.tealDark, label: 'Berhasil' },
-    FAILED: { bg: '#FEE2E2', fg: colors.danger, label: 'Gagal' },
-    REJECTED: { bg: '#FEE2E2', fg: colors.danger, label: 'Ditolak' },
-    EXPIRED: { bg: colors.divider, fg: colors.muted, label: 'Kedaluwarsa' },
-  };
-  const s = map[status] ?? { bg: colors.divider, fg: colors.muted, label: status };
+  const meta = statusMeta(status, 'agent');
+  const s = { ...TONE[meta.tone], label: meta.label };
   return (
     <View style={{ backgroundColor: s.bg, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, flexDirection: 'row', alignItems: 'center' }}>
       <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: s.fg, marginRight: 5 }} />
@@ -360,6 +418,9 @@ export const styles = StyleSheet.create({
   fieldLabel: { fontSize: font.small, color: colors.ink2, marginBottom: 6, fontWeight: '600' },
   inputWrap: { height: size.input, borderWidth: 1, borderColor: colors.field, borderRadius: size.inputRadius, backgroundColor: colors.field, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14 },
   inputFocused: { borderColor: colors.teal, backgroundColor: colors.card },
+  codeBox: { flex: 1, height: 52, borderRadius: size.inputRadius, borderWidth: 1, borderColor: colors.field, backgroundColor: colors.field, alignItems: 'center', justifyContent: 'center' },
+  codeChar: { fontSize: 22, fontWeight: '700', color: colors.ink },
+  codeOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.011, color: 'transparent' },
   input: { flex: 1, fontSize: font.input, color: colors.ink, height: '100%', fontWeight: '500', padding: 0 },
   fieldError: { color: colors.danger, fontSize: font.small, marginTop: 5 },
   fieldHint: { color: colors.muted, fontSize: font.small, marginTop: 5 },

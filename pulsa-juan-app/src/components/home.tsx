@@ -94,7 +94,7 @@ export function AccountCard({ saldo, hutang, poin, commissionUnclaimed, saldoKom
         </View>
         <View style={styles.pillRow}>
           <PillAction icon="add-circle-outline" label="Top Up" onPress={() => router.push('/topup/amount')} />
-          <PillAction icon="time-outline" label="Riwayat" onPress={() => router.push('/topup/history')} />
+          <PillAction icon="time-outline" label="Riwayat" onPress={() => router.push('/saldo')} />
           <PillAction icon="gift-outline" label="Komisi" onPress={() => router.push('/komisi')} />
           <PillAction icon="people-outline" label="Mitra" onPress={() => router.push('/mitra')} />
         </View>

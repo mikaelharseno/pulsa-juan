@@ -17,6 +17,7 @@ router.put('/transactions/:id', c.putTransaction);
 
 router.get('/agents', c.getAgents);
 router.get('/agents/:id', c.getAgent);
+router.get('/agents/:id/ledger', c.getAgentLedger);
 router.put('/agents/:id', requireRole('OWNER', 'ADMIN'), c.putAgent);
 router.post('/agents/:id/adjust-saldo', requireRole('OWNER', 'ADMIN'), c.postAdjustSaldo);
 router.post('/agents/:id/hutang-payment', requireRole('OWNER'), c.postHutangPayment);

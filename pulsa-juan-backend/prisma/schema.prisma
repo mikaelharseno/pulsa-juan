@@ -38,6 +38,19 @@ enum TransactionStatus {
   PENDING
   SUCCESS
   FAILED
+  /// a SUCCESS order reversed by an admin; saldo credited back
+  REFUNDED
+}
+
+enum FulfillmentMode {
+  MANUAL
+  AUTO
+}
+
+enum OtpPurpose {
+  REGISTER
+  RESET_PIN
+  VERIFY_PHONE
 }
 
 enum LedgerType {
@@ -84,10 +97,23 @@ model AdminUser {
 model Agent {
   id           String      @id @default(cuid())
   name         String
-  email        String      @unique
-  phone        String?     @unique
+  phone        String      @unique
+  /// Nomor Induk Kependudukan (16 digits)
+  nik          String?     @unique
+  email        String?     @unique
   passwordHash String?
   googleSub    String?     @unique
+  /// bcrypt hash of the 6-digit PIN (app login)
+  pinHash           String?
+  pinFailedAttempts Int       @default(0)
+  pinLockedUntil    DateTime?
+  /// bcrypt hash of the last OTP sent to this phone (never plaintext)
+  confirmationCode          String?
+  confirmationCodeExpiresAt DateTime?
+  confirmationCodePurpose   OtpPurpose?
+  confirmationCodeAttempts  Int       @default(0)
+  confirmationCodeSentAt    DateTime?
+  phoneVerifiedAt           DateTime?
   avatarUrl    String?
   status       AgentStatus @default(ACTIVE)
   /// cached balance; SaldoLedger is the audit trail
@@ -102,6 +128,13 @@ model Agent {
   saldoKomisi  Decimal     @default(0) @db.Decimal(14, 2)
   /// markup applied to mitra who register with this agent's code
   referralMarkup Int       @default(0)
+  /// the agent whose referral code this agent registered with (level-1 upline)
+  referrerAgentId String?
+  referrer        Agent?   @relation("referral", fields: [referrerAgentId], references: [id])
+  referrals       Agent[]  @relation("referral")
+  /// referrer's referralMarkup, frozen when this agent joined (= level-1 commission per transaction)
+  referrerMarkup  Int      @default(0)
+  joinedAt     DateTime    @default(now())
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
@@ -111,14 +144,15 @@ model Agent {
   commissionsGenerated AgentMarkupCommision[] @relation("commissionSource")
 }
 
-model MitraConnection {
-  id                String   @id @default(cuid())
-  parentCommisionId String
-  childCommisionId  String   @unique
-  commisionAmount   Int
-  createdAt         DateTime @default(now())
-
-  @@index([parentCommisionId])
+/// OTP for a phone that has no Agent yet (registration). Existing agents keep
+/// theirs on Agent.confirmationCode*.
+model PhoneVerification {
+  phone       String     @id
+  codeHash    String
+  purpose     OtpPurpose
+  expiresAt   DateTime
+  attempts    Int        @default(0)
+  sentAt      DateTime   @default(now())
 }
 
 model AgentMarkupCommision {
@@ -270,8 +304,15 @@ model Transaction {
   markupTotal    Int               @default(0)
   total          Int
   status         TransactionStatus @default(PENDING)
+  fulfillmentMode FulfillmentMode  @default(MANUAL)
+  /// fulfilment provider name, e.g. "manual" / "otomax"
+  provider       String?
+  /// supplier-side reference (Otomax trx id etc.)
+  supplierRef    String?
   serialNumber   String?
   failReason     String?
+  refundReason   String?
+  refundedAt     DateTime?
   idempotencyKey String            @unique
   processedById  String?
   processedAt    DateTime?
@@ -282,6 +323,7 @@ model Transaction {
 
   @@index([agentId, createdAt])
   @@index([status, createdAt])
+  @@index([createdAt])
   @@index([phoneNumber])
 }
 

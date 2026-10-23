@@ -19,6 +19,10 @@ export const notFound = (message = 'Data tidak ditemukan') => new HttpError(404,
 export const conflict = (message: string, code?: string, extra?: Record<string, unknown>) =>
   new HttpError(409, message, code, extra);
 export const forbidden = (message = 'Tidak diizinkan') => new HttpError(403, message, 'FORBIDDEN');
+export const unauthorized = (message: string, code?: string, extra?: Record<string, unknown>) =>
+  new HttpError(401, message, code, extra);
+export const tooManyRequests = (message: string, code?: string, extra?: Record<string, unknown>) =>
+  new HttpError(429, message, code, extra);
 
 type Handler = (req: Request, res: Response, next: NextFunction) => Promise<unknown> | unknown;
 

@@ -6,3 +6,5 @@ export * from './kodeUnik';
 export * from './formatRp';
 export * from './seedTrees';
 export * from './icons';
+export * from './status';
+export * from './pin';

@@ -6,7 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
 
 import { post } from '../api/client';
-import { Session } from '../api/types';
+import { GoogleLoginResult } from '../api/types';
 import { colors, font, size } from '../theme';
 import { useAuth } from './useAuth';
 
@@ -16,16 +16,23 @@ const extra = (Constants.expoConfig?.extra ?? {}) as { googleWebClientId?: strin
 const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || extra.googleWebClientId || '';
 const androidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || extra.googleAndroidClientId || '';
 
-/** "Masuk dengan Google": id_token → POST /agent/auth/google. Hidden until client ids are configured. */
-export function GoogleButton(props: { referralCode?: string; onError: (m: string) => void }) {
+type Props = { onError: (m: string) => void; onNeedsPhone: () => void };
+
+/**
+ * "Masuk dengan Google": id_token → POST /agent/auth/google. A known account
+ * signs in; a new one is parked in useAuth.pendingGoogle and must verify a
+ * phone (register flow). Hidden until client ids are configured.
+ */
+export function GoogleButton(props: Props) {
   // The Google hook throws when its client id is missing, so only mount it once configured.
   const configured = Platform.OS === 'web' ? !!webClientId : !!(androidClientId || webClientId);
   if (!configured) return null;
   return <GoogleButtonInner {...props} />;
 }
 
-function GoogleButtonInner({ referralCode, onError }: { referralCode?: string; onError: (m: string) => void }) {
+function GoogleButtonInner({ onError, onNeedsPhone }: Props) {
   const signIn = useAuth((s) => s.signIn);
+  const setPendingGoogle = useAuth((s) => s.setPendingGoogle);
   const [busy, setBusy] = useState(false);
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     webClientId: webClientId || undefined,
@@ -40,8 +47,12 @@ function GoogleButtonInner({ referralCode, onError }: { referralCode?: string; o
     const idToken = response.params?.id_token;
     if (!idToken) return;
     setBusy(true);
-    post<Session>('/agent/auth/google', { idToken, referralCode: referralCode || undefined })
-      .then(signIn)
+    post<GoogleLoginResult>('/agent/auth/google', { idToken })
+      .then((r) => {
+        if (!r.needsPhone) return signIn(r);
+        setPendingGoogle({ googleTicket: r.googleTicket, name: r.profile.name, email: r.profile.email });
+        onNeedsPhone();
+      })
       .catch((e: Error) => onError(e.message))
       .finally(() => setBusy(false));
   }, [response]); // eslint-disable-line react-hooks/exhaustive-deps

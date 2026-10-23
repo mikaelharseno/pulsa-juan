@@ -33,7 +33,7 @@ export default function KomisiScreen() {
                 <Text style={{ fontSize: font.rowSub, color: colors.muted }}>
                   #{item.transaction.trxNumber} {item.transaction.segmentLabel} · {fmtDate(item.createdAt)}
                 </Text>
-                <StatusPill status={item.status === 'UNCLAIMED' ? (item.transaction.status === 'SUCCESS' ? 'SUCCESS' : 'PENDING') : item.status === 'CLAIMED' ? 'PAID' : 'FAILED'} />
+                <StatusPill status={item.status === 'UNCLAIMED' ? (item.transaction.status === 'SUCCESS' ? 'SUCCESS' : 'PENDING') : item.status === 'CLAIMED' ? 'PAID' : 'VOIDED'} />
               </View>
             </View>
           )}

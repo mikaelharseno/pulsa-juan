@@ -50,9 +50,18 @@ export const listSchema = z.object({
 });
 
 export const adminUpdateSchema = z.object({
-  status: z.enum(['SUCCESS', 'FAILED']),
+  status: z.enum(['SUCCESS', 'FAILED', 'REFUNDED']),
   serialNumber: z.string().trim().max(120).optional(),
   failReason: z.string().trim().max(200).optional(),
+  refundReason: z.string().trim().max(200).optional(),
+});
+
+export const adminListSchema = z.object({
+  status: z.string().optional(),
+  search: z.string().optional(),
+  agentId: z.string().optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  pageSize: z.coerce.number().int().min(1).max(200).optional(),
 });
 
 async function loadPublished(segmentId: string) {
@@ -85,7 +94,7 @@ export async function createTransaction(agent: Agent, input: z.infer<typeof crea
   }
 
   const steps = input.steps as unknown as FlowStep[];
-  const [packages, prefixes, markup] = await Promise.all([packagesForTree(tree), getPrefixEntries(), resolveMarkup(agent.commisionUniqueId)]);
+  const [packages, prefixes, markup] = await Promise.all([packagesForTree(tree), getPrefixEntries(), resolveMarkup(agent.id)]);
   const ctx = { packages, prefixes };
 
   const walk = walkPath(tree, steps, ctx);
@@ -107,6 +116,7 @@ export async function createTransaction(agent: Agent, input: z.infer<typeof crea
   const phoneStep = [...steps].reverse().find((s) => s.type === 'PhoneNumberInput');
   const phoneNumber = phoneStep && phoneStep.type === 'PhoneNumberInput' ? normalizeIndonesianMobile(phoneStep.phoneNumber) : null;
   const customerId = collectedCustomerId(steps);
+  const provider = getFulfillmentProvider();
 
   const transaction = await prisma.$transaction(async (tx) => {
     const trx = await tx.transaction.create({
@@ -125,6 +135,8 @@ export async function createTransaction(agent: Agent, input: z.infer<typeof crea
         markupTotal: price.markupTotal,
         total: price.total,
         idempotencyKey: input.idempotencyKey,
+        provider: provider.name,
+        fulfillmentMode: provider.mode,
       },
     });
     await debitSaldo(tx, agent.id, price.total, 'PURCHASE', trx.id, `${segment.label} #${trx.trxNumber}`);
@@ -142,13 +154,16 @@ export async function createTransaction(agent: Agent, input: z.infer<typeof crea
 
   // fulfilment (v1 manual → stays PENDING)
   try {
-    const outcome = await getFulfillmentProvider().purchase({
+    const outcome = await provider.purchase({
       id: transaction.id,
       packageId: transaction.packageId,
       customerId,
       phoneNumber,
       total: transaction.total,
     });
+    if (outcome.supplierRef) {
+      await prisma.transaction.update({ where: { id: transaction.id }, data: { supplierRef: outcome.supplierRef } });
+    }
     if (outcome.status !== 'PENDING') {
       const settled = await settleTransaction(transaction.id, outcome.status === 'SUCCESS'
         ? { status: 'SUCCESS', serialNumber: outcome.serialNumber }
@@ -161,12 +176,17 @@ export async function createTransaction(agent: Agent, input: z.infer<typeof crea
   return { transaction, reused: false };
 }
 
-/** PENDING → SUCCESS/FAILED exactly once; FAILED refunds saldo and voids unclaimed commissions. */
-export async function settleTransaction(
-  id: string,
-  input: { status: 'SUCCESS' | 'FAILED'; serialNumber?: string; failReason?: string },
-  adminId: string | null,
-) {
+export type SettleInput =
+  | { status: 'SUCCESS'; serialNumber?: string }
+  | { status: 'FAILED'; failReason?: string }
+  | { status: 'REFUNDED'; refundReason?: string };
+
+/**
+ * Status machine: PENDING → SUCCESS | FAILED, SUCCESS → REFUNDED, each exactly once.
+ * FAILED and REFUNDED credit the saldo back and void unclaimed commissions.
+ */
+export async function settleTransaction(id: string, input: SettleInput, adminId: string | null) {
+  if (input.status === 'REFUNDED') return refundTransaction(id, input.refundReason, adminId);
   const trx = await prisma.transaction.findUnique({ where: { id } });
   if (!trx) throw notFound('Transaksi tidak ditemukan');
   const settled = await prisma.$transaction(async (tx) => {
@@ -174,8 +194,8 @@ export async function settleTransaction(
       where: { id, status: 'PENDING' },
       data: {
         status: input.status,
-        serialNumber: input.serialNumber ?? null,
-        failReason: input.failReason ?? null,
+        serialNumber: input.status === 'SUCCESS' ? input.serialNumber ?? null : null,
+        failReason: input.status === 'FAILED' ? input.failReason ?? null : null,
         processedById: adminId,
         processedAt: new Date(),
       },
@@ -189,6 +209,46 @@ export async function settleTransaction(
   });
   if (adminId) await audit(adminId, `TRANSACTION_${input.status}`, 'Transaction', id, input);
   return settled;
+}
+
+/**
+ * SUCCESS → REFUNDED (delivered but disputed/reversed by the supplier). The
+ * agent gets the full total back. Unclaimed commissions are voided; commissions
+ * already claimed are clawed back from the beneficiary's saldo, and whatever the
+ * saldo cannot cover is added to their hutang.
+ */
+async function refundTransaction(id: string, refundReason: string | undefined, adminId: string | null) {
+  const trx = await prisma.transaction.findUnique({ where: { id } });
+  if (!trx) throw notFound('Transaksi tidak ditemukan');
+  const refunded = await prisma.$transaction(async (tx) => {
+    const res = await tx.transaction.updateMany({
+      where: { id, status: 'SUCCESS' },
+      data: { status: 'REFUNDED', refundReason: refundReason ?? null, refundedAt: new Date(), processedById: adminId },
+    });
+    if (res.count === 0) throw conflict('Hanya transaksi sukses yang bisa direfund');
+    await creditSaldo(tx, trx.agentId, trx.total, 'REFUND', id, `Refund ${trx.segmentLabel} #${trx.trxNumber}`);
+    await tx.agentMarkupCommision.updateMany({ where: { transactionId: id, status: 'UNCLAIMED' }, data: { status: 'VOIDED' } });
+
+    const claimed = await tx.agentMarkupCommision.findMany({ where: { transactionId: id, status: 'CLAIMED' } });
+    for (const c of claimed) {
+      const beneficiary = await tx.agent.findUnique({ where: { commisionUniqueId: c.beneficiaryCommisionId } });
+      await tx.agentMarkupCommision.update({ where: { id: c.id }, data: { status: 'VOIDED' } });
+      if (!beneficiary) continue;
+      const fromSaldo = Math.min(c.amount, Math.floor(Number(beneficiary.saldo)));
+      const note = `Tarik komisi refund #${trx.trxNumber}`;
+      if (fromSaldo > 0) await debitSaldo(tx, beneficiary.id, fromSaldo, 'ADJUSTMENT', id, note);
+      await tx.agent.update({
+        where: { id: beneficiary.id },
+        data: {
+          saldoKomisi: { decrement: c.amount },
+          ...(c.amount > fromSaldo ? { hutang: { increment: c.amount - fromSaldo } } : {}),
+        },
+      });
+    }
+    return tx.transaction.findUniqueOrThrow({ where: { id } });
+  });
+  if (adminId) await audit(adminId, 'TRANSACTION_REFUNDED', 'Transaction', id, { refundReason });
+  return refunded;
 }
 
 function dayRange(from?: string, to?: string) {
@@ -249,26 +309,29 @@ export async function rekap(agentId: string, from?: string, to?: string) {
   };
 }
 
-export async function adminList(q: { status?: string; search?: string; page?: number; pageSize?: number }) {
+/** Admin order log: newest first, all statuses unless filtered. */
+export async function adminList(q: z.infer<typeof adminListSchema>) {
   const page = q.page ?? 1;
   const pageSize = Math.min(q.pageSize ?? 50, 200);
   const where: Prisma.TransactionWhereInput = {};
   if (q.status && q.status !== 'ALL') where.status = q.status as TransactionStatus;
-  else if (!q.status) where.status = 'PENDING';
+  if (q.agentId) where.agentId = q.agentId;
   if (q.search) {
     const n = Number(q.search);
     where.OR = [
       { phoneNumber: { contains: q.search } },
       { customerId: { contains: q.search } },
       { agent: { name: { contains: q.search, mode: 'insensitive' } } },
-      ...(Number.isInteger(n) ? [{ trxNumber: n }] : []),
+      { agent: { phone: { contains: q.search } } },
+      { serialNumber: { contains: q.search } },
+      ...(Number.isInteger(n) && n > 0 && n < 2 ** 31 ? [{ trxNumber: n }] : []),
     ];
   }
   const [total, transactions] = await Promise.all([
     prisma.transaction.count({ where }),
     prisma.transaction.findMany({
       where,
-      orderBy: { createdAt: where.status === 'PENDING' ? 'asc' : 'desc' },
+      orderBy: { createdAt: 'desc' },
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: { agent: { select: { id: true, name: true, phone: true } }, package: { select: { code: true, name: true, supplierSku: true } } },

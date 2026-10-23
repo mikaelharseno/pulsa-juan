@@ -65,8 +65,8 @@ export default function ProfilScreen() {
             </View>
             <View style={{ flex: 1, marginLeft: 12 }}>
               <Text style={styles.idName} numberOfLines={1}>{a.name}</Text>
-              <Text style={styles.idMeta} numberOfLines={1}>{a.email}</Text>
-              <Text style={styles.idMeta} numberOfLines={1}>{a.phone ?? 'Nomor HP belum diisi'}</Text>
+              <Text style={styles.idMeta} numberOfLines={1}>{a.phone}{a.email ? ` · ${a.email}` : ''}</Text>
+              <Text style={styles.idMeta} numberOfLines={1}>{a.nik ? `NIK ${a.nik}` : 'NIK belum diisi'}</Text>
             </View>
             <View style={styles.codePill}>
               <Text style={styles.codePillLabel}>KODE</Text>
@@ -82,7 +82,7 @@ export default function ProfilScreen() {
             <View style={styles.pillRow}>
               <PillAction icon="create-outline" label="Ubah profil" onPress={() => router.push('/mitra?edit=1')} />
               <PillAction icon="people-outline" label="Mitra" onPress={() => router.push('/mitra')} />
-              <PillAction icon="time-outline" label="Top up" onPress={() => router.push('/topup/history')} />
+              <PillAction icon="time-outline" label="Riwayat saldo" onPress={() => router.push('/saldo')} />
             </View>
           </View>
         </Card>
@@ -113,8 +113,10 @@ export default function ProfilScreen() {
         <Card style={{ padding: 0, overflow: 'hidden', marginBottom: 12 }}>
           <SectionBand>Akun</SectionBand>
           <MenuRow icon="people-outline" label="Mitra & kode referral" sub={`Bagikan kode ${a.commisionUniqueId}, markup ${formatRp(a.referralMarkup)}/trx`} onPress={() => router.push('/mitra')} />
+          <MenuRow icon="swap-vertical-outline" label="Riwayat saldo" sub="Semua saldo masuk & keluar" onPress={() => router.push('/saldo')} />
           <MenuRow icon="wallet-outline" label="Riwayat top up saldo" onPress={() => router.push('/topup/history')} />
-          <MenuRow icon="create-outline" label="Ubah profil" onPress={() => router.push('/mitra?edit=1')} last />
+          <MenuRow icon="keypad-outline" label={a.hasPin ? 'Ubah PIN' : 'Buat PIN'} onPress={() => router.push('/pin')} />
+          <MenuRow icon="create-outline" label="Ubah profil" sub="Nama, NIK, nomor HP" onPress={() => router.push('/mitra?edit=1')} last />
         </Card>
 
         <Button title="Keluar" variant="ghost" icon="log-out-outline" onPress={() => signOut()} style={{ borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.card }} />

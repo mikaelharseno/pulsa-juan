@@ -1,4 +1,5 @@
 import { LedgerType, Prisma } from '../../prisma/generated';
+import { prisma } from '../../prisma/client';
 import { badRequest } from '../lib/errors';
 
 type Tx = Prisma.TransactionClient;
@@ -32,4 +33,18 @@ export async function creditSaldo(tx: Tx, agentId: string, amount: number, type:
     data: { agentId, type, delta: amount, balanceAfter: agent.saldo, referenceId, note },
   });
   return Number(agent.saldo);
+}
+
+/** Saldo mutations, newest first (agent "Riwayat Saldo" + admin detail tab). */
+export async function listLedger(agentId: string, page = 1, pageSize = 30) {
+  const [total, entries] = await Promise.all([
+    prisma.saldoLedger.count({ where: { agentId } }),
+    prisma.saldoLedger.findMany({ where: { agentId }, orderBy: { createdAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize }),
+  ]);
+  return {
+    total,
+    page,
+    pageSize,
+    entries: entries.map((e) => ({ ...e, delta: Number(e.delta), balanceAfter: Number(e.balanceAfter) })),
+  };
 }

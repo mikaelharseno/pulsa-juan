@@ -9,7 +9,7 @@ export { app, prisma, request };
 /** Wipes every table and re-seeds. */
 export async function resetDb() {
   await prisma.$executeRawUnsafe(`
-    TRUNCATE TABLE "AdminAuditLog","AgentMarkupCommision","SaldoLedger","Transaction","TopUpOrder","MitraConnection",
+    TRUNCATE TABLE "AdminAuditLog","AgentMarkupCommision","SaldoLedger","Transaction","TopUpOrder","PhoneVerification",
     "Agent","AdminUser","SegmentTreeVersion","Segment","Package","ProviderPrefix","StoreConfig" RESTART IDENTITY CASCADE
   `);
   await seed();
@@ -32,14 +32,27 @@ export async function adminToken(role: 'OWNER' | 'ADMIN' | 'STAFF' = 'OWNER') {
   return res.body.token as string;
 }
 
+export const TEST_PIN = '482915';
+
+/** OTP request → verify (OTP_DEBUG returns the code) → otpTicket. */
+export async function otpTicket(phone: string, purpose: 'REGISTER' | 'RESET_PIN' | 'VERIFY_PHONE' = 'REGISTER') {
+  const sent = await request(app).post('/api/agent/auth/otp/request').send({ phone, purpose });
+  if (sent.status !== 200) throw new Error('otp request failed: ' + JSON.stringify(sent.body));
+  const verified = await request(app).post('/api/agent/auth/otp/verify').send({ phone, purpose, code: sent.body.debugCode });
+  if (verified.status !== 200) throw new Error('otp verify failed: ' + JSON.stringify(verified.body));
+  return verified.body.otpTicket as string;
+}
+
 let phoneSeq = 1000;
+export const nextPhone = () => `0812${String(++phoneSeq).padStart(8, '0')}`;
+
 export async function registerAgent(name: string, referralCode?: string) {
-  phoneSeq++;
+  const phone = nextPhone();
   const res = await request(app)
     .post('/api/agent/auth/register')
-    .send({ name, email: `${name.toLowerCase()}${phoneSeq}@test.local`, phone: `0812${String(phoneSeq).padStart(8, '0')}`, password: 'secret123', referralCode });
+    .send({ otpTicket: await otpTicket(phone), name, pin: TEST_PIN, email: `${name.toLowerCase()}${phoneSeq}@test.local`, password: 'secret123', referralCode });
   if (res.status !== 201) throw new Error('register failed: ' + JSON.stringify(res.body));
-  return { token: res.body.token as string, agent: res.body.agent as { id: string; commisionUniqueId: string } };
+  return { token: res.body.token as string, phone, agent: res.body.agent as { id: string; commisionUniqueId: string } };
 }
 
 export async function giveSaldo(agentId: string, amount: number) {

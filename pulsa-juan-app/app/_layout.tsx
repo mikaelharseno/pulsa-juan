@@ -34,6 +34,8 @@ export default function RootLayout() {
             <Stack.Screen name="transaction" />
             <Stack.Screen name="mitra" />
             <Stack.Screen name="komisi" />
+            <Stack.Screen name="saldo" />
+            <Stack.Screen name="pin" />
           </Stack.Protected>
           <Stack.Protected guard={!signedIn}>
             <Stack.Screen name="(auth)" />

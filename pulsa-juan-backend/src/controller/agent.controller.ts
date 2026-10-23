@@ -7,19 +7,27 @@ import { toPlain } from '../lib/serialize';
 import { parse } from '../lib/validate';
 import {
   agentProfile,
+  changePin,
   googleLogin,
   googleSchema,
   loginAgent,
   loginSchema,
+  loginWithPin,
+  pinChangeSchema,
+  pinLoginSchema,
+  pinResetSchema,
   profileUpdateSchema,
   registerAgent,
   registerSchema,
+  resetPin,
   updateProfile,
 } from '../service/agentAuth.service';
 import { claimCommissions, commissionSummary } from '../service/commission.service';
 import { getConfig, publicConfig } from '../service/config.service';
+import { otpRequestSchema, otpVerifySchema, requestOtp, verifyOtp } from '../service/otp/otp.service';
 import { getPrefixEntries } from '../service/prefix.service';
 import { mitraOverview } from '../service/referral.service';
+import { listLedger } from '../service/saldo.service';
 import { listSegmentsForAgent, treeForAgent } from '../service/segment.service';
 import * as topup from '../service/topup.service';
 import * as trx from '../service/transaction.service';
@@ -37,6 +45,31 @@ export const postLogin = asyncHandler(async (req: Request, res: Response) => {
 
 export const postGoogle = asyncHandler(async (req: Request, res: Response) => {
   res.json(await googleLogin(parse(googleSchema, req.body)));
+});
+
+export const postOtpRequest = asyncHandler(async (req: Request, res: Response) => {
+  res.json(await requestOtp(parse(otpRequestSchema, req.body)));
+});
+
+export const postOtpVerify = asyncHandler(async (req: Request, res: Response) => {
+  res.json(await verifyOtp(parse(otpVerifySchema, req.body)));
+});
+
+export const postPinLogin = asyncHandler(async (req: Request, res: Response) => {
+  res.json(await loginWithPin(parse(pinLoginSchema, req.body)));
+});
+
+export const postPinReset = asyncHandler(async (req: Request, res: Response) => {
+  res.json(await resetPin(parse(pinResetSchema, req.body)));
+});
+
+export const putPin = asyncHandler(async (req: Request, res: Response) => {
+  res.json(await changePin(req.agent!, parse(pinChangeSchema, req.body)));
+});
+
+export const getLedger = asyncHandler(async (req: Request, res: Response) => {
+  const q = parse(z.object({ page: z.coerce.number().int().min(1).optional(), pageSize: z.coerce.number().int().min(1).max(100).optional() }), req.query);
+  res.json(await listLedger(req.agent!.id, q.page, q.pageSize));
 });
 
 export const getMe = asyncHandler(async (req: Request, res: Response) => {

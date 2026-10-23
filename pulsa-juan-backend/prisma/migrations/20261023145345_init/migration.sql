@@ -11,7 +11,13 @@ CREATE TYPE "AgentStatus" AS ENUM ('ACTIVE', 'DISABLED');
 CREATE TYPE "TopUpStatus" AS ENUM ('PENDING', 'CLAIMED', 'PAID', 'REJECTED', 'EXPIRED');
 
 -- CreateEnum
-CREATE TYPE "TransactionStatus" AS ENUM ('PENDING', 'SUCCESS', 'FAILED');
+CREATE TYPE "TransactionStatus" AS ENUM ('PENDING', 'SUCCESS', 'FAILED', 'REFUNDED');
+
+-- CreateEnum
+CREATE TYPE "FulfillmentMode" AS ENUM ('MANUAL', 'AUTO');
+
+-- CreateEnum
+CREATE TYPE "OtpPurpose" AS ENUM ('REGISTER', 'RESET_PIN', 'VERIFY_PHONE');
 
 -- CreateEnum
 CREATE TYPE "LedgerType" AS ENUM ('TOPUP', 'PURCHASE', 'REFUND', 'ADJUSTMENT', 'COMMISSION');
@@ -43,10 +49,20 @@ CREATE TABLE "AdminUser" (
 CREATE TABLE "Agent" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "email" TEXT NOT NULL,
-    "phone" TEXT,
+    "phone" TEXT NOT NULL,
+    "nik" TEXT,
+    "email" TEXT,
     "passwordHash" TEXT,
     "googleSub" TEXT,
+    "pinHash" TEXT,
+    "pinFailedAttempts" INTEGER NOT NULL DEFAULT 0,
+    "pinLockedUntil" TIMESTAMP(3),
+    "confirmationCode" TEXT,
+    "confirmationCodeExpiresAt" TIMESTAMP(3),
+    "confirmationCodePurpose" "OtpPurpose",
+    "confirmationCodeAttempts" INTEGER NOT NULL DEFAULT 0,
+    "confirmationCodeSentAt" TIMESTAMP(3),
+    "phoneVerifiedAt" TIMESTAMP(3),
     "avatarUrl" TEXT,
     "status" "AgentStatus" NOT NULL DEFAULT 'ACTIVE',
     "saldo" DECIMAL(14,2) NOT NULL DEFAULT 0,
@@ -55,6 +71,9 @@ CREATE TABLE "Agent" (
     "commisionUniqueId" TEXT NOT NULL,
     "saldoKomisi" DECIMAL(14,2) NOT NULL DEFAULT 0,
     "referralMarkup" INTEGER NOT NULL DEFAULT 0,
+    "referrerAgentId" TEXT,
+    "referrerMarkup" INTEGER NOT NULL DEFAULT 0,
+    "joinedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -62,14 +81,15 @@ CREATE TABLE "Agent" (
 );
 
 -- CreateTable
-CREATE TABLE "MitraConnection" (
-    "id" TEXT NOT NULL,
-    "parentCommisionId" TEXT NOT NULL,
-    "childCommisionId" TEXT NOT NULL,
-    "commisionAmount" INTEGER NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+CREATE TABLE "PhoneVerification" (
+    "phone" TEXT NOT NULL,
+    "codeHash" TEXT NOT NULL,
+    "purpose" "OtpPurpose" NOT NULL,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "attempts" INTEGER NOT NULL DEFAULT 0,
+    "sentAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "MitraConnection_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "PhoneVerification_pkey" PRIMARY KEY ("phone")
 );
 
 -- CreateTable
@@ -205,8 +225,13 @@ CREATE TABLE "Transaction" (
     "markupTotal" INTEGER NOT NULL DEFAULT 0,
     "total" INTEGER NOT NULL,
     "status" "TransactionStatus" NOT NULL DEFAULT 'PENDING',
+    "fulfillmentMode" "FulfillmentMode" NOT NULL DEFAULT 'MANUAL',
+    "provider" TEXT,
+    "supplierRef" TEXT,
     "serialNumber" TEXT,
     "failReason" TEXT,
+    "refundReason" TEXT,
+    "refundedAt" TIMESTAMP(3),
     "idempotencyKey" TEXT NOT NULL,
     "processedById" TEXT,
     "processedAt" TIMESTAMP(3),
@@ -253,22 +278,19 @@ CREATE TABLE "AdminAuditLog" (
 CREATE UNIQUE INDEX "AdminUser_email_key" ON "AdminUser"("email");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Agent_email_key" ON "Agent"("email");
+CREATE UNIQUE INDEX "Agent_phone_key" ON "Agent"("phone");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Agent_phone_key" ON "Agent"("phone");
+CREATE UNIQUE INDEX "Agent_nik_key" ON "Agent"("nik");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Agent_email_key" ON "Agent"("email");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Agent_googleSub_key" ON "Agent"("googleSub");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Agent_commisionUniqueId_key" ON "Agent"("commisionUniqueId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "MitraConnection_childCommisionId_key" ON "MitraConnection"("childCommisionId");
-
--- CreateIndex
-CREATE INDEX "MitraConnection_parentCommisionId_idx" ON "MitraConnection"("parentCommisionId");
 
 -- CreateIndex
 CREATE INDEX "AgentMarkupCommision_beneficiaryCommisionId_status_idx" ON "AgentMarkupCommision"("beneficiaryCommisionId", "status");
@@ -319,10 +341,16 @@ CREATE INDEX "Transaction_agentId_createdAt_idx" ON "Transaction"("agentId", "cr
 CREATE INDEX "Transaction_status_createdAt_idx" ON "Transaction"("status", "createdAt");
 
 -- CreateIndex
+CREATE INDEX "Transaction_createdAt_idx" ON "Transaction"("createdAt");
+
+-- CreateIndex
 CREATE INDEX "Transaction_phoneNumber_idx" ON "Transaction"("phoneNumber");
 
 -- CreateIndex
 CREATE INDEX "AdminAuditLog_targetType_targetId_idx" ON "AdminAuditLog"("targetType", "targetId");
+
+-- AddForeignKey
+ALTER TABLE "Agent" ADD CONSTRAINT "Agent_referrerAgentId_fkey" FOREIGN KEY ("referrerAgentId") REFERENCES "Agent"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "AgentMarkupCommision" ADD CONSTRAINT "AgentMarkupCommision_transactionId_fkey" FOREIGN KEY ("transactionId") REFERENCES "Transaction"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

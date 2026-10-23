@@ -1,7 +1,7 @@
 import { FlowStep, PackagePublic } from 'pulsa-juan-common';
 
 import { setGoogleVerifier } from '../src/service/agentAuth.service';
-import { adminToken, app, auth, giveSaldo, prisma, registerAgent, request, resetDb } from './helpers';
+import { adminToken, app, auth, giveSaldo, nextPhone, otpTicket, prisma, registerAgent, request, resetDb, TEST_PIN } from './helpers';
 
 beforeAll(async () => {
   await resetDb();
@@ -197,26 +197,119 @@ describe('referral commissions (A → B → C → D)', () => {
     // B's upline is now E, and B still pays 500 for A's old link
     expect((await request(app).get('/api/agent/me').set(auth(B.token))).body.markupTotal).toBe(500);
 
-    // self-referral / unknown code
-    const bad = await request(app).post('/api/agent/auth/register').send({ name: 'X', email: 'x@test.local', phone: '081299999999', password: 'secret123', referralCode: 'NOPE1234' });
+    // unknown referral code
+    const bad = await request(app).post('/api/agent/auth/register').send({ otpTicket: await otpTicket(nextPhone()), name: 'X', pin: TEST_PIN, referralCode: 'NOPE1234' });
     expect(bad.status).toBe(400);
   });
 });
 
 describe('google login', () => {
-  it('creates then reuses the agent, honours referral on first login', async () => {
+  it('unknown account must verify a phone first, then reuses the agent', async () => {
     const A = await registerAgent('Ref');
     setGoogleVerifier(async (idToken) => ({ sub: 'sub-' + idToken, email: `${idToken}@gmail.com`, name: 'G User', picture: undefined }));
-    const first = await request(app).post('/api/agent/auth/google').send({ idToken: 'google-token-1', referralCode: A.agent.commisionUniqueId });
+    const first = await request(app).post('/api/agent/auth/google').send({ idToken: 'google-token-1' });
     expect(first.status).toBe(200);
-    expect(first.body.created).toBe(true);
-    expect(first.body.agent.phone).toBeNull();
+    expect(first.body.needsPhone).toBe(true);
+    expect(first.body.token).toBeUndefined();
+
+    const phone = '+62 813-0000-1111';
+    const reg = await request(app)
+      .post('/api/agent/auth/register')
+      .send({ otpTicket: await otpTicket(phone), googleTicket: first.body.googleTicket, name: 'G User', pin: TEST_PIN, referralCode: A.agent.commisionUniqueId });
+    expect(reg.status).toBe(201);
+    expect(reg.body.agent.phone).toBe('081300001111');
+    expect(reg.body.agent.email).toBe('google-token-1@gmail.com');
+    expect(reg.body.agent.googleLinked).toBe(true);
+
     const second = await request(app).post('/api/agent/auth/google').send({ idToken: 'google-token-1' });
-    expect(second.body.created).toBe(false);
-    expect(second.body.agent.id).toBe(first.body.agent.id);
+    expect(second.body.needsPhone).toBe(false);
+    expect(second.body.agent.id).toBe(reg.body.agent.id);
     const mitra = await request(app).get('/api/agent/mitra').set(auth(A.token));
     expect(mitra.body.children).toHaveLength(1);
-    const me = await request(app).put('/api/agent/me').set(auth(first.body.token)).send({ phone: '+62 813-0000-1111' });
-    expect(me.body.phone).toBe('081300001111');
+  });
+});
+
+describe('refunds and admin order log', () => {
+  it('SUCCESS → REFUNDED credits back and claws back claimed commissions', async () => {
+    const admin = await adminToken();
+    const A = await registerAgent('RefA');
+    await request(app).put('/api/agent/me').set(auth(A.token)).send({ referralMarkup: 300 });
+    const B = await registerAgent('RefB', A.agent.commisionUniqueId);
+    await giveSaldo(B.agent.id, 100000);
+    const b = await pulsaXl(B.token);
+    const total = b.pkg.hargaAgen + 300;
+    const trx = await request(app).post('/api/agent/transactions').set(auth(B.token)).send({ segmentId: b.segmentId, treeVersion: 1, steps: b.steps, clientTotal: total, idempotencyKey: idem() });
+    const id = trx.body.transaction.id;
+    expect(trx.body.transaction.provider).toBe('manual');
+    expect(trx.body.transaction.fulfillmentMode).toBe('MANUAL');
+
+    // only SUCCESS can be refunded
+    expect((await request(app).put(`/api/admin/transactions/${id}`).set(auth(admin)).send({ status: 'REFUNDED' })).status).toBe(409);
+    await request(app).put(`/api/admin/transactions/${id}`).set(auth(admin)).send({ status: 'SUCCESS', serialNumber: 'SN9' });
+    expect((await request(app).post('/api/agent/commissions/claim').set(auth(A.token))).body.claimed).toBe(300);
+    // A spends most of it so the clawback has to dip into hutang
+    await request(app).post(`/api/admin/agents/${A.agent.id}/adjust-saldo`).set(auth(admin)).send({ delta: -200, note: 'spent' });
+
+    const refunded = await request(app).put(`/api/admin/transactions/${id}`).set(auth(admin)).send({ status: 'REFUNDED', refundReason: 'komplain' });
+    expect(refunded.status).toBe(200);
+    expect(refunded.body.status).toBe('REFUNDED');
+    expect(refunded.body.refundReason).toBe('komplain');
+    expect((await request(app).get('/api/agent/me').set(auth(B.token))).body.saldo).toBe(100000);
+    const aMe = (await request(app).get('/api/agent/me').set(auth(A.token))).body;
+    expect(aMe.saldo).toBe(0);
+    expect(aMe.hutang).toBe(200);
+    expect(aMe.saldoKomisi).toBe(0);
+    const comm = await prisma.agentMarkupCommision.findMany({ where: { transactionId: id } });
+    expect(comm.every((c) => c.status === 'VOIDED')).toBe(true);
+
+    // terminal states
+    for (const status of ['SUCCESS', 'FAILED', 'REFUNDED']) {
+      expect((await request(app).put(`/api/admin/transactions/${id}`).set(auth(admin)).send({ status })).status).toBe(409);
+    }
+
+    const ledger = await request(app).get('/api/agent/ledger').set(auth(B.token));
+    expect(ledger.body.entries.map((e: { type: string }) => e.type)).toEqual(['REFUND', 'PURCHASE', 'ADJUSTMENT']);
+    expect(ledger.body.entries[0].balanceAfter).toBe(100000);
+  });
+
+  it('admin list is newest first across statuses and filters by agent', async () => {
+    const admin = await adminToken();
+    const X = await registerAgent('ListX');
+    await giveSaldo(X.agent.id, 100000);
+    const x = await pulsaXl(X.token);
+    const ids: string[] = [];
+    for (let i = 0; i < 2; i++) {
+      const r = await request(app).post('/api/agent/transactions').set(auth(X.token)).send({ segmentId: x.segmentId, treeVersion: 1, steps: x.steps, clientTotal: x.pkg.hargaAgen, idempotencyKey: idem() });
+      ids.push(r.body.transaction.id);
+    }
+    await request(app).put(`/api/admin/transactions/${ids[0]}`).set(auth(admin)).send({ status: 'SUCCESS' });
+
+    const all = await request(app).get('/api/admin/transactions').set(auth(admin));
+    const times = all.body.transactions.map((t: { createdAt: string }) => t.createdAt);
+    expect([...times].sort().reverse()).toEqual(times);
+    expect(new Set(all.body.transactions.map((t: { status: string }) => t.status)).size).toBeGreaterThan(1);
+
+    const mine = await request(app).get('/api/admin/transactions').query({ agentId: X.agent.id }).set(auth(admin));
+    expect(mine.body.transactions.map((t: { id: string }) => t.id)).toEqual([ids[1], ids[0]]);
+    const pending = await request(app).get('/api/admin/transactions').query({ agentId: X.agent.id, status: 'PENDING' }).set(auth(admin));
+    expect(pending.body.transactions.map((t: { id: string }) => t.id)).toEqual([ids[1]]);
+  });
+
+  it('supplier callback settles with the shared secret', async () => {
+    const X = await registerAgent('Cb');
+    await giveSaldo(X.agent.id, 50000);
+    const x = await pulsaXl(X.token);
+    const r = await request(app).post('/api/agent/transactions').set(auth(X.token)).send({ segmentId: x.segmentId, treeVersion: 1, steps: x.steps, clientTotal: x.pkg.hargaAgen, idempotencyKey: idem() });
+    const body = { transactionId: r.body.transaction.id, status: 'SUCCESS', serialNumber: 'SN-CB', supplierRef: 'OTX-1' };
+    expect((await request(app).post('/api/fulfillment/callback/manual').send(body)).status).toBe(503);
+    process.env.FULFILLMENT_CALLBACK_SECRET = 'cb-secret';
+    expect((await request(app).post('/api/fulfillment/callback/manual').set('X-Callback-Secret', 'nope').send(body)).status).toBe(401);
+    expect((await request(app).post('/api/fulfillment/callback/otomax').set('X-Callback-Secret', 'cb-secret').send(body)).status).toBe(404);
+    const ok = await request(app).post('/api/fulfillment/callback/manual').set('X-Callback-Secret', 'cb-secret').send(body);
+    expect(ok.body).toEqual({ ok: true, status: 'SUCCESS' });
+    const row = await prisma.transaction.findUniqueOrThrow({ where: { id: body.transactionId } });
+    expect(row.serialNumber).toBe('SN-CB');
+    expect(row.supplierRef).toBe('OTX-1');
+    delete process.env.FULFILLMENT_CALLBACK_SECRET;
   });
 });

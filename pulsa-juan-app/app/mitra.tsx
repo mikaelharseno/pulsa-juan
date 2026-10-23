@@ -1,11 +1,12 @@
 import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams } from 'expo-router';
-import { formatRp } from 'pulsa-juan-common';
+import { formatRp, isValidNik } from 'pulsa-juan-common';
 import React, { useEffect, useState } from 'react';
 import { Platform, ScrollView, Share, Text, View } from 'react-native';
 
 import { API_BASE } from '../src/api/client';
 import { useHome, useMe, useMitra, useUpdateProfile } from '../src/api/hooks';
+import { OtpStep } from '../src/auth/OtpStep';
 import { Button, Card, ErrorView, Field, KeyValue, Loading, Screen, SectionTitle } from '../src/components/ui';
 import { colors, font } from '../src/theme';
 import { fmtDate } from './(tabs)/transaksi';
@@ -16,10 +17,11 @@ export default function MitraScreen() {
   const home = useHome();
   const mitra = useMitra();
   const update = useUpdateProfile();
-  const [form, setForm] = useState({ name: '', phone: '', referralMarkup: '' });
+  const [form, setForm] = useState({ name: '', nik: '', referralMarkup: '' });
+  const [changingPhone, setChangingPhone] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   useEffect(() => {
-    if (me.data) setForm({ name: me.data.name, phone: me.data.phone ?? '', referralMarkup: String(me.data.referralMarkup) });
+    if (me.data) setForm({ name: me.data.name, nik: me.data.nik ?? '', referralMarkup: String(me.data.referralMarkup) });
   }, [me.data]);
 
   if (me.isLoading || mitra.isLoading) return <Screen title="Mitra"><Loading /></Screen>;
@@ -34,10 +36,16 @@ export default function MitraScreen() {
       else await Clipboard.setStringAsync(shareText);
     } else await Share.share({ message: shareText });
   };
+  const nikError = form.nik && !isValidNik(form.nik) ? 'NIK harus 16 angka' : null;
   const save = () =>
     update.mutate(
-      { name: form.name, phone: form.phone || undefined, referralMarkup: Number(form.referralMarkup) || 0 },
+      { name: form.name, nik: form.nik && form.nik !== a.nik ? form.nik : undefined, referralMarkup: Number(form.referralMarkup) || 0 },
       { onSuccess: () => setMsg('Tersimpan'), onError: (e) => setMsg((e as Error).message) },
+    );
+  const changePhone = (phoneOtpTicket: string) =>
+    update.mutate(
+      { phoneOtpTicket },
+      { onSuccess: () => { setChangingPhone(false); setMsg('Nomor HP diperbarui'); }, onError: (e) => setMsg((e as Error).message) },
     );
 
   return (
@@ -58,7 +66,7 @@ export default function MitraScreen() {
         <Card style={{ marginBottom: 12 }}>
           <SectionTitle>{edit ? 'Ubah profil' : 'Pengaturan'}</SectionTitle>
           <Field label="Nama" value={form.name} onChangeText={(v) => setForm({ ...form, name: v })} />
-          <Field label="Nomor HP" value={form.phone} onChangeText={(v) => setForm({ ...form, phone: v })} keyboardType="phone-pad" placeholder="08xx" />
+          <Field label="NIK" value={form.nik} onChangeText={(v) => setForm({ ...form, nik: v.replace(/\D/g, '').slice(0, 16) })} keyboardType="number-pad" placeholder="16 angka sesuai KTP" error={nikError} />
           <Field
             label="Markup untuk mitra baru (Rp per transaksi)"
             value={form.referralMarkup}
@@ -66,8 +74,23 @@ export default function MitraScreen() {
             keyboardType="number-pad"
             hint={`Maksimal ${formatRp(cap)}. Dikunci per mitra saat mereka mendaftar.`}
           />
-          {msg ? <Text style={{ color: msg === 'Tersimpan' ? colors.primary : colors.danger, marginBottom: 8 }}>{msg}</Text> : null}
-          <Button title="Simpan" loading={update.isPending} onPress={save} />
+          {msg ? <Text style={{ color: msg === 'Tersimpan' || msg === 'Nomor HP diperbarui' ? colors.primary : colors.danger, marginBottom: 8 }}>{msg}</Text> : null}
+          <Button title="Simpan" loading={update.isPending} onPress={save} disabled={!!nikError} />
+        </Card>
+
+        <Card style={{ marginBottom: 12 }}>
+          <SectionTitle>Nomor HP</SectionTitle>
+          {changingPhone ? (
+            <>
+              <OtpStep purpose="VERIFY_PHONE" phoneLabel="Nomor HP baru" onVerified={(r) => changePhone(r.otpTicket)} />
+              <Button title="Batal" variant="ghost" style={{ marginTop: 8 }} onPress={() => setChangingPhone(false)} />
+            </>
+          ) : (
+            <>
+              <KeyValue label={a.phone} value={a.phoneVerified ? 'Terverifikasi' : 'Belum verifikasi'} />
+              <Button title="Ganti nomor HP" variant="outline" style={{ marginTop: 8 }} onPress={() => { setMsg(null); setChangingPhone(true); }} />
+            </>
+          )}
         </Card>
 
         {m.parent ? (

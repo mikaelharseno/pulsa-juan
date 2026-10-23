@@ -72,7 +72,9 @@ export default function TopUpPayScreen() {
         <Card style={{ marginBottom: 12 }}>
           <KeyValue label="Nominal deposit" value={formatRp(o.amount)} />
           <KeyValue label="Kode unik" value={String(o.kodeUnik)} />
-          <KeyValue label="Total transfer" value={formatRp(o.totalTransfer)} bold />
+          <KeyValue label="Total transfer" value={formatRp(o.totalTransfer)} />
+          <KeyValue label="Saldo yang masuk" value={formatRp(o.totalTransfer)} bold last />
+          <Text style={{ color: colors.muted, fontSize: font.small, marginTop: 6 }}>Kode unik ikut masuk ke saldo Anda.</Text>
         </Card>
         {claim.isError ? <Text style={{ color: colors.danger, marginBottom: 8 }}>{(claim.error as Error).message}</Text> : null}
         {done ? (

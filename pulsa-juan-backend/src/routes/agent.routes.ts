@@ -8,12 +8,18 @@ const router = Router();
 router.post('/auth/register', c.postRegister);
 router.post('/auth/login', c.postLogin);
 router.post('/auth/google', c.postGoogle);
+router.post('/auth/otp/request', c.postOtpRequest);
+router.post('/auth/otp/verify', c.postOtpVerify);
+router.post('/auth/login/pin', c.postPinLogin);
+router.post('/auth/pin/reset', c.postPinReset);
 router.get('/config', c.getAgentConfig);
 
 router.use(authenticateAgent);
 
 router.get('/me', c.getMe);
 router.put('/me', c.putMe);
+router.put('/me/pin', c.putPin);
+router.get('/ledger', c.getLedger);
 router.get('/home', c.getHome);
 router.get('/segments/:id/tree', c.getSegmentTree);
 router.post('/inquiries', c.postInquiry);

@@ -1,30 +1,59 @@
 import { Link, useLocalSearchParams } from 'expo-router';
+import { isValidNik, isValidPin } from 'pulsa-juan-common';
 import React, { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Text, View } from 'react-native';
 
 import { post } from '../../src/api/client';
 import { Session } from '../../src/api/types';
+import { AuthShell } from '../../src/auth/AuthShell';
 import { GoogleButton } from '../../src/auth/GoogleButton';
+import { OtpStep } from '../../src/auth/OtpStep';
 import { useAuth } from '../../src/auth/useAuth';
-import { Button, Card, Field } from '../../src/components/ui';
+import { Button, CodeInput, Field } from '../../src/components/ui';
 import { colors, font } from '../../src/theme';
 
+/** 1) phone + OTP → 2) profile + PIN. A Google sign-up arrives with pendingGoogle set. */
 export default function RegisterScreen() {
   const { ref } = useLocalSearchParams<{ ref?: string }>();
   const signIn = useAuth((s) => s.signIn);
-  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', referralCode: (ref ?? '').toUpperCase() });
+  const pendingGoogle = useAuth((s) => s.pendingGoogle);
+  const setPendingGoogle = useAuth((s) => s.setPendingGoogle);
+  const [ticket, setTicket] = useState<{ otpTicket: string; phone: string } | null>(null);
+  const [form, setForm] = useState({
+    name: pendingGoogle?.name ?? '',
+    nik: '',
+    email: '',
+    password: '',
+    referralCode: (ref ?? '').toUpperCase(),
+  });
+  const [pin, setPin] = useState('');
+  const [pin2, setPin2] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof form) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
-  const valid = form.name.length >= 2 && form.email.includes('@') && form.phone.length >= 10 && form.password.length >= 6;
+
+  const nikError = form.nik && !isValidNik(form.nik) ? 'NIK harus 16 angka' : null;
+  const pinError = pin.length === 6 && !isValidPin(pin) ? 'PIN tidak boleh sama semua / berurutan' : null;
+  const pin2Error = pin2.length === 6 && pin2 !== pin ? 'PIN tidak sama' : null;
+  const passwordError = form.password && form.password.length < 6 ? 'Minimal 6 karakter' : null;
+  const valid = form.name.trim().length >= 2 && !nikError && !passwordError && isValidPin(pin) && pin === pin2;
 
   const submit = async () => {
+    if (!ticket) return;
     setBusy(true);
     setError(null);
     try {
-      await signIn(await post<Session>('/agent/auth/register', { ...form, referralCode: form.referralCode || undefined }));
+      const session = await post<Session>('/agent/auth/register', {
+        otpTicket: ticket.otpTicket,
+        googleTicket: pendingGoogle?.googleTicket,
+        name: form.name.trim(),
+        pin,
+        nik: form.nik || undefined,
+        email: pendingGoogle ? undefined : form.email.trim() || undefined,
+        password: form.password || undefined,
+        referralCode: form.referralCode || undefined,
+      });
+      await signIn(session);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -33,34 +62,49 @@ export default function RegisterScreen() {
   };
 
   return (
-    <LinearGradient colors={[colors.teal, colors.tealDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1 }}>
-    <SafeAreaView style={{ flex: 1 }}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }} keyboardShouldPersistTaps="handled">
-          <View style={{ alignItems: 'center', marginBottom: 22 }}>
-            <Text style={{ color: colors.white, fontSize: 28, fontWeight: '800', letterSpacing: -0.6 }}>Daftar Agen</Text>
-            <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: font.body, marginTop: 4, textAlign: 'center' }}>Gratis, langsung aktif. Isi saldo lalu mulai jualan.</Text>
-          </View>
-          <Card style={{ padding: 20, borderRadius: 20, borderWidth: 0 }}>
-            <Field label="Nama" value={form.name} onChangeText={set('name')} placeholder="Nama lengkap" />
-            <Field label="Email" value={form.email} onChangeText={set('email')} autoCapitalize="none" keyboardType="email-address" placeholder="nama@email.com" />
-            <Field label="Nomor HP" value={form.phone} onChangeText={set('phone')} keyboardType="phone-pad" placeholder="08xxxxxxxxxx" />
-            <Field label="Password" value={form.password} onChangeText={set('password')} secureTextEntry placeholder="minimal 6 karakter" />
-            <Field label="Kode referral (opsional)" value={form.referralCode} onChangeText={(v) => set('referralCode')(v.toUpperCase())} autoCapitalize="characters" placeholder="Kode dari mitra pengundang" />
-            {error ? <Text style={{ color: colors.danger, marginBottom: 12 }}>{error}</Text> : null}
-            <Button title="Daftar" onPress={submit} loading={busy} disabled={!valid} />
-            <View style={{ height: 12 }} />
-            <GoogleButton referralCode={form.referralCode} onError={setError} />
-            <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 18 }}>
-              <Text style={{ color: colors.muted, fontSize: font.body }}>Sudah punya akun? </Text>
-              <Link href="/(auth)/login" style={{ color: colors.teal, fontWeight: '700' }}>
-                Masuk
-              </Link>
-            </View>
-          </Card>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
-    </LinearGradient>
+    <AuthShell title="Daftar Agen" subtitle={ticket ? `Nomor ${ticket.phone} terverifikasi. Lengkapi data Anda.` : 'Gratis, langsung aktif. Isi saldo lalu mulai jualan.'}>
+      {pendingGoogle ? (
+        <View style={{ backgroundColor: colors.tealTint, borderRadius: 10, padding: 10, marginBottom: 14 }}>
+          <Text style={{ color: colors.ink2, fontSize: font.small }}>
+            Akun Google {pendingGoogle.email} akan dihubungkan. Verifikasi nomor HP untuk melanjutkan.{' '}
+            <Text style={{ color: colors.teal, fontWeight: '700' }} onPress={() => setPendingGoogle(null)}>Batal</Text>
+          </Text>
+        </View>
+      ) : null}
+      {!ticket ? (
+        <>
+          <Text style={{ color: colors.muted, fontSize: font.tiny, fontWeight: '700', letterSpacing: 0.6, marginBottom: 10 }}>LANGKAH 1 DARI 2 · VERIFIKASI NOMOR HP</Text>
+          <OtpStep purpose="REGISTER" onVerified={(r) => setTicket({ otpTicket: r.otpTicket, phone: r.phone })} />
+          {!pendingGoogle ? (
+            <>
+              <View style={{ height: 12 }} />
+              <GoogleButton onError={setError} onNeedsPhone={() => setError(null)} />
+            </>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <Text style={{ color: colors.muted, fontSize: font.tiny, fontWeight: '700', letterSpacing: 0.6, marginBottom: 10 }}>LANGKAH 2 DARI 2 · DATA & PIN</Text>
+          <Field label="Nama" value={form.name} onChangeText={set('name')} placeholder="Nama lengkap" testID="reg-name" />
+          <Field label="NIK (opsional)" value={form.nik} onChangeText={(v) => set('nik')(v.replace(/\D/g, '').slice(0, 16))} keyboardType="number-pad" placeholder="16 angka sesuai KTP" error={nikError} testID="reg-nik" />
+          {!pendingGoogle ? (
+            <Field label="Email (opsional)" value={form.email} onChangeText={set('email')} autoCapitalize="none" keyboardType="email-address" placeholder="nama@email.com" />
+          ) : null}
+          <Field label="Password (opsional)" value={form.password} onChangeText={set('password')} secureTextEntry placeholder="untuk masuk dengan email" error={passwordError} />
+          <Field label="Kode referral (opsional)" value={form.referralCode} onChangeText={(v) => set('referralCode')(v.toUpperCase())} autoCapitalize="characters" placeholder="Kode dari mitra pengundang" />
+          <CodeInput label="Buat PIN (6 angka)" secure value={pin} onChange={setPin} error={pinError} testID="reg-pin" />
+          <CodeInput label="Ulangi PIN" secure value={pin2} onChange={setPin2} error={pin2Error} testID="reg-pin2" />
+          {error ? <Text style={{ color: colors.danger, marginBottom: 12 }}>{error}</Text> : null}
+          <Button title="Daftar" onPress={submit} loading={busy} disabled={!valid} />
+        </>
+      )}
+      {!ticket && error ? <Text style={{ color: colors.danger, marginTop: 12 }}>{error}</Text> : null}
+      <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 18 }}>
+        <Text style={{ color: colors.muted, fontSize: font.body }}>Sudah punya akun? </Text>
+        <Link href="/(auth)/login" style={{ color: colors.teal, fontWeight: '700' }}>
+          Masuk
+        </Link>
+      </View>
+    </AuthShell>
   );
 }

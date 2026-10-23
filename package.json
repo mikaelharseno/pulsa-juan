@@ -5,7 +5,8 @@
     "pulsa-juan-common",
     "pulsa-juan-backend",
     "pulsa-juan-dashboard",
-    "pulsa-juan-app"
+    "pulsa-juan-app",
+    "pulsa-juan-landing"
   ],
   "engines": {
     "node": ">=20 <21"
@@ -16,6 +17,7 @@
     "test:backend": "npm test -w pulsa-juan-backend",
     "dev:backend": "npm run build:common && npm run dev -w pulsa-juan-backend",
     "dev:dashboard": "npm run dev -w pulsa-juan-dashboard",
-    "dev:app": "npm run web -w pulsa-juan-app"
+    "dev:app": "npm run web -w pulsa-juan-app",
+    "dev:landing": "npm run dev -w pulsa-juan-landing"
   }
 }

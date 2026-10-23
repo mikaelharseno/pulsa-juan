@@ -15,6 +15,7 @@ import { listConnections, transferCommissionId, updateConnectionAmount } from '.
 import * as seg from '../service/segment.service';
 import * as topup from '../service/topup.service';
 import * as trx from '../service/transaction.service';
+import { listLedger } from '../service/saldo.service';
 import { uploadImage } from '../service/upload.service';
 
 const PROOF_MIME = ['image/jpeg', 'image/png'];
@@ -47,7 +48,17 @@ export const getMe = asyncHandler(async (req: Request, res: Response) => {
 
 // ---- top ups ----
 export const getTopUps = asyncHandler(async (req: Request, res: Response) => {
-  res.json({ topUps: toPlain(await topup.adminListTopUps(req.query.status as string | undefined)) });
+  const q = parse(
+    z.object({
+      status: z.string().optional(),
+      search: z.string().optional(),
+      agentId: z.string().optional(),
+      page: z.coerce.number().int().min(1).optional(),
+      pageSize: z.coerce.number().int().min(1).max(200).optional(),
+    }),
+    req.query,
+  );
+  res.json(toPlain(await topup.adminListTopUps(q)));
 });
 
 export const putTopUp = asyncHandler(async (req: Request, res: Response) => {
@@ -67,11 +78,7 @@ export const postHutangPayment = asyncHandler(async (req: Request, res: Response
 
 // ---- transactions ----
 export const getTransactions = asyncHandler(async (req: Request, res: Response) => {
-  const q = parse(
-    z.object({ status: z.string().optional(), search: z.string().optional(), page: z.coerce.number().optional(), pageSize: z.coerce.number().optional() }),
-    req.query,
-  );
-  res.json(await trx.adminList(q));
+  res.json(await trx.adminList(parse(trx.adminListSchema, req.query)));
 });
 
 export const putTransaction = asyncHandler(async (req: Request, res: Response) => {
@@ -85,6 +92,10 @@ export const getAgents = asyncHandler(async (req: Request, res: Response) => {
 });
 export const getAgent = asyncHandler(async (req: Request, res: Response) => {
   res.json(toPlain(await agents.getAgentDetail(req.params.id)));
+});
+export const getAgentLedger = asyncHandler(async (req: Request, res: Response) => {
+  const q = parse(z.object({ page: z.coerce.number().int().min(1).optional(), pageSize: z.coerce.number().int().min(1).max(200).optional() }), req.query);
+  res.json(await listLedger(req.params.id, q.page, q.pageSize ?? 50));
 });
 export const putAgent = asyncHandler(async (req: Request, res: Response) => {
   res.json(toPlain(await agents.updateAgent(req.admin!.adminId, req.params.id, parse(agents.agentUpdateSchema, req.body))));

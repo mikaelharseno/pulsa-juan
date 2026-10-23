@@ -1,7 +1,7 @@
 import { formatRp, kodeUnikBase, nextKodeUnik, toInternationalMobile } from 'pulsa-juan-common';
 import { z } from 'zod';
 
-import { Agent, AdminRole, BankCode, TopUpStatus } from '../../prisma/generated';
+import { Agent, AdminRole, BankCode, Prisma, TopUpStatus } from '../../prisma/generated';
 import { prisma } from '../../prisma/client';
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import { audit } from './audit.service';
@@ -32,7 +32,7 @@ export async function createTopUp(agent: Agent, amount: number) {
     // kode unik: derived from the order number, then probed forward until the
     // resulting total is unique among open top-ups.
     let code = kodeUnikBase(created.orderNumber);
-    for (let i = 0; i < 900; i++) {
+    for (let i = 0; i < 1000; i++) {
       const clash = await tx.topUpOrder.findFirst({
         where: { id: { not: created.id }, status: { in: OPEN }, expiresAt: { gt: new Date() }, totalTransfer: amount + code },
         select: { id: true },
@@ -90,14 +90,32 @@ export async function listTopUps(agentId: string) {
   return prisma.topUpOrder.findMany({ where: { agentId }, orderBy: { createdAt: 'desc' }, take: 100 });
 }
 
-export async function adminListTopUps(status?: string) {
-  const where = status && status !== 'ALL' ? { status: status as TopUpStatus } : { status: { in: OPEN } };
-  return prisma.topUpOrder.findMany({
-    where,
-    orderBy: [{ status: 'desc' }, { createdAt: 'desc' }],
-    take: 300,
-    include: { agent: { select: { id: true, name: true, phone: true, email: true } } },
-  });
+export async function adminListTopUps(q: { status?: string; search?: string; agentId?: string; page?: number; pageSize?: number }) {
+  const page = q.page ?? 1;
+  const pageSize = Math.min(q.pageSize ?? 50, 200);
+  const where: Prisma.TopUpOrderWhereInput = {};
+  if (q.status === 'OPEN' || !q.status) where.status = { in: OPEN };
+  else if (q.status !== 'ALL') where.status = q.status as TopUpStatus;
+  if (q.agentId) where.agentId = q.agentId;
+  if (q.search) {
+    const n = Number(q.search.replace(/\./g, ''));
+    where.OR = [
+      { agent: { name: { contains: q.search, mode: 'insensitive' } } },
+      { agent: { phone: { contains: q.search } } },
+      ...(Number.isInteger(n) && n > 0 ? [{ orderNumber: n }, { totalTransfer: n }] : []),
+    ];
+  }
+  const [total, topUps] = await Promise.all([
+    prisma.topUpOrder.count({ where }),
+    prisma.topUpOrder.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include: { agent: { select: { id: true, name: true, phone: true, email: true } } },
+    }),
+  ]);
+  return { total, page, pageSize, topUps };
 }
 
 export interface ConfirmInput {
@@ -125,7 +143,8 @@ export async function adminUpdateTopUp(admin: { adminId: string; role: AdminRole
   if (credit && admin.role !== 'OWNER') throw forbidden('Konfirmasi kredit (hutang) hanya untuk OWNER');
   if (!credit && !input.proofImageUrl) throw badRequest('Bukti mutasi bank wajib diunggah', 'PROOF_REQUIRED');
 
-  const amount = Number(order.amount);
+  // the agent is credited the full transfer, kode unik included (100.000 + 123 → 100.123)
+  const amount = Number(order.totalTransfer);
   const updated = await prisma.$transaction(async (tx) => {
     const res = await tx.topUpOrder.updateMany({
       where: { id, status: { in: OPEN } },

@@ -1,0 +1,6 @@
+# Cloudflare Pages project for the admin dashboard (static SPA).
+# Deploy: `npm run deploy` (needs `wrangler login`). VITE_API_BASE is baked in at
+# build time from .env.production.
+name = "pulsa-juan-dashboard"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-10-01"

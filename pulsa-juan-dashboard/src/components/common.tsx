@@ -1,4 +1,5 @@
 import { Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from '@mui/material';
+import { statusMeta, StatusTone } from 'pulsa-juan-common';
 import { ReactNode } from 'react';
 
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) {
@@ -19,23 +20,18 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
   );
 }
 
-const STATUS: Record<string, { label: string; color: 'default' | 'warning' | 'success' | 'error' | 'info' }> = {
-  PENDING: { label: 'Menunggu', color: 'warning' },
-  CLAIMED: { label: 'Klaim bayar', color: 'info' },
-  PAID: { label: 'Dibayar', color: 'success' },
-  SUCCESS: { label: 'Sukses', color: 'success' },
-  FAILED: { label: 'Gagal', color: 'error' },
-  REJECTED: { label: 'Ditolak', color: 'error' },
-  EXPIRED: { label: 'Kedaluwarsa', color: 'default' },
-  ACTIVE: { label: 'Aktif', color: 'success' },
-  DISABLED: { label: 'Nonaktif', color: 'default' },
-  UNCLAIMED: { label: 'Belum diklaim', color: 'warning' },
-  VOIDED: { label: 'Batal', color: 'default' },
+const TONE_COLOR: Record<StatusTone, 'default' | 'warning' | 'success' | 'error' | 'info'> = {
+  warning: 'warning',
+  info: 'info',
+  success: 'success',
+  error: 'error',
+  neutral: 'default',
 };
 
 export function StatusChip({ status }: { status: string }) {
-  const s = STATUS[status] ?? { label: status, color: 'default' as const };
-  return <Chip size="small" label={s.label} color={s.color} variant={s.color === 'default' ? 'outlined' : 'filled'} />;
+  const meta = statusMeta(status);
+  const color = TONE_COLOR[meta.tone];
+  return <Chip size="small" label={meta.label} color={color} variant={color === 'default' ? 'outlined' : 'filled'} />;
 }
 
 export function ConfirmDialog({

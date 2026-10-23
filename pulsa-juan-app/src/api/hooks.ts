@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { DEFAULT_PREFIXES } from 'pulsa-juan-common';
 
 import { useAuth } from '../auth/useAuth';
@@ -8,6 +8,7 @@ import {
   AgentProfile,
   CommissionSummary,
   HomeData,
+  LedgerList,
   MitraOverview,
   Rekap,
   TopUpOrder,
@@ -28,6 +29,7 @@ export const keys = {
   topup: (id: string) => ['topup', id] as const,
   commissions: ['commissions'] as const,
   mitra: ['mitra'] as const,
+  ledger: ['ledger'] as const,
 };
 
 export function useHome() {
@@ -93,6 +95,16 @@ export function useTopUp(id: string) {
   return useQuery({ queryKey: keys.topup(id), queryFn: () => get<TopUpOrder>(`/agent/topups/${id}`) });
 }
 
+/** Riwayat saldo: every saldo mutation, newest first, 30 per page. */
+export function useLedger() {
+  return useInfiniteQuery({
+    queryKey: keys.ledger,
+    queryFn: ({ pageParam }) => get<LedgerList>('/agent/ledger', { page: pageParam, pageSize: 30 }),
+    initialPageParam: 1,
+    getNextPageParam: (last) => (last.page * last.pageSize < last.total ? last.page + 1 : undefined),
+  });
+}
+
 export function useCommissions() {
   return useQuery({ queryKey: keys.commissions, queryFn: () => get<CommissionSummary>('/agent/commissions') });
 }
@@ -111,6 +123,7 @@ export function useInvalidateMoney() {
     qc.invalidateQueries({ queryKey: ['rekap'] });
     qc.invalidateQueries({ queryKey: keys.commissions });
     qc.invalidateQueries({ queryKey: keys.topups });
+    qc.invalidateQueries({ queryKey: keys.ledger });
   };
 }
 
@@ -145,7 +158,7 @@ export function useUpdateProfile() {
   const setAgent = useAuth((s) => s.setAgent);
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { name?: string; phone?: string; referralMarkup?: number }) => put<AgentProfile>('/agent/me', input),
+    mutationFn: (input: { name?: string; nik?: string; phoneOtpTicket?: string; referralMarkup?: number }) => put<AgentProfile>('/agent/me', input),
     onSuccess: (agent) => {
       setAgent(agent);
       qc.setQueryData(keys.me, agent);
@@ -159,5 +172,13 @@ export function useClaimCommissions() {
   return useMutation({
     mutationFn: () => post<{ claimed: number; count: number; saldo: number; saldoKomisi: number }>('/agent/commissions/claim'),
     onSuccess: invalidate,
+  });
+}
+
+export function useChangePin() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { oldPin?: string; newPin: string }) => put<{ ok: true }>('/agent/me/pin', input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.me }),
   });
 }

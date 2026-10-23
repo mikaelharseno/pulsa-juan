@@ -19,8 +19,8 @@ import { useSession } from './auth/useSession';
 // page and routed by URL (deep-linkable, back button works).
 export const NAV_ITEMS = [
   { key: 'topups', label: 'Top Up Saldo', to: '/topups', group: 'Operasional', icon: <CreditCard fontSize="small" /> },
-  { key: 'transactions', label: 'Transaksi', to: '/transactions', group: 'Operasional', icon: <ReceiptLong fontSize="small" /> },
-  { key: 'agents', label: 'Agen', to: '/agents', group: 'Mitra', icon: <Group fontSize="small" /> },
+  { key: 'transactions', label: 'Order Isi Pulsa', to: '/transactions', group: 'Operasional', icon: <ReceiptLong fontSize="small" /> },
+  { key: 'agents', label: 'Daftar Agen', to: '/agents', group: 'Mitra', icon: <Group fontSize="small" /> },
   { key: 'mitra', label: 'Referral & Komisi', to: '/mitra', group: 'Mitra', icon: <Hub fontSize="small" /> },
   { key: 'segments', label: 'Segmen & Alur', to: '/segments', group: 'Katalog', icon: <AccountTree fontSize="small" /> },
   { key: 'packages', label: 'Paket', to: '/packages', group: 'Katalog', icon: <Inventory2 fontSize="small" /> },

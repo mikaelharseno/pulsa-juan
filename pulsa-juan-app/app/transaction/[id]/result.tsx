@@ -27,13 +27,15 @@ export default function ResultScreen() {
       ? { icon: 'checkmark-circle' as const, color: colors.primary, title: 'Transaksi Sukses', sub: 'Saldo sudah terpotong dan pesanan berhasil diproses.' }
       : t.status === 'FAILED'
         ? { icon: 'close-circle' as const, color: colors.danger, title: 'Transaksi Gagal', sub: t.failReason ? `Alasan: ${t.failReason}. Saldo telah dikembalikan.` : 'Saldo telah dikembalikan ke akun Anda.' }
-        : { icon: 'time' as const, color: colors.warning, title: 'Sedang Diproses', sub: 'Pesanan sedang kami proses. Halaman ini akan diperbarui otomatis.' };
+        : t.status === 'REFUNDED'
+          ? { icon: 'return-down-back' as const, color: colors.muted, title: 'Transaksi Direfund', sub: `${t.refundReason ? `Alasan: ${t.refundReason}. ` : ''}Saldo ${formatRp(t.total)} telah dikembalikan.` }
+          : { icon: 'time' as const, color: colors.warning, title: 'Sedang Diproses', sub: 'Pesanan sedang kami proses. Halaman ini akan diperbarui otomatis.' };
 
   return (
     <Screen title="Status Transaksi" back={from === 'list'}>
       <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
         <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-          <View style={{ width: 88, height: 88, borderRadius: 28, backgroundColor: t.status === 'SUCCESS' ? colors.tealSoft : t.status === 'FAILED' ? '#FEE2E2' : '#FFF4DE', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 88, height: 88, borderRadius: 28, backgroundColor: t.status === 'SUCCESS' ? colors.tealSoft : t.status === 'FAILED' ? '#FEE2E2' : t.status === 'REFUNDED' ? colors.divider : '#FFF4DE', alignItems: 'center', justifyContent: 'center' }}>
             {t.status === 'PENDING' ? <ActivityIndicator size="large" color={colors.warning} /> : <Ionicons name={head.icon} size={56} color={head.color} />}
           </View>
           <Text style={{ fontSize: 19, fontWeight: '700', color: colors.ink, marginTop: 14, letterSpacing: -0.4 }}>{head.title}</Text>
@@ -50,7 +52,7 @@ export default function ResultScreen() {
           <KeyValue label="Waktu" value={fmtDate(t.createdAt)} />
         </Card>
         <View style={{ flex: 1 }} />
-        {t.status === 'FAILED' || t.status === 'PENDING' ? (
+        {t.status !== 'SUCCESS' ? (
           <Button title="Hubungi Customer Service" variant="outline" style={{ marginBottom: 10 }} disabled={!wa} onPress={() => openExternal(`https://wa.me/${wa}?text=${encodeURIComponent(csText)}`)} />
         ) : null}
         <Button title="Kembali ke Beranda" onPress={() => router.replace('/(tabs)')} />

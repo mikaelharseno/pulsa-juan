@@ -16,7 +16,7 @@ import {
   walkPath,
 } from 'pulsa-juan-common';
 
-import type { AgentProfile, TopUpOrder, Transaction } from './types';
+import type { AgentProfile, LedgerEntry, TopUpOrder, Transaction } from './types';
 
 export interface MockResponse {
   status: number;
@@ -63,6 +63,7 @@ const agent: AgentProfile = {
   name: 'Agen Demo',
   email: 'demo@pulsajuan.id',
   phone: '081234567001',
+  nik: '3171234567890001',
   avatarUrl: null,
   status: 'ACTIVE',
   saldo: 487500,
@@ -71,9 +72,26 @@ const agent: AgentProfile = {
   commisionUniqueId: 'JUAN2026',
   saldoKomisi: 18500,
   referralMarkup: 300,
+  referrerMarkup: 0,
   markupTotal: 0,
+  hasPin: true,
+  hasPassword: true,
+  googleLinked: false,
+  phoneVerified: true,
+  joinedAt: iso(90 * 86400000),
   createdAt: iso(90 * 86400000),
 };
+
+// demo OTP: always this code
+const MOCK_OTP = '123456';
+const ledger: LedgerEntry[] = [
+  { id: id('led'), type: 'PURCHASE', delta: -10500, balanceAfter: 487500, referenceId: null, note: 'Pulsa #1042', createdAt: iso(1.5 * 3600000) },
+  { id: id('led'), type: 'TOPUP', delta: 500411, balanceAfter: 498000, referenceId: null, note: 'Top up #311', createdAt: iso(48.5 * 3600000) },
+];
+function moveSaldo(type: LedgerEntry['type'], delta: number, note: string) {
+  agent.saldo += delta;
+  ledger.unshift({ id: id('led'), type, delta, balanceAfter: agent.saldo, referenceId: null, note, createdAt: iso() });
+}
 
 function seedTrx(n: number, slug: string, label: string, target: string, pkg: string, status: Transaction['status'], msAgo: number): Transaction {
   const p = packages[pkg];
@@ -127,7 +145,7 @@ function withAccount(o: TopUpOrder): TopUpOrder {
 function todayCount() {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
-  return transactions.filter((t) => new Date(t.createdAt) >= start && t.status !== 'FAILED').length;
+  return transactions.filter((t) => new Date(t.createdAt) >= start && (t.status === 'PENDING' || t.status === 'SUCCESS')).length;
 }
 function inquiryFor(customerId: string) {
   const digits = customerId.replace(/\D/g, '');
@@ -141,17 +159,36 @@ export async function mockApi(path: string, method: string, json: any, query: Re
   const route = seg.slice(1).join('/');
 
   // ---- auth ----
-  if (route === 'auth/login' || route === 'auth/google') return ok({ token: 'mock-token', agent });
+  if (route === 'auth/login' || route === 'auth/login/pin') return ok({ token: 'mock-token', agent });
+  if (route === 'auth/google') return ok({ needsPhone: false, token: 'mock-token', agent });
+  if (route === 'auth/otp/request') {
+    const phone = normalizeIndonesianMobile(String(json?.phone ?? ''));
+    if (!/^08\d{8,11}$/.test(phone)) return fail(400, 'Nomor HP tidak valid');
+    return ok({ phone, purpose: json?.purpose, expiresAt: iso(-5 * 60000), resendAfter: 60, debugCode: MOCK_OTP });
+  }
+  if (route === 'auth/otp/verify') {
+    if (json?.code !== MOCK_OTP) return fail(400, `Kode OTP salah (demo: ${MOCK_OTP})`, { code: 'OTP_INVALID' });
+    return ok({ otpTicket: 'mock-ticket:' + normalizeIndonesianMobile(String(json?.phone ?? '')), phone: normalizeIndonesianMobile(String(json?.phone ?? '')), purpose: json?.purpose });
+  }
   if (route === 'auth/register') {
     if (json?.name) agent.name = String(json.name);
-    if (json?.email) agent.email = String(json.email);
-    if (json?.phone) agent.phone = normalizeIndonesianMobile(String(json.phone));
+    agent.email = json?.email ? String(json.email) : null;
+    agent.nik = json?.nik ? String(json.nik) : null;
+    if (typeof json?.otpTicket === 'string') agent.phone = json.otpTicket.replace('mock-ticket:', '');
     return ok({ token: 'mock-token', agent }, 201);
+  }
+  if (route === 'auth/pin/reset') return ok({ token: 'mock-token', agent });
+  if (route === 'me/pin') return ok({ ok: true });
+  if (route === 'ledger') {
+    const page = Number(query.page ?? 1);
+    const pageSize = Number(query.pageSize ?? 30);
+    return ok({ total: ledger.length, page, pageSize, entries: ledger.slice((page - 1) * pageSize, page * pageSize) });
   }
   if (route === 'me' && m === 'GET') return ok(agent);
   if (route === 'me' && m === 'PUT') {
     if (json?.name) agent.name = json.name;
-    if (json?.phone) agent.phone = normalizeIndonesianMobile(json.phone);
+    if (json?.nik) agent.nik = json.nik;
+    if (typeof json?.phoneOtpTicket === 'string') agent.phone = json.phoneOtpTicket.replace('mock-ticket:', '');
     if (typeof json?.referralMarkup === 'number') {
       if (json.referralMarkup > 2000) return fail(400, 'Markup referral maksimal Rp 2000');
       agent.referralMarkup = json.referralMarkup;
@@ -207,7 +244,7 @@ export async function mockApi(path: string, method: string, json: any, query: Re
           if (o.status !== 'CLAIMED') return;
           o.status = 'PAID';
           o.paidAt = iso();
-          agent.saldo += o.amount;
+          moveSaldo('TOPUP', o.totalTransfer, `Top up #${o.orderNumber}`);
         }, 9000);
       }
       const waText = `Permisi kak, saya baru transfer sebesar ${formatRp(o.totalTransfer)} via Bank ${o.bank} untuk top up saldo #${o.orderNumber} a.n. ${agent.name}`;
@@ -227,7 +264,6 @@ export async function mockApi(path: string, method: string, json: any, query: Re
     const price = computeTotal(steps, s.tree, ctx, 0, inquiry);
     if (price.total !== json?.clientTotal) return fail(409, 'Harga berubah, silakan periksa kembali', { code: 'PRICE_CHANGED', total: price.total });
     if (agent.saldo < price.total) return fail(400, 'Saldo tidak cukup', { code: 'SALDO_KURANG' });
-    agent.saldo -= price.total;
     const phoneStep = [...steps].reverse().find((x) => x.type === 'PhoneNumberInput');
     const trx: Transaction = {
       id: id('trx'), trxNumber: ++trxNumber, segmentLabel: s.label, segment: { slug: s.slug, iconUrl: s.iconUrl },
@@ -238,6 +274,7 @@ export async function mockApi(path: string, method: string, json: any, query: Re
       status: 'PENDING', serialNumber: null, failReason: null, createdAt: iso(), processedAt: null,
     };
     transactions.unshift(trx);
+    moveSaldo('PURCHASE', -price.total, `${s.label} #${trx.trxNumber}`);
     // demo: fulfilment succeeds after a few seconds
     setTimeout(() => {
       trx.status = 'SUCCESS';
@@ -269,7 +306,7 @@ export async function mockApi(path: string, method: string, json: any, query: Re
     const q = query as Record<string, string | undefined>;
     const from = q.from ? new Date(q.from).getTime() : 0;
     const to = q.to ? new Date(q.to).getTime() + 86400000 : Infinity;
-    const rows = transactions.filter((t) => t.status !== 'FAILED' && new Date(t.createdAt).getTime() >= from - 7 * H && new Date(t.createdAt).getTime() < to);
+    const rows = transactions.filter((t) => (t.status === 'PENDING' || t.status === 'SUCCESS') && new Date(t.createdAt).getTime() >= from - 7 * H && new Date(t.createdAt).getTime() < to);
     const byDay: Record<string, { date: string; totalSpent: number; count: number }> = {};
     const bySegment: Record<string, { segmentLabel: string; totalSpent: number; count: number }> = {};
     for (const t of rows) {
@@ -289,7 +326,7 @@ export async function mockApi(path: string, method: string, json: any, query: Re
     if (total <= 0) return fail(400, 'Tidak ada komisi yang bisa diklaim');
     const count = commissions.filter((c) => c.status === 'UNCLAIMED').length;
     commissions.forEach((c) => { if (c.status === 'UNCLAIMED') { c.status = 'CLAIMED'; c.claimedAt = iso(); } });
-    agent.saldo += total;
+    moveSaldo('COMMISSION', total, `Klaim komisi ${count} transaksi`);
     agent.saldoKomisi += total;
     return ok({ claimed: total, count, saldo: agent.saldo, saldoKomisi: agent.saldoKomisi });
   }

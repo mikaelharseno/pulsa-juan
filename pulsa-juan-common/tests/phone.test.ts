@@ -37,10 +37,12 @@ describe('formatRp / kodeUnik', () => {
     expect(parseRp('Rp 1.500.000')).toBe(1500000);
   });
   it('kode unik stays in 100..999', () => {
-    expect(kodeUnikBase(1)).toBe(101);
-    expect(kodeUnikBase(900)).toBe(100);
-    expect(kodeUnikBase(1799)).toBe(999);
-    expect(nextKodeUnik(999)).toBe(100);
+    expect(kodeUnikBase(0)).toBe(0);
+    expect(kodeUnikBase(1)).toBe(1);
+    expect(kodeUnikBase(123)).toBe(123);
+    expect(kodeUnikBase(1000)).toBe(0);
+    expect(kodeUnikBase(1999)).toBe(999);
+    expect(nextKodeUnik(999)).toBe(0);
     expect(nextKodeUnik(321)).toBe(322);
   });
 });

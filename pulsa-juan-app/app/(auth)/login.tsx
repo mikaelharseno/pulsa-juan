@@ -1,65 +1,86 @@
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Pressable, Text, View } from 'react-native';
 
 import { IS_MOCK, post } from '../../src/api/client';
 import { Session } from '../../src/api/types';
+import { AuthShell } from '../../src/auth/AuthShell';
 import { GoogleButton } from '../../src/auth/GoogleButton';
 import { useAuth } from '../../src/auth/useAuth';
-import { Button, Card, Field } from '../../src/components/ui';
+import { Button, CodeInput, Field } from '../../src/components/ui';
 import { colors, font } from '../../src/theme';
 
 export default function LoginScreen() {
   const signIn = useAuth((s) => s.signIn);
+  const router = useRouter();
+  const [mode, setMode] = useState<'pin' | 'password'>('pin');
+  const [phone, setPhone] = useState('');
+  const [pin, setPin] = useState('');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const submit = async () => {
+  const run = async (fn: () => Promise<Session>) => {
     setBusy(true);
     setError(null);
     try {
-      await signIn(await post<Session>('/agent/auth/login', { identifier, password }));
+      await signIn(await fn());
     } catch (e) {
       setError((e as Error).message);
+      setPin('');
     } finally {
       setBusy(false);
     }
   };
+  const loginPin = (value = pin) => run(() => post<Session>('/agent/auth/login/pin', { phone, pin: value }));
+  const loginPassword = () => run(() => post<Session>('/agent/auth/login', { identifier, password }));
 
   return (
-    <LinearGradient colors={[colors.teal, colors.tealDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1 }}>
-    <SafeAreaView style={{ flex: 1 }}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }} keyboardShouldPersistTaps="handled">
-          <View style={{ alignItems: 'center', marginBottom: 22 }}>
-            <View style={{ width: 56, height: 56, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.16)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
-              <Text style={{ color: colors.white, fontSize: 26, fontWeight: '800' }}>PJ</Text>
-            </View>
-            <Text style={{ color: colors.white, fontSize: 30, fontWeight: '800', letterSpacing: -0.8 }}>Pulsa Juan</Text>
-            <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: font.body, marginTop: 4 }}>Aplikasi mitra agen pulsa & pembayaran</Text>
+    <AuthShell logo title="Pulsa Juan" subtitle="Aplikasi mitra agen pulsa & pembayaran">
+      {mode === 'pin' ? (
+        <>
+          <Field label="Nomor HP" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="08xxxxxxxxxx" testID="login-phone" />
+          <CodeInput
+            label="PIN"
+            secure
+            value={pin}
+            onChange={(v) => {
+              setPin(v);
+              if (v.length === 6 && phone) loginPin(v);
+            }}
+            testID="login-pin"
+          />
+          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: -6, marginBottom: 12 }}>
+            <Link href="/(auth)/forgot-pin" style={{ color: colors.teal, fontWeight: '600', fontSize: font.small }}>
+              Lupa PIN?
+            </Link>
           </View>
-          <Card style={{ padding: 20, borderRadius: 20, borderWidth: 0 }}>
-            <Field label="Email atau nomor HP" value={identifier} onChangeText={setIdentifier} autoCapitalize="none" keyboardType="email-address" placeholder="nama@email.com / 08xx" />
-            <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry placeholder="••••••" />
- {IS_MOCK ? <Text style={{ color: colors.muted, fontSize: font.small, marginBottom: 12 }}>Mode demo: isi email dan password apa saja untuk masuk.</Text> : null}
-            {error ? <Text style={{ color: colors.danger, marginBottom: 12 }}>{error}</Text> : null}
-            <Button title="Masuk" onPress={submit} loading={busy} disabled={!identifier || !password} />
-            <View style={{ height: 12 }} />
-            <GoogleButton onError={setError} />
-            <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 18 }}>
-              <Text style={{ color: colors.muted }}>Belum punya akun? </Text>
-              <Link href="/(auth)/register" style={{ color: colors.teal, fontWeight: '700' }}>
-                Daftar
-              </Link>
-            </View>
-          </Card>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
-    </LinearGradient>
+        </>
+      ) : (
+        <>
+          <Field label="Email atau nomor HP" value={identifier} onChangeText={setIdentifier} autoCapitalize="none" keyboardType="email-address" placeholder="nama@email.com / 08xx" />
+          <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry placeholder="••••••" />
+        </>
+      )}
+      {IS_MOCK ? <Text style={{ color: colors.muted, fontSize: font.small, marginBottom: 12 }}>Mode demo: isi nomor HP dan PIN apa saja untuk masuk.</Text> : null}
+      {error ? <Text style={{ color: colors.danger, marginBottom: 12 }}>{error}</Text> : null}
+      {mode === 'pin' ? (
+        <Button title="Masuk" onPress={() => loginPin()} loading={busy} disabled={!phone || pin.length !== 6} />
+      ) : (
+        <Button title="Masuk" onPress={loginPassword} loading={busy} disabled={!identifier || !password} />
+      )}
+      <Pressable onPress={() => { setMode(mode === 'pin' ? 'password' : 'pin'); setError(null); }} style={{ alignItems: 'center', marginTop: 12 }}>
+        <Text style={{ color: colors.teal, fontWeight: '600', fontSize: font.body }}>{mode === 'pin' ? 'Masuk dengan email / password' : 'Masuk dengan nomor HP & PIN'}</Text>
+      </Pressable>
+      <View style={{ height: 12 }} />
+      <GoogleButton onError={setError} onNeedsPhone={() => router.push('/(auth)/register')} />
+      <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 18 }}>
+        <Text style={{ color: colors.muted }}>Belum punya akun? </Text>
+        <Link href="/(auth)/register" style={{ color: colors.teal, fontWeight: '700' }}>
+          Daftar
+        </Link>
+      </View>
+    </AuthShell>
   );
 }

@@ -64,7 +64,7 @@ export async function treeForAgent(agent: Agent, segmentId: string) {
   });
   if (!segment || !segment.publishedVersion) throw notFound('Layanan tidak ditemukan');
   const tree = segment.publishedVersion.tree as unknown as SegmentTree;
-  const [packages, markup] = await Promise.all([packagesForTree(tree), resolveMarkup(agent.commisionUniqueId)]);
+  const [packages, markup] = await Promise.all([packagesForTree(tree), resolveMarkup(agent.id)]);
   return {
     segment: {
       id: segment.id,

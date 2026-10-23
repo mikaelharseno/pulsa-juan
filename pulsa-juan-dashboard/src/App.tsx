@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 
 import { useSession } from './auth/useSession';
 import LoginPage from './pages/LoginPage';
+import AgentDetailPage from './pages/AgentDetailPage';
 import AgentsPage from './pages/AgentsPage';
 import MitraPage from './pages/MitraPage';
 import PackagesPage from './pages/PackagesPage';
@@ -22,6 +23,7 @@ export default function App() {
         <Route path="/topups" element={<TopUpsPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
         <Route path="/agents" element={<AgentsPage />} />
+        <Route path="/agents/:id" element={<AgentDetailPage />} />
         <Route path="/mitra" element={<MitraPage />} />
         <Route path="/segments" element={<SegmentsPage />} />
         <Route path="/segments/:id/tree" element={<TreeEditorPage />} />

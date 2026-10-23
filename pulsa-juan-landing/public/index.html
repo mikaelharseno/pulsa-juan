@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pulsa Juan — Aplikasi Agen Pulsa & PPOB</title>
+  <meta name="description" content="Pulsa Juan: aplikasi agen pulsa, paket data, token PLN, e-wallet dan voucher game. Isi saldo via transfer bank, transaksi cepat, komisi mitra 2 tingkat." />
+  <meta name="theme-color" content="#12A594" />
+  <meta property="og:title" content="Pulsa Juan — Aplikasi Agen Pulsa & PPOB" />
+  <meta property="og:description" content="Jualan pulsa, paket data, token PLN dan e-wallet dari satu aplikasi. Daftar gratis." />
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --teal: #12A594;
+      --teal-dark: #0B7C70;
+      --teal-deep: #075E56;
+      --teal-soft: #E3F4F1;
+      --teal-tint: #F0FAF8;
+      --ink: #0F172A;
+      --ink2: #334155;
+      --muted: #64748B;
+      --line: #E2E6EA;
+      --wash: #F5F6F8;
+      --amber: #F59E0B;
+      --wa: #25D366;
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: var(--ink); background: #fff; -webkit-font-smoothing: antialiased; line-height: 1.55; }
+    a { color: inherit; text-decoration: none; }
+    .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+    h1, h2, h3 { letter-spacing: -0.03em; line-height: 1.12; margin: 0; }
+    .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--teal-dark); }
+
+    /* nav */
+    .nav { position: sticky; top: 0; z-index: 20; background: rgba(255,255,255,0.88); backdrop-filter: saturate(1.4) blur(10px); border-bottom: 1px solid rgba(15,23,42,0.06); }
+    .nav .wrap { display: flex; align-items: center; height: 64px; gap: 24px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 18px; letter-spacing: -0.02em; }
+    .logo { width: 34px; height: 34px; border-radius: 10px; background: linear-gradient(135deg, var(--teal), var(--teal-deep)); color: #fff; display: grid; place-items: center; font-size: 14px; font-weight: 800; }
+    .nav-links { display: flex; gap: 22px; margin-left: auto; font-size: 14px; font-weight: 500; color: var(--ink2); }
+    .nav-links a:hover { color: var(--teal-dark); }
+
+    /* buttons */
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; height: 48px; padding: 0 22px; border-radius: 12px; font-weight: 700; font-size: 15px; border: 0; cursor: pointer; transition: transform .12s ease, box-shadow .12s ease, background .12s ease; white-space: nowrap; }
+    .btn:active { transform: translateY(1px); }
+    .btn svg { width: 20px; height: 20px; flex: none; }
+    .btn-primary { background: var(--ink); color: #fff; box-shadow: 0 8px 20px -8px rgba(15,23,42,.45); }
+    .btn-primary:hover { background: #1E293B; }
+    .btn-wa { background: var(--wa); color: #fff; box-shadow: 0 8px 20px -8px rgba(37,211,102,.6); }
+    .btn-wa:hover { background: #1FBE5A; }
+    .btn-ghost { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+    .btn-sm { height: 40px; padding: 0 16px; font-size: 14px; border-radius: 10px; }
+    .apk-note { display: none; margin-top: 10px; font-size: 13px; color: var(--teal-dark); font-weight: 600; }
+    .apk-note.show { display: block; }
+
+    /* hero */
+    .hero { position: relative; overflow: hidden; background: radial-gradient(1200px 520px at 85% -10%, var(--teal-soft), transparent 60%), linear-gradient(180deg, #fff, var(--teal-tint)); }
+    .hero .wrap { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 48px; align-items: center; padding-top: 64px; padding-bottom: 72px; }
+    .hero h1 { font-size: clamp(36px, 5.4vw, 58px); font-weight: 800; margin: 14px 0 18px; }
+    .hero h1 span { color: var(--teal); }
+    .hero p.lead { font-size: 18px; color: var(--ink2); max-width: 540px; margin: 0 0 28px; }
+    .cta-row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .trust { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 28px; color: var(--muted); font-size: 14px; }
+    .trust b { color: var(--ink); }
+    .trust div { display: flex; align-items: center; gap: 8px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--teal); }
+
+    /* phone mockup (mirrors the app's home screen) */
+    .phone-stage { display: flex; justify-content: center; position: relative; }
+    .phone-stage::before { content: ""; position: absolute; width: 420px; height: 420px; border-radius: 50%; background: radial-gradient(circle, rgba(18,165,148,.22), transparent 65%); top: 40px; }
+    .phone { position: relative; width: 300px; border-radius: 40px; background: #0B1220; padding: 12px; box-shadow: 0 40px 80px -30px rgba(15,23,42,.55), 0 0 0 1px rgba(255,255,255,.06) inset; transform: rotate(-3deg); }
+    .screen { border-radius: 30px; overflow: hidden; background: var(--wash); height: 600px; position: relative; }
+    .notch { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); width: 92px; height: 24px; border-radius: 14px; background: #0B1220; z-index: 3; }
+    .app-top { background: linear-gradient(135deg, var(--teal), var(--teal-deep)); padding: 44px 16px 56px; color: #fff; }
+    .app-top .hi { font-size: 12px; opacity: .8; }
+    .app-top .nm { font-size: 16px; font-weight: 700; letter-spacing: -0.02em; }
+    .acct { margin: -44px 12px 0; background: #fff; border-radius: 16px; box-shadow: 0 10px 24px -14px rgba(15,23,42,.35); overflow: hidden; position: relative; }
+    .acct-tabs { display: flex; background: #1C2430; }
+    .acct-tabs div { flex: 1; text-align: center; padding: 9px 0; font-size: 10px; font-weight: 700; letter-spacing: .06em; color: rgba(255,255,255,.55); }
+    .acct-tabs div.on { color: #fff; box-shadow: inset 0 -3px 0 var(--amber); }
+    .acct-body { padding: 12px; }
+    .bal { background: #F0F2F4; border-radius: 10px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: flex-end; }
+    .bal small { font-size: 10px; color: var(--muted); display: block; }
+    .bal strong { font-size: 22px; letter-spacing: -0.04em; }
+    .bal strong i { font-style: normal; font-size: 12px; color: var(--muted); margin-right: 3px; font-weight: 600; }
+    .bal .pts { text-align: right; font-size: 10px; color: var(--muted); }
+    .bal .pts b { display: block; color: var(--ink); font-size: 13px; }
+    .acct-cta { margin-top: 10px; background: var(--teal-dark); color: #fff; text-align: center; font-weight: 700; font-size: 12px; padding: 9px; border-radius: 9px; }
+    .grid-title { font-size: 11px; font-weight: 700; color: var(--ink2); margin: 16px 16px 8px; letter-spacing: .04em; }
+    .svc { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px 6px; padding: 0 12px; }
+    .svc div { text-align: center; font-size: 9.5px; color: var(--ink2); font-weight: 500; }
+    .svc span { display: grid; place-items: center; width: 44px; height: 44px; margin: 0 auto 5px; border-radius: 12px; background: var(--teal-soft); color: var(--teal-dark); font-size: 18px; }
+    .toast { position: absolute; left: 14px; right: 14px; bottom: 16px; background: #fff; border-radius: 14px; padding: 10px 12px; display: flex; gap: 10px; align-items: center; box-shadow: 0 14px 30px -16px rgba(15,23,42,.45); font-size: 11px; }
+    .toast .ok { width: 30px; height: 30px; border-radius: 50%; background: var(--teal-soft); color: var(--teal-dark); display: grid; place-items: center; font-weight: 800; }
+    .toast b { display: block; font-size: 12px; }
+    .float-card { position: absolute; z-index: 2; background: #fff; border-radius: 14px; padding: 10px 14px; box-shadow: 0 18px 40px -18px rgba(15,23,42,.4); font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .float-card.a { left: calc(50% - 230px); top: 110px; transform: rotate(-4deg); }
+    .float-card.b { right: calc(50% - 230px); bottom: 120px; transform: rotate(3deg); }
+    .float-card em { font-style: normal; color: var(--teal-dark); font-weight: 800; }
+
+    /* sections */
+    section { padding: 88px 0; }
+    .sec-head { max-width: 640px; margin-bottom: 40px; }
+    .sec-head h2 { font-size: clamp(28px, 3.6vw, 40px); font-weight: 800; margin: 10px 0 12px; }
+    .sec-head p { color: var(--muted); font-size: 17px; margin: 0; }
+    .services { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    .service { border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; background: #fff; transition: border-color .15s, transform .15s; }
+    .service:hover { border-color: var(--teal); transform: translateY(-2px); }
+    .service .ic { width: 44px; height: 44px; border-radius: 12px; background: var(--teal-soft); color: var(--teal-dark); display: grid; place-items: center; font-size: 20px; margin-bottom: 14px; }
+    .service h3 { font-size: 16px; margin-bottom: 6px; }
+    .service p { margin: 0; color: var(--muted); font-size: 14px; }
+
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; counter-reset: s; }
+    .step { background: #fff; border-radius: var(--radius); padding: 26px; border: 1px solid var(--line); position: relative; }
+    .step::before { counter-increment: s; content: counter(s); position: absolute; top: -16px; left: 24px; width: 34px; height: 34px; border-radius: 10px; background: var(--ink); color: #fff; display: grid; place-items: center; font-weight: 800; }
+    .step h3 { font-size: 18px; margin: 8px 0 8px; }
+    .step p { margin: 0; color: var(--muted); font-size: 15px; }
+    .step .tag { display: inline-block; margin-top: 12px; font-size: 12px; font-weight: 700; color: var(--teal-dark); background: var(--teal-soft); border-radius: 999px; padding: 4px 10px; }
+    .bg-wash { background: var(--wash); }
+
+    .mitra { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
+    .tree { background: #fff; border-radius: 20px; padding: 28px; border: 1px solid var(--line); }
+    .node { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: #fff; font-size: 14px; }
+    .node .av { width: 34px; height: 34px; border-radius: 50%; background: var(--teal-soft); color: var(--teal-dark); display: grid; place-items: center; font-weight: 800; }
+    .node .amt { margin-left: auto; font-weight: 800; color: var(--teal-dark); }
+    .node.you { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .node.you .av { background: rgba(255,255,255,.12); color: #fff; }
+    .node.you .amt { color: var(--amber); }
+    .branch { margin-left: 22px; padding-left: 20px; border-left: 2px dashed var(--line); padding-top: 12px; display: grid; gap: 12px; }
+    .checks { list-style: none; padding: 0; margin: 22px 0 0; display: grid; gap: 12px; }
+    .checks li { display: flex; gap: 12px; font-size: 15px; color: var(--ink2); }
+    .checks li::before { content: "✓"; flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--teal-soft); color: var(--teal-dark); display: grid; place-items: center; font-weight: 800; font-size: 12px; margin-top: 1px; }
+
+    .faq { max-width: 760px; }
+    .faq details { border-bottom: 1px solid var(--line); padding: 18px 0; }
+    .faq summary { cursor: pointer; font-weight: 700; font-size: 16px; list-style: none; display: flex; justify-content: space-between; gap: 16px; }
+    .faq summary::-webkit-details-marker { display: none; }
+    .faq summary::after { content: "+"; font-size: 22px; line-height: 1; color: var(--teal-dark); transition: transform .15s; }
+    .faq details[open] summary::after { transform: rotate(45deg); }
+    .faq p { margin: 10px 0 0; color: var(--muted); }
+
+    .final { background: linear-gradient(135deg, var(--teal), var(--teal-deep)); color: #fff; border-radius: 24px; padding: 56px; display: flex; align-items: center; justify-content: space-between; gap: 32px; flex-wrap: wrap; }
+    .final h2 { font-size: clamp(26px, 3.4vw, 36px); font-weight: 800; }
+    .final p { margin: 10px 0 0; opacity: .85; font-size: 16px; }
+    .final .btn-primary { background: #fff; color: var(--ink); }
+    footer { padding: 36px 0 48px; color: var(--muted); font-size: 14px; }
+    footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+
+    .wa-float { position: fixed; right: 20px; bottom: 20px; z-index: 30; width: 58px; height: 58px; border-radius: 50%; background: var(--wa); display: grid; place-items: center; box-shadow: 0 14px 30px -10px rgba(37,211,102,.7); transition: transform .15s; }
+    .wa-float:hover { transform: scale(1.06); }
+    .wa-float svg { width: 30px; height: 30px; fill: #fff; }
+
+    @media (max-width: 960px) {
+      .hero .wrap, .mitra { grid-template-columns: 1fr; }
+      .phone-stage { margin-top: 12px; }
+      .services { grid-template-columns: repeat(2, 1fr); }
+      .steps { grid-template-columns: 1fr; gap: 28px; }
+      .nav-links { display: none; }
+      .nav .btn { margin-left: auto; }
+    }
+    @media (max-width: 520px) {
+      .wrap { padding: 0 16px; }
+      section { padding: 64px 0; }
+      .hero .wrap { padding-top: 40px; padding-bottom: 48px; }
+      .cta-row .btn { width: 100%; }
+      .services { grid-template-columns: 1fr; }
+      .phone { width: 270px; transform: none; }
+      .screen { height: 540px; }
+      .float-card { display: none; }
+      .final { padding: 32px 24px; }
+      .final .btn { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap">
+      <a class="brand" href="#"><span class="logo">PJ</span>Pulsa Juan</a>
+      <nav class="nav-links">
+        <a href="#layanan">Layanan</a>
+        <a href="#cara-kerja">Cara kerja</a>
+        <a href="#mitra">Program mitra</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+      <a class="btn btn-primary btn-sm" data-apk href="#">Download APK</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" style="padding:0">
+      <div class="wrap">
+        <div>
+          <div class="eyebrow">Aplikasi agen pulsa &amp; PPOB</div>
+          <h1>Jualan pulsa, paket data &amp; token PLN dari <span>satu aplikasi</span>.</h1>
+          <p class="lead">Daftar gratis pakai nomor HP, isi saldo lewat transfer bank, lalu layani pelanggan Anda dalam hitungan detik. Setiap transaksi tercatat rapi, saldo selalu terpantau.</p>
+          <div class="cta-row">
+            <a class="btn btn-primary" data-apk href="#">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.48l1.84-3.18a.38.38 0 0 0-.66-.38l-1.86 3.22A11.4 11.4 0 0 0 12 8.08c-1.76 0-3.42.4-4.92 1.06L5.22 5.92a.38.38 0 0 0-.66.38L6.4 9.48A10.8 10.8 0 0 0 1 18h22a10.8 10.8 0 0 0-5.4-8.52zM7 15.25a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5zm10 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5z"/></svg>
+              Download APK Android
+            </a>
+            <a class="btn btn-wa" data-wa href="#" target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.04 2a9.9 9.9 0 0 0-8.5 14.98L2 22l5.17-1.5A9.9 9.9 0 1 0 12.04 2zm0 18.1a8.2 8.2 0 0 1-4.18-1.15l-.3-.18-3.07.89.9-2.99-.2-.31a8.2 8.2 0 1 1 6.85 3.74zm4.5-6.14c-.25-.12-1.46-.72-1.69-.8-.23-.08-.39-.12-.55.12-.16.25-.63.8-.78.97-.14.16-.29.18-.53.06-.25-.12-1.04-.38-1.98-1.22-.73-.65-1.23-1.46-1.37-1.7-.14-.25-.02-.38.11-.5.11-.11.25-.29.37-.43.12-.14.16-.25.25-.41.08-.16.04-.31-.02-.43-.06-.12-.55-1.33-.76-1.82-.2-.48-.4-.41-.55-.42h-.47a.9.9 0 0 0-.65.31c-.23.25-.86.84-.86 2.05 0 1.2.88 2.37 1 2.53.12.16 1.73 2.64 4.2 3.7.59.25 1.05.4 1.4.52.59.19 1.13.16 1.55.1.47-.07 1.46-.6 1.66-1.18.21-.58.21-1.07.15-1.18-.06-.1-.22-.16-.47-.28z"/></svg>
+              Tanya via WhatsApp
+            </a>
+          </div>
+          <div class="apk-note" data-apk-note>APK sedang disiapkan — hubungi kami via WhatsApp untuk mendapatkan link unduhan.</div>
+          <div class="trust">
+            <div><span class="dot"></span><span><b>Daftar gratis</b> dengan OTP</span></div>
+            <div><span class="dot"></span><span><b>Login PIN</b> 6 angka</span></div>
+            <div><span class="dot"></span><span><b>Komisi</b> mitra 2 tingkat</span></div>
+          </div>
+        </div>
+
+        <div class="phone-stage" aria-hidden="true">
+          <div class="float-card a">⚡ Token PLN <em>terkirim</em></div>
+          <div class="float-card b">💰 Saldo masuk <em>Rp 100.123</em></div>
+          <div class="phone">
+            <div class="screen">
+              <div class="notch"></div>
+              <div class="app-top">
+                <div class="hi">Selamat datang,</div>
+                <div class="nm">Warung Bu Tini</div>
+              </div>
+              <div class="acct">
+                <div class="acct-tabs"><div class="on">ISI SALDO</div><div>KOMISI</div></div>
+                <div class="acct-body">
+                  <div class="bal">
+                    <div><small>Saldo Akun</small><strong><i>Rp</i>487.500</strong></div>
+                    <div class="pts">Poin<b>120</b></div>
+                  </div>
+                  <div class="acct-cta">Isi Saldo</div>
+                </div>
+              </div>
+              <div class="grid-title">SEMUA LAYANAN</div>
+              <div class="svc">
+                <div><span>📱</span>Pulsa</div>
+                <div><span>🌐</span>Paket Data</div>
+                <div><span>⚡</span>Token PLN</div>
+                <div><span>🧾</span>PLN Pasca</div>
+                <div><span>👛</span>GoPay</div>
+                <div><span>🎮</span>Game</div>
+                <div><span>📶</span>XL</div>
+                <div><span>🔴</span>Telkomsel</div>
+              </div>
+              <div class="toast"><div class="ok">✓</div><div><b>Pulsa 10.000 sukses</b>0812-9876-5432 · SN 8821304</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="layanan">
+      <div class="wrap">
+        <div class="sec-head">
+          <div class="eyebrow">Layanan</div>
+          <h2>Semua kebutuhan pelanggan, satu saldo.</h2>
+          <p>Satu saldo prabayar untuk semua produk. Harga agen jelas di setiap paket, tanpa biaya tersembunyi.</p>
+        </div>
+        <div class="services">
+          <div class="service"><div class="ic">📱</div><h3>Pulsa semua operator</h3><p>Telkomsel, Indosat, XL, Axis, Tri, Smartfren — operator terdeteksi otomatis dari nomor.</p></div>
+          <div class="service"><div class="ic">🌐</div><h3>Paket data</h3><p>Paket harian sampai bulanan dengan daftar harga yang selalu diperbarui.</p></div>
+          <div class="service"><div class="ic">⚡</div><h3>Token &amp; tagihan PLN</h3><p>Token prabayar dan cek tagihan pascabayar, token langsung tampil di aplikasi.</p></div>
+          <div class="service"><div class="ic">🎮</div><h3>E-wallet &amp; game</h3><p>Top up GoPay, OVO, DANA dan voucher game populer seperti Mobile Legends.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="cara-kerja" class="bg-wash">
+      <div class="wrap">
+        <div class="sec-head">
+          <div class="eyebrow">Cara kerja</div>
+          <h2>Mulai jualan dalam 3 langkah.</h2>
+          <p>Tidak perlu modal besar. Isi saldo sesuai kebutuhan dan langsung layani pelanggan.</p>
+        </div>
+        <div class="steps">
+          <div class="step"><h3>Daftar dengan nomor HP</h3><p>Verifikasi kode OTP, isi nama, lalu buat PIN 6 angka. Masuk berikutnya cukup pakai nomor HP dan PIN.</p><span class="tag">± 1 menit</span></div>
+          <div class="step"><h3>Isi saldo via transfer bank</h3><p>Pilih nominal, transfer ke rekening BRI/BCA dengan kode unik 3 angka. Kode unik ikut masuk ke saldo Anda.</p><span class="tag">Rp 100.000 → saldo Rp 100.123</span></div>
+          <div class="step"><h3>Transaksi &amp; pantau saldo</h3><p>Pilih layanan, masukkan nomor tujuan, selesai. Status, SN/token dan riwayat saldo tercatat otomatis.</p><span class="tag">Riwayat lengkap</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="mitra">
+      <div class="wrap mitra">
+        <div>
+          <div class="eyebrow">Program mitra</div>
+          <h2 style="font-size:clamp(28px,3.6vw,40px);font-weight:800;margin:10px 0 12px">Ajak agen lain, dapat komisi dari setiap transaksinya.</h2>
+          <p style="color:var(--muted);font-size:17px;margin:0">Bagikan kode referral Anda. Setiap mitra yang mendaftar dengan kode itu memberi Anda komisi per transaksi — sampai 2 tingkat.</p>
+          <ul class="checks">
+            <li>Atur sendiri markup untuk mitra baru Anda</li>
+            <li>Komisi bisa diklaim kapan saja dan langsung masuk ke saldo</li>
+            <li>Pantau jaringan mitra dan riwayat komisi dari aplikasi</li>
+          </ul>
+        </div>
+        <div class="tree" aria-hidden="true">
+          <div class="node you"><span class="av">A</span><span>Anda</span><span class="amt">+Rp 500 / trx</span></div>
+          <div class="branch">
+            <div class="node"><span class="av">B</span><span>Budi Cell</span><span class="amt">+Rp 300</span></div>
+            <div class="branch">
+              <div class="node"><span class="av">S</span><span>Sari Pulsa</span><span class="amt">+Rp 200</span></div>
+            </div>
+            <div class="node"><span class="av">T</span><span>Warung Bu Tini</span><span class="amt">+Rp 300</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="faq" class="bg-wash">
+      <div class="wrap">
+        <div class="sec-head">
+          <div class="eyebrow">FAQ</div>
+          <h2>Pertanyaan yang sering diajukan</h2>
+        </div>
+        <div class="faq">
+          <details open><summary>Berapa biaya untuk mendaftar?</summary><p>Gratis. Anda hanya perlu nomor HP aktif untuk menerima kode OTP. Saldo diisi sesuai kebutuhan, minimal Rp 10.000.</p></details>
+          <details><summary>Bagaimana cara isi saldo?</summary><p>Buka menu Isi Saldo, pilih nominal dan bank (BRI/BCA), lalu transfer tepat sesuai total yang tertera — termasuk 3 angka kode unik. Tekan "Saya Sudah Bayar"; admin memverifikasi mutasi bank lalu saldo bertambah sebesar total transfer.</p></details>
+          <details><summary>Bagaimana jika transaksi gagal?</summary><p>Saldo dikembalikan otomatis ke akun Anda, dan riwayatnya bisa dilihat di menu Riwayat Saldo.</p></details>
+          <details><summary>Saya lupa PIN, apa yang harus dilakukan?</summary><p>Pilih "Lupa PIN" di halaman masuk, verifikasi nomor HP dengan kode OTP, lalu buat PIN baru.</p></details>
+          <details><summary>Apakah tersedia untuk iPhone?</summary><p>Saat ini aplikasi tersedia untuk Android (APK). Hubungi kami via WhatsApp untuk informasi versi lainnya.</p></details>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <div class="final">
+          <div>
+            <h2>Siap jadi agen Pulsa Juan?</h2>
+            <p>Download aplikasinya sekarang, atau ngobrol dulu dengan tim kami.</p>
+          </div>
+          <div class="cta-row">
+            <a class="btn btn-primary" data-apk href="#">Download APK</a>
+            <a class="btn btn-wa" data-wa href="#" target="_blank" rel="noopener">WhatsApp kami</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <div><b style="color:var(--ink)">Pulsa Juan</b> · Aplikasi agen pulsa &amp; PPOB</div>
+      <div>© <span data-year></span> Pulsa Juan</div>
+    </div>
+  </footer>
+
+  <a class="wa-float" data-wa href="#" target="_blank" rel="noopener" aria-label="Chat WhatsApp">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.04 2a9.9 9.9 0 0 0-8.5 14.98L2 22l5.17-1.5A9.9 9.9 0 1 0 12.04 2zm0 18.1a8.2 8.2 0 0 1-4.18-1.15l-.3-.18-3.07.89.9-2.99-.2-.31a8.2 8.2 0 1 1 6.85 3.74zm4.5-6.14c-.25-.12-1.46-.72-1.69-.8-.23-.08-.39-.12-.55.12-.16.25-.63.8-.78.97-.14.16-.29.18-.53.06-.25-.12-1.04-.38-1.98-1.22-.73-.65-1.23-1.46-1.37-1.7-.14-.25-.02-.38.11-.5.11-.11.25-.29.37-.43.12-.14.16-.25.25-.41.08-.16.04-.31-.02-.43-.06-.12-.55-1.33-.76-1.82-.2-.48-.4-.41-.55-.42h-.47a.9.9 0 0 0-.65.31c-.23.25-.86.84-.86 2.05 0 1.2.88 2.37 1 2.53.12.16 1.73 2.64 4.2 3.7.59.25 1.05.4 1.4.52.59.19 1.13.16 1.55.1.47-.07 1.46-.6 1.66-1.18.21-.58.21-1.07.15-1.18-.06-.1-.22-.16-.47-.28z"/></svg>
+  </a>
+
+  <script>
+    // ---- edit these two ----
+    // Direct APK URL. Host it on R2 / an EAS build artifact, not in this Pages
+    // deploy (Cloudflare Pages caps files at 25 MiB). Empty = "coming soon" note.
+    var APK_URL = '';
+    // wa.me wants the international number without "+" or leading 0.
+    var WHATSAPP_NUMBER = '6285219197951';
+    var WHATSAPP_TEXT = 'Halo, saya tertarik jadi agen Pulsa Juan.';
+
+    var waUrl = 'https://wa.me/' + WHATSAPP_NUMBER + '?text=' + encodeURIComponent(WHATSAPP_TEXT);
+    document.querySelectorAll('[data-wa]').forEach(function (a) { a.href = waUrl; });
+    document.querySelectorAll('[data-apk]').forEach(function (a) {
+      if (APK_URL) {
+        a.href = APK_URL;
+        a.setAttribute('download', 'pulsa-juan.apk');
+      } else {
+        a.addEventListener('click', function (e) {
+          e.preventDefault();
+          document.querySelectorAll('[data-apk-note]').forEach(function (n) { n.classList.add('show'); });
+          document.querySelector('[data-apk-note]').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+      }
+    });
+    document.querySelector('[data-year]').textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>

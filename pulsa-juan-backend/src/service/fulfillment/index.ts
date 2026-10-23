@@ -3,16 +3,27 @@ import { InquiryResult } from 'pulsa-juan-common';
 import { badRequest } from '../../lib/errors';
 
 // v1: manual fulfilment. Purchases stay PENDING until an admin marks them
-// SUKSES/GAGAL in the dashboard. A Digiflazz/IAK provider slots in here later.
+// SUKSES/GAGAL in the dashboard. FULFILLMENT_PROVIDER=otomax switches to the
+// Otomax H2H provider once it is implemented; its async results arrive on
+// POST /api/fulfillment/callback/otomax.
 
-export type PurchaseOutcome = { status: 'PENDING' } | { status: 'SUCCESS'; serialNumber?: string } | { status: 'FAILED'; reason: string };
+export type PurchaseOutcome =
+  | { status: 'PENDING'; supplierRef?: string }
+  | { status: 'SUCCESS'; serialNumber?: string; supplierRef?: string }
+  | { status: 'FAILED'; reason: string; supplierRef?: string };
 
 export interface FulfillmentProvider {
+  /** stored on Transaction.provider */
+  readonly name: string;
+  readonly mode: 'MANUAL' | 'AUTO';
   inquire(product: string, customerId: string): Promise<InquiryResult>;
   purchase(trx: { id: string; packageId: string | null; customerId: string | null; phoneNumber: string | null; total: number }): Promise<PurchaseOutcome>;
 }
 
 export class ManualProvider implements FulfillmentProvider {
+  readonly name: string = 'manual';
+  readonly mode: 'MANUAL' | 'AUTO' = 'MANUAL';
+
   async inquire(product: string, customerId: string): Promise<InquiryResult> {
     if (process.env.FULFILLMENT_STUB !== '1') {
       throw badRequest('Cek tagihan belum tersedia. Hubungi CS.', 'INQUIRY_UNAVAILABLE');
@@ -34,7 +45,23 @@ export class ManualProvider implements FulfillmentProvider {
   }
 }
 
-let provider: FulfillmentProvider = new ManualProvider();
+/**
+ * Otomax H2H (stub). TODO once the Otomax centre details are known:
+ * - purchase: GET/POST to OTOMAX_URL with memberid/pin/password, product code
+ *   (Package.supplierSku), destination and our ref id (Transaction.id), then map
+ *   the immediate reply to PENDING/SUCCESS/FAILED.
+ * - callback: parse Otomax's report format in the fulfillment controller.
+ * Until then it behaves like manual (orders wait for an admin).
+ */
+export class OtomaxProvider extends ManualProvider {
+  readonly name: string = 'otomax';
+}
+
+function fromEnv(): FulfillmentProvider {
+  return process.env.FULFILLMENT_PROVIDER === 'otomax' ? new OtomaxProvider() : new ManualProvider();
+}
+
+let provider: FulfillmentProvider = fromEnv();
 
 export function getFulfillmentProvider(): FulfillmentProvider {
   return provider;
