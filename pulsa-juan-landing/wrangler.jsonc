@@ -1,10 +1,14 @@
-// Cloudflare Worker serving the static landing page (public/). `npm run deploy`.
+// Cloudflare Worker for the landing page: public/ is served as static assets;
+// src/worker.js only handles what has no file — the app download from R2.
+// Release a new app build: wrangler r2 object put pulsa-juan-downloads/pulsa-juan.apk --file <apk> --remote
 {
   "name": "pulsa-juan-landing",
+  "main": "src/worker.js",
   "compatibility_date": "2026-05-01",
   "assets": {
     "directory": "./public"
-  }
+  },
+  "r2_buckets": [{ "binding": "DOWNLOADS", "bucket_name": "pulsa-juan-downloads" }]
   // Attach the custom domain once chosen (wrangler creates the DNS record + cert):
   // "routes": [{ "pattern": "www.pulsajuan.studiosclo.uk", "custom_domain": true }]
 }
