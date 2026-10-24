@@ -79,7 +79,7 @@ export async function updatePackage(id: string, input: Partial<z.infer<typeof pa
   // a hand-edited agent price on an updater-managed package sticks across sheet uploads
   const current = await prisma.package.findUnique({ where: { id }, select: { hargaAgen: true, supplierName: true } });
   const data = { ...input };
-  if (input.priceLocked === undefined && input.hargaAgen !== undefined && current?.supplierName === 'OtomaX' && input.hargaAgen !== current.hargaAgen) {
+  if (input.priceLocked === undefined && input.hargaAgen !== undefined && current && ['OtomaX', 'Pasar'].includes(current.supplierName ?? '') && input.hargaAgen !== current.hargaAgen) {
     data.priceLocked = true;
   }
   return prisma.package.update({ where: { id }, data });

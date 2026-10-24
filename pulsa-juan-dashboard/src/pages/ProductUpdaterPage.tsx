@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Chip, InputAdornment, MenuItem, Paper, Select, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Chip, InputAdornment, MenuItem, Paper, Select, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PROVIDERS } from 'pulsa-juan-common';
 import { useMemo, useState } from 'react';
@@ -6,23 +6,26 @@ import { useMemo, useState } from 'react';
 import { api, errMsg, fmtDate, fmtRp } from '../api';
 import { ConfirmDialog, PageHeader } from '../components/common';
 import { FileDropZone } from '../components/DropZone';
+import { readCsv } from '../lib/csv';
 import { readXlsx } from '../lib/xlsx';
 
 type Provider = (typeof PROVIDERS)[number];
 type Status = 'NEW' | 'PRICE_CHANGED' | 'DETAILS_CHANGED' | 'UNCHANGED' | 'REACTIVATED' | 'DEACTIVATED' | 'ERROR';
 
 interface Rule { fixed: number; percent: number; roundTo: number }
+type CodeType = 'OTOMAX' | 'MARKET';
 interface SheetRow { provider: Provider; sku: string; name: string; category: string; description: string; cost: number }
-interface ParsedSheet { name: string; provider: Provider | 'SKIP'; rows: Omit<SheetRow, 'provider'>[]; problem: string | null }
+interface ParsedSheet { name: string; provider: Provider | 'SKIP'; rows: Omit<SheetRow, 'provider'>[]; problem: string | null; market: boolean }
 interface PreviewRow {
   sku: string; provider: Provider; name: string; category: string; categoryLabel: string; status: Status;
   cost: number | null; oldCost: number | null; agentPrice: number | null; oldAgentPrice: number | null; priceLocked: boolean; warnings: string[]; error: string | null;
 }
-interface PreviewResult { rows: PreviewRow[]; summary: Record<Status, number> }
+interface TilePreview { provider: string; slug: string; categories: number; products: number; errors: string[] }
+interface PreviewResult { rows: PreviewRow[]; summary: Record<Status, number>; tiles?: TilePreview[] }
 interface ApplyResult extends PreviewResult { segments: { provider: string; slug: string; published: boolean; version?: number; categories: number }[] }
-interface HistoryRow { id: string; fileName: string; createdAt: string; admin: { name: string; email: string } | null; summary: { counts: Record<Status, number>; rule: Rule } }
+interface HistoryRow { id: string; fileName: string; createdAt: string; admin: { name: string; email: string } | null; summary: { counts: Record<Status, number>; rule: Rule; codeType?: CodeType } }
 
-const XLSX_ACCEPT = { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] };
+const FILE_ACCEPT = { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'], 'text/csv': ['.csv'] };
 
 const STATUS: Record<Status, { label: string; color: 'default' | 'success' | 'warning' | 'info' | 'error' }> = {
   NEW: { label: 'Baru', color: 'success' },
@@ -51,11 +54,11 @@ function detectProvider(sheet: string): Provider | 'SKIP' {
 function parseSheet(name: string, rows: string[][]): ParsedSheet {
   const norm = (s: string) => s.trim().toUpperCase();
   const headerIdx = rows.findIndex((r) => r.some((c) => /^KODE/.test(norm(c))) && r.some((c) => /^HARGA/.test(norm(c))));
-  if (headerIdx < 0) return { name, provider: 'SKIP', rows: [], problem: 'Header KODE PRODUK / HARGA tidak ditemukan' };
+  if (headerIdx < 0) return { name, provider: 'SKIP', rows: [], problem: 'Header KODE PRODUK / HARGA tidak ditemukan', market: false };
   const header = rows[headerIdx].map(norm);
   const col = (re: RegExp) => header.findIndex((h) => re.test(h));
   const c = { sku: col(/^KODE/), name: col(/^NAMA/), category: col(/^KATEGORI/), description: col(/^(KET|DESKRIPSI)/), cost: col(/^HARGA/) };
-  if (c.name < 0 || c.category < 0) return { name, provider: 'SKIP', rows: [], problem: 'Kolom NAMA / KATEGORI tidak ditemukan' };
+  if (c.name < 0 || c.category < 0) return { name, provider: 'SKIP', rows: [], problem: 'Kolom NAMA / KATEGORI tidak ditemukan', market: false };
   const toInt = (s: string) => (/^\d+(\.\d+)?$/.test(s.trim()) ? Math.round(Number(s)) : Number(s.replace(/[^\d]/g, '')) || 0);
   const parsed = rows
     .slice(headerIdx + 1)
@@ -67,7 +70,9 @@ function parseSheet(name: string, rows: string[][]): ParsedSheet {
       description: c.description >= 0 ? (r[c.description] ?? '').trim() : '',
       cost: toInt(r[c.cost] ?? ''),
     }));
-  return { name, provider: detectProvider(name), rows: parsed, problem: parsed.length ? null : 'Tidak ada baris produk' };
+  // files from scripts/market-prices/collect.mjs carry a "SUMBER HARGA" column
+  const market = header.some((h) => /^SUMBER HARGA/.test(h));
+  return { name, provider: detectProvider(name), rows: parsed, problem: parsed.length ? null : 'Tidak ada baris produk', market };
 }
 
 export default function ProductUpdaterPage() {
@@ -82,6 +87,7 @@ export default function ProductUpdaterPage() {
   const [ruleEdit, setRuleEdit] = useState<Rule | null>(null);
   const rule = ruleEdit ?? info.data?.rule ?? { fixed: 0, percent: 0, roundTo: 100 };
   const [overrides, setOverrides] = useState<Record<string, number>>({});
+  const [codeType, setCodeType] = useState<CodeType>('OTOMAX');
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('CHANGES');
   const [confirm, setConfirm] = useState(false);
   const [result, setResult] = useState<ApplyResult | null>(null);
@@ -92,8 +98,8 @@ export default function ProductUpdaterPage() {
       if (s.provider === 'SKIP') continue;
       for (const r of s.rows) rows.push({ ...r, provider: s.provider as Provider, ...(overrides[r.sku] ? { agentPrice: overrides[r.sku] } : {}) });
     }
-    return { fileName: fileName || 'upload.xlsx', rule, rows };
-  }, [sheets, fileName, rule, overrides]);
+    return { fileName: fileName || 'upload.xlsx', codeType, rule, rows };
+  }, [sheets, fileName, codeType, rule, overrides]);
 
   const preview = useMutation({
     mutationFn: async () => (await api.post<PreviewResult>('/admin/product-updater/preview', payload)).data,
@@ -120,9 +126,11 @@ export default function ProductUpdaterPage() {
     preview.reset();
     setOverrides({});
     try {
-      const parsed = (await readXlsx(f)).map((s) => parseSheet(s.name, s.rows));
+      const raw = /\.csv$/i.test(f.name) ? await readCsv(f) : await readXlsx(f);
+      const parsed = raw.map((s) => parseSheet(s.name, s.rows));
       setFileName(f.name);
       setSheets(parsed);
+      setCodeType(parsed.some((s) => s.market) ? 'MARKET' : 'OTOMAX');
     } catch (e) {
       setReadError((e as Error).message || 'File tidak bisa dibaca');
     }
@@ -132,6 +140,7 @@ export default function ProductUpdaterPage() {
   const shown = rows.filter((r) => (filter === 'ALL' ? true : filter === 'CHANGES' ? r.status !== 'UNCHANGED' : r.status === filter));
   const s = preview.data?.summary;
   const changes = s ? s.NEW + s.PRICE_CHANGED + s.DETAILS_CHANGED + s.REACTIVATED + s.DEACTIVATED : 0;
+  const tileErrors = (preview.data?.tiles ?? []).filter((t) => t.errors.length);
   const ruleNum = (k: keyof Rule) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setRuleEdit({ ...rule, [k]: Number(e.target.value) || 0 });
     preview.reset();
@@ -146,7 +155,19 @@ export default function ProductUpdaterPage() {
 
       <Paper sx={{ p: 2, mb: 2 }}>
         <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>1. File harga</Typography>
-        <FileDropZone accept={XLSX_ACCEPT} onFiles={onFile} label={fileName ? `${fileName} — klik atau tarik file lain untuk mengganti` : 'Tarik & letakkan file .xlsx, atau klik untuk pilih'} />
+        <FileDropZone accept={FILE_ACCEPT} onFiles={onFile} label={fileName ? `${fileName} — klik atau tarik file lain untuk mengganti` : 'Tarik & letakkan file .xlsx / .csv, atau klik untuk pilih'} />
+        <Box sx={{ mt: 2, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>Kode produk di file:</Typography>
+          <ToggleButtonGroup size="small" exclusive value={codeType} onChange={(_, v) => { if (v) { setCodeType(v); preview.reset(); } }}>
+            <ToggleButton value="OTOMAX">Kode OtomaX (otomatis)</ToggleButton>
+            <ToggleButton value="MARKET">Kode referensi pasar (manual)</ToggleButton>
+          </ToggleButtonGroup>
+          <Typography variant="caption" color="text.secondary" sx={{ flex: 1, minWidth: 260 }}>
+            {codeType === 'OTOMAX'
+              ? 'Kode = kode produk di OtomaX kita; order dikirim otomatis bila OtomaX terhubung.'
+              : 'Kode dari daftar harga penjual lain (mis. hasil collect.mjs). Disimpan sebagai PSR-<kode>, diproses manual sampai Kode produk OtomaX diisi di halaman Paket. Tidak menyentuh produk OtomaX.'}
+          </Typography>
+        </Box>
         {readError && <Alert severity="error" sx={{ mt: 1 }}>{readError}</Alert>}
         {sheets && (
           <Table size="small" sx={{ mt: 2, maxWidth: 720 }}>
@@ -185,12 +206,26 @@ export default function ProductUpdaterPage() {
             {preview.isPending ? 'Menghitung…' : preview.data ? 'Pratinjau ulang' : 'Pratinjau perubahan'}
           </Button>
           {preview.data && (
-            <Button variant="contained" color="success" disabled={changes === 0 || s!.ERROR === payload.rows.length} onClick={() => { apply.reset(); setConfirm(true); }}>
+            <Button variant="contained" color="success" disabled={changes === 0 || s!.ERROR === payload.rows.length || tileErrors.length > 0} onClick={() => { apply.reset(); setConfirm(true); }}>
               Terapkan {changes} perubahan
             </Button>
           )}
         </Box>
         {preview.isError && <Alert severity="error" sx={{ mt: 1 }}>{errMsg(preview.error)}</Alert>}
+        {preview.data?.tiles && (
+          <Box sx={{ mt: 1.5, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            {preview.data.tiles.map((t) => (
+              <Chip
+                key={t.slug}
+                size="small"
+                color={t.errors.length ? 'error' : 'default'}
+                variant="outlined"
+                label={`Tile ${t.slug}: ${t.products} produk · ${t.categories} kategori${t.categories > 50 ? ' (dibagi ke beberapa halaman)' : ''}`}
+              />
+            ))}
+          </Box>
+        )}
+        {tileErrors.map((t) => <Alert key={t.slug} severity="error" sx={{ mt: 1 }}>Tile {t.slug} tidak valid: {t.errors.slice(0, 3).join('; ')}</Alert>)}
       </Paper>
 
       {result && (
@@ -276,7 +311,7 @@ export default function ProductUpdaterPage() {
               return (
                 <TableRow key={h.id}>
                   <TableCell sx={{ whiteSpace: 'nowrap' }}>{fmtDate(h.createdAt)}</TableCell>
-                  <TableCell>{h.fileName}</TableCell>
+                  <TableCell>{h.fileName}{h.summary.codeType === 'MARKET' && <Chip size="small" label="pasar" sx={{ ml: 1 }} />}</TableCell>
                   <TableCell>{h.admin?.name ?? '-'}</TableCell>
                   <TableCell sx={{ whiteSpace: 'nowrap' }}>+{fmtRp(h.summary.rule.fixed)} +{h.summary.rule.percent}% ↑{fmtRp(h.summary.rule.roundTo)}</TableCell>
                   <TableCell>{c.NEW} baru · {c.PRICE_CHANGED} harga · {c.DETAILS_CHANGED} detail · {c.REACTIVATED} aktif lagi · {c.DEACTIVATED} nonaktif{c.ERROR ? ` · ${c.ERROR} error` : ''}</TableCell>

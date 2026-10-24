@@ -13,8 +13,8 @@ export interface Pkg {
   id: string; code: string; name: string; description: string | null; category: string; provider: string | null; hargaAgen: number; hargaBeli: number;
   imageUrl: string | null; supplierName: string | null; supplierSku: string | null; isActive: boolean; sortOrder: number; priceLocked: boolean;
 }
-/** supplierName of packages created by the Product Updater */
-const MANAGED = 'OtomaX';
+/** supplierName of packages created by the Product Updater (OtomaX codes / market reference) */
+const MANAGED = ['OtomaX', 'Pasar'];
 const EMPTY: Partial<Pkg> = { code: '', name: '', category: '', provider: null, hargaAgen: 0, hargaBeli: 0, imageUrl: null, supplierSku: '', supplierName: '', isActive: true, sortOrder: 0 };
 
 export default function PackagesPage() {
@@ -107,7 +107,7 @@ export default function PackagesPage() {
               type="number"
               value={edit.hargaAgen ?? 0}
               // a hand-set price on an updater-managed package must survive the next sheet upload
-              onChange={(e) => setEdit({ ...edit, hargaAgen: Number(e.target.value), ...(edit.supplierName === MANAGED ? { priceLocked: true } : {}) })}
+              onChange={(e) => setEdit({ ...edit, hargaAgen: Number(e.target.value), ...(MANAGED.includes(edit.supplierName ?? '') ? { priceLocked: true } : {}) })}
               size="small"
             />
             <TextField label="Harga beli (Rp)" type="number" value={edit.hargaBeli ?? 0} onChange={(e) => setEdit({ ...edit, hargaBeli: Number(e.target.value) })} size="small" />
@@ -115,7 +115,7 @@ export default function PackagesPage() {
             <TextField label="Urutan" type="number" value={edit.sortOrder ?? 0} onChange={(e) => setEdit({ ...edit, sortOrder: Number(e.target.value) })} size="small" />
             <TextField label="Supplier" value={edit.supplierName ?? ''} onChange={(e) => setEdit({ ...edit, supplierName: e.target.value })} size="small" />
             <TextField label="Kode produk OtomaX" value={edit.supplierSku ?? ''} onChange={(e) => setEdit({ ...edit, supplierSku: e.target.value })} size="small" helperText="terisi = diproses otomatis via OtomaX" />
-            {edit.supplierName === MANAGED && (
+            {MANAGED.includes(edit.supplierName ?? '') && (
               <FormControlLabel
                 sx={{ gridColumn: '1 / -1' }}
                 control={<Checkbox checked={!!edit.priceLocked} onChange={(e) => setEdit({ ...edit, priceLocked: e.target.checked })} />}

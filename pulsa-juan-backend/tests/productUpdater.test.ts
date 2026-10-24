@@ -151,3 +151,78 @@ describe('product updater', () => {
     expect((await request(app).post('/api/admin/product-updater/preview').set(auth(staff)).send(body(INDOSAT))).status).toBe(403);
   });
 });
+
+describe('market reference mode', () => {
+  const XL = [
+    { provider: 'XL', sku: 'X10', name: 'Xl 10.000', category: 'Pulsa', cost: 10944 },
+    { provider: 'XL', sku: 'XDH3', name: '3GB Full 24 Jam 30 Hari', category: 'XL Data All jaringan 24 Jam 30 Hari', cost: 24450 },
+  ];
+  const market = (rows: unknown[]) => ({ ...body(rows), codeType: 'MARKET' });
+
+  it('imports as manual PSR-<code> packages and builds the Paket XL tile', async () => {
+    const admin = await adminToken();
+    const res = await request(app).post('/api/admin/product-updater/apply').set(auth(admin)).send(market(XL));
+    expect(res.status).toBe(200);
+    expect(res.body.summary.NEW).toBe(2);
+    const x10 = await prisma.package.findUniqueOrThrow({ where: { code: 'PSR-X10' } });
+    expect(x10).toMatchObject({ supplierName: 'Pasar', supplierSku: null, provider: 'XL', category: 'XL_PULSA', hargaBeli: 10944, hargaAgen: 11500 });
+    expect(res.body.segments[0]).toMatchObject({ slug: 'paket-xl', published: true });
+    // long competitor group names still give valid ids (≤ 40 chars)
+    const xl = await prisma.segment.findUniqueOrThrow({ where: { slug: 'paket-xl' }, include: { publishedVersion: true } });
+    const ids = Object.keys((xl.publishedVersion!.tree as { nodes: object }).nodes);
+    expect(ids.every((id) => id.length <= 40)).toBe(true);
+    expect((await prisma.package.findUniqueOrThrow({ where: { code: 'PSR-XDH3' } })).category.length).toBeLessThanOrEqual(60);
+    const history = await request(app).get('/api/admin/product-updater').set(auth(admin));
+    expect(history.body.history[0].summary.codeType).toBe('MARKET');
+  });
+
+  it('modes never deactivate each other; same code can exist in both', async () => {
+    const admin = await adminToken();
+    // market sheet that happens to contain an OtomaX code for Indosat
+    const res = await request(app)
+      .post('/api/admin/product-updater/apply')
+      .set(auth(admin))
+      .send(market([{ provider: 'INDOSAT', sku: 'DY3', name: 'pasar DY3', category: 'HARIAN', cost: 7900 }]));
+    expect(res.body.summary.NEW).toBe(1);
+    expect(res.body.summary.DEACTIVATED).toBe(0);
+    expect((await prisma.package.findUniqueOrThrow({ where: { code: 'DY3' } })).isActive).toBe(true);
+    expect((await prisma.package.findUniqueOrThrow({ where: { code: 'PSR-DY3' } })).supplierName).toBe('Pasar');
+    // an OtomaX re-upload of Indosat leaves the market Indosat product alone
+    const otx = await request(app).post('/api/admin/product-updater/apply').set(auth(admin)).send(body(INDOSAT));
+    expect(otx.body.rows.some((r: { sku: string }) => r.sku === 'PSR-DY3')).toBe(false);
+    expect((await prisma.package.findUniqueOrThrow({ where: { code: 'PSR-DY3' } })).isActive).toBe(true);
+  });
+
+  it('keeps an OtomaX code assigned later, and deactivates only market products', async () => {
+    const admin = await adminToken();
+    const x10 = await prisma.package.findUniqueOrThrow({ where: { code: 'PSR-X10' } });
+    await request(app).put(`/api/admin/packages/${x10.id}`).set(auth(admin)).send({ supplierSku: 'XL10OTX' });
+    const res = await request(app).post('/api/admin/product-updater/apply').set(auth(admin)).send(market([XL[0]]));
+    expect(res.body.summary.DEACTIVATED).toBe(1);
+    expect((await prisma.package.findUniqueOrThrow({ where: { code: 'PSR-X10' } })).supplierSku).toBe('XL10OTX');
+    expect((await prisma.package.findUniqueOrThrow({ where: { code: 'PSR-XDH3' } })).isActive).toBe(false);
+  });
+});
+
+describe('large market catalogs', () => {
+  it('pages more than 50 categories, clips long labels, previews the tile', async () => {
+    const admin = await adminToken();
+    const rows = Array.from({ length: 60 }, (_, i) => ({
+      provider: 'SMARTFREN',
+      sku: `SFX${i}`,
+      name: `Paket ${i}`,
+      category: `Voucher Data Smartfren Sangat Panjang Sekali Nama Kategorinya Untuk Wilayah Nomor ${i} Khusus`,
+      cost: 10000 + i,
+    }));
+    const preview = await request(app).post('/api/admin/product-updater/preview').set(auth(admin)).send({ ...body(rows), codeType: 'MARKET' });
+    expect(preview.body.tiles).toEqual([expect.objectContaining({ slug: 'paket-smartfren', categories: 60, products: 60, errors: [] })]);
+    const res = await request(app).post('/api/admin/product-updater/apply').set(auth(admin)).send({ ...body(rows), codeType: 'MARKET' });
+    expect(res.status).toBe(200);
+    const seg = await prisma.segment.findUniqueOrThrow({ where: { slug: 'paket-smartfren' }, include: { publishedVersion: true } });
+    const nodes = (seg.publishedVersion!.tree as { nodes: Record<string, { rows?: { label: string; childId: string }[] }> }).nodes;
+    expect(nodes.cat.rows).toHaveLength(50);
+    expect(nodes.cat.rows![49]).toMatchObject({ label: 'Kategori lainnya…', childId: 'cat_2' });
+    expect(nodes.cat_2.rows).toHaveLength(11);
+    expect(nodes.cat.rows!.every((r) => r.label.length <= 80)).toBe(true);
+  });
+});

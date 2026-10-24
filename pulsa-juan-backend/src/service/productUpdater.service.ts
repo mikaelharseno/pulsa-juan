@@ -1,8 +1,10 @@
-import { formatRp, PROVIDERS, SegmentTree } from 'pulsa-juan-common';
+import crypto from 'crypto';
+import { formatRp, PROVIDERS, SegmentTree, validateTreeStructure } from 'pulsa-juan-common';
 import { z } from 'zod';
 
 import { Package, Prisma, Provider } from '../../prisma/generated';
 import { prisma } from '../../prisma/client';
+import { badRequest } from '../lib/errors';
 import { audit } from './audit.service';
 import { createSegment, publishSegment, saveDraft } from './segment.service';
 
@@ -13,6 +15,10 @@ import { createSegment, publishSegment, saveDraft } from './segment.service';
 // supplierName = 'OtomaX'; only those are ever deactivated.
 
 export const MANAGED_SUPPLIER = 'OtomaX';
+/** Products imported from market reference price lists (other sellers' codes → manual fulfilment) */
+export const MARKET_SUPPLIER = 'Pasar';
+export const MARKET_CODE_PREFIX = 'PSR-';
+const MANAGED_SUPPLIERS = [MANAGED_SUPPLIER, MARKET_SUPPLIER];
 
 const ruleSchema = z.object({
   fixed: z.number().int().min(0).max(1_000_000),
@@ -24,7 +30,8 @@ const rowSchema = z.object({
   provider: z.enum(PROVIDERS),
   sku: z.string().trim().min(1).max(40),
   name: z.string().trim().min(1).max(200),
-  category: z.string().trim().min(1).max(60),
+  // raw KATEGORI text; the stored category key is shortened to 60 by categoryKey()
+  category: z.string().trim().min(1).max(200),
   description: z.string().trim().max(1000).optional().nullable(),
   cost: z.number().int(),
   agentPrice: z.number().int().positive().optional().nullable(),
@@ -32,6 +39,12 @@ const rowSchema = z.object({
 
 export const updaterSchema = z.object({
   fileName: z.string().trim().max(200).default('upload.xlsx'),
+  /**
+   * OTOMAX: KODE PRODUK is our OtomaX code → fulfilled automatically.
+   * MARKET: codes come from another seller's price list → stored as PSR-<code>, no
+   * OtomaX code (manual) unless an admin later sets one on the Paket page.
+   */
+  codeType: z.enum(['OTOMAX', 'MARKET']).default('OTOMAX'),
   rule: ruleSchema,
   rows: z.array(rowSchema).min(1).max(3000),
 });
@@ -64,10 +77,21 @@ export function agentPriceFor(cost: number, rule: PriceRule) {
   return Math.ceil(raw / rule.roundTo) * rule.roundTo;
 }
 
+/** `s` cut to `max` chars with a short stable hash suffix when it is longer (keeps ids unique). */
+function fit(s: string, max: number) {
+  if (s.length <= max) return s;
+  const hash = crypto.createHash('sha1').update(s).digest('hex').slice(0, 6);
+  return `${s.slice(0, max - 7).replace(/_+$/, '')}_${hash}`;
+}
+
 export function categoryKey(provider: Provider, kategori: string) {
   const slug = kategori.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'LAINNYA';
-  return `${provider}_${slug}`;
+  // Package.category is edited on the Paket page (max 60)
+  return fit(`${provider}_${slug}`, 60);
 }
+
+/** Tree node ids are limited to 40 chars of [A-Za-z0-9_-]. */
+const nodeId = (prefix: string, key: string) => fit(`${prefix}_${key.toLowerCase()}`, 40);
 
 const LABELS: Record<string, string> = { HIFI: 'HiFi Air', TELP: 'Telepon', AON: 'AON', '5G': '5G' };
 
@@ -90,16 +114,21 @@ interface Planned {
 }
 
 async function plan(input: UpdaterInput): Promise<Planned> {
+  const market = input.codeType === 'MARKET';
+  const supplier = market ? MARKET_SUPPLIER : MANAGED_SUPPLIER;
+  const codeOf = (sku: string) => (market ? MARKET_CODE_PREFIX + sku : sku);
   const providers = Array.from(new Set(input.rows.map((r) => r.provider)));
-  const skus = input.rows.map((r) => r.sku);
+  const codes = input.rows.map((r) => codeOf(r.sku));
+  // each mode only manages (and deactivates) its own packages
   const existingRows = await prisma.package.findMany({
-    where: { OR: [{ code: { in: skus } }, { supplierName: MANAGED_SUPPLIER, provider: { in: providers } }] },
+    where: { OR: [{ code: { in: codes } }, { supplierName: supplier, provider: { in: providers } }] },
   });
   const byCode = new Map(existingRows.map((p) => [p.code, p]));
 
   const rows: PreviewRow[] = [];
   const upserts: Planned['upserts'] = [];
   const seen = new Set<string>();
+  const seenCodes = new Set<string>();
   const categoryLabels: Record<string, string> = {};
   const sortByProvider: Record<string, number> = {};
 
@@ -107,7 +136,8 @@ async function plan(input: UpdaterInput): Promise<Planned> {
     const category = categoryKey(r.provider, r.category);
     const label = categoryLabel(r.category);
     categoryLabels[category] = label;
-    const existing = byCode.get(r.sku) ?? null;
+    const code = codeOf(r.sku);
+    const existing = byCode.get(code) ?? null;
     const base: PreviewRow = {
       sku: r.sku,
       provider: r.provider,
@@ -128,15 +158,16 @@ async function plan(input: UpdaterInput): Promise<Planned> {
       continue;
     }
     seen.add(r.sku);
-    if (!SKU_RE.test(r.sku)) {
-      rows.push({ ...base, error: 'Kode produk hanya boleh huruf/angka/_-.' });
+    seenCodes.add(code);
+    if (!SKU_RE.test(r.sku) || code.length > 40) {
+      rows.push({ ...base, error: 'Kode produk hanya boleh huruf/angka/_-. (maks. 40 karakter)' });
       continue;
     }
     if (r.cost <= 0) {
       rows.push({ ...base, error: 'Harga kosong / tidak valid' });
       continue;
     }
-    if (existing && existing.supplierName !== MANAGED_SUPPLIER) {
+    if (existing && existing.supplierName !== supplier) {
       rows.push({ ...base, error: `Kode sudah dipakai paket lain (${existing.name})` });
       continue;
     }
@@ -145,15 +176,16 @@ async function plan(input: UpdaterInput): Promise<Planned> {
     const agentPrice = r.agentPrice ?? (locked && existing ? existing.hargaAgen : agentPriceFor(r.cost, input.rule));
     sortByProvider[r.provider] = (sortByProvider[r.provider] ?? 0) + 1;
     const data: Prisma.PackageCreateInput = {
-      code: r.sku,
+      code,
       name: r.name,
       description: r.description || null,
       category,
       provider: r.provider,
       hargaAgen: agentPrice,
       hargaBeli: r.cost,
-      supplierName: MANAGED_SUPPLIER,
-      supplierSku: r.sku,
+      supplierName: supplier,
+      // market products keep an OtomaX code an admin assigned later (that switches them to automatic)
+      supplierSku: market ? existing?.supplierSku ?? null : r.sku,
       priceLocked: locked,
       isActive: true,
       sortOrder: sortByProvider[r.provider],
@@ -179,7 +211,7 @@ async function plan(input: UpdaterInput): Promise<Planned> {
   }
 
   const deactivate = existingRows.filter(
-    (p) => p.supplierName === MANAGED_SUPPLIER && p.isActive && p.provider && providers.includes(p.provider) && !seen.has(p.code),
+    (p) => p.supplierName === supplier && p.isActive && p.provider && providers.includes(p.provider) && !seenCodes.has(p.code),
   );
   for (const p of deactivate) {
     rows.push({
@@ -209,7 +241,7 @@ function summarize(rows: PreviewRow[]) {
 
 export async function previewUpdate(input: UpdaterInput) {
   const p = await plan(input);
-  return { rows: p.rows, summary: summarize(p.rows) };
+  return { rows: p.rows, summary: summarize(p.rows), tiles: await projectTiles(p) };
 }
 
 // ---- app tiles ----
@@ -227,9 +259,25 @@ export function segmentSlugFor(provider: Provider) {
   return `paket-${provider.toLowerCase()}`;
 }
 
-/** Tree: phone (provider-locked) → category list → packages of that category. */
-export function buildProviderTree(provider: Provider, categories: { key: string; label: string; count: number; minPrice: number }[]): SegmentTree {
+interface TileCategory {
+  key: string;
+  label: string;
+  count: number;
+  minPrice: number;
+}
+
+/** Tree text fields are capped at 80 chars. */
+const clip = (t: string, max = 80) => (t.length <= max ? t : `${t.slice(0, max - 1).trimEnd()}…`);
+/** ListNode allows 50 rows: 49 categories + a "Kategori lainnya" row to the next page. */
+const ROWS_PER_PAGE = 49;
+
+/**
+ * Tree: phone (provider-locked) → category list (paged when > 50) → packages of that category.
+ */
+export function buildProviderTree(provider: Provider, categories: TileCategory[]): SegmentTree {
   const label = PROVIDER_LABEL[provider];
+  const pages = Math.max(1, Math.ceil(categories.length / ROWS_PER_PAGE));
+  const pageId = (i: number) => (i === 0 ? 'cat' : `cat_${i + 1}`);
   const nodes: SegmentTree['nodes'] = {
     phone: {
       id: 'phone',
@@ -240,29 +288,76 @@ export function buildProviderTree(provider: Provider, categories: { key: string;
       branches: {},
       defaultChildId: 'cat',
     },
-    cat: {
-      id: 'cat',
-      type: 'ListNode',
-      title: 'Pilih Kategori',
-      rows: categories.map((c) => ({
-        id: `r_${c.key.toLowerCase()}`,
-        label: c.label,
-        sublabel: `${c.count} paket · mulai ${formatRp(c.minPrice)}`,
-        childId: `pk_${c.key.toLowerCase()}`,
-        isActive: true,
-      })),
-    },
   };
+  for (let i = 0; i < pages; i++) {
+    const slice = categories.slice(i * ROWS_PER_PAGE, (i + 1) * ROWS_PER_PAGE);
+    const rows = slice.map((c) => ({
+      id: nodeId('r', c.key),
+      label: clip(c.label),
+      sublabel: `${c.count} paket · mulai ${formatRp(c.minPrice)}`,
+      childId: nodeId('pk', c.key),
+      isActive: true,
+    }));
+    if (i < pages - 1) {
+      const rest = categories.length - (i + 1) * ROWS_PER_PAGE;
+      rows.push({ id: `r_more_${i + 2}`, label: 'Kategori lainnya…', sublabel: `${rest} kategori lagi`, childId: pageId(i + 1), isActive: true });
+    }
+    nodes[pageId(i)] = { id: pageId(i), type: 'ListNode', title: i === 0 ? 'Pilih Kategori' : `Pilih Kategori (${i + 1})`, rows };
+  }
   for (const c of categories) {
-    nodes[`pk_${c.key.toLowerCase()}`] = {
-      id: `pk_${c.key.toLowerCase()}`,
+    nodes[nodeId('pk', c.key)] = {
+      id: nodeId('pk', c.key),
       type: 'PackagesList',
-      title: `${label} · ${c.label}`,
+      title: clip(`${label} · ${c.label}`),
       source: { kind: 'CATEGORY', category: c.key },
       nextId: null,
     };
   }
   return { schemaVersion: 1, rootId: 'phone', nodes } as SegmentTree;
+}
+
+/** Active packages (sorted) → tile categories in first-appearance order. */
+function groupCategories(provider: Provider, pkgs: { category: string; hargaAgen: number }[], labels: Record<string, string>): TileCategory[] {
+  const categories: TileCategory[] = [];
+  for (const p of pkgs) {
+    let c = categories.find((x) => x.key === p.category);
+    if (!c) {
+      c = { key: p.category, label: labels[p.category] ?? categoryLabel(p.category.replace(`${provider}_`, '').replace(/_/g, ' ')), count: 0, minPrice: p.hargaAgen };
+      categories.push(c);
+    }
+    c.count++;
+    c.minPrice = Math.min(c.minPrice, p.hargaAgen);
+  }
+  return categories;
+}
+
+/**
+ * The tiles as they would look after applying `p`, validated up front so an
+ * apply never commits packages whose tile tree cannot be published.
+ */
+async function projectTiles(p: Planned) {
+  const tiles = [];
+  for (const provider of p.providers) {
+    const current = await prisma.package.findMany({
+      where: { provider, supplierName: { in: MANAGED_SUPPLIERS }, isActive: true },
+      select: { code: true, category: true, hargaAgen: true, sortOrder: true },
+    });
+    const byCode = new Map(current.map((c) => [c.code, c]));
+    for (const d of p.deactivate) byCode.delete(d.code);
+    for (const u of p.upserts) {
+      if (u.data.provider !== provider) continue;
+      byCode.set(u.data.code, { code: u.data.code, category: u.data.category, hargaAgen: u.data.hargaAgen, sortOrder: u.data.sortOrder ?? 0 });
+    }
+    const pkgs = [...byCode.values()].sort((a, b) => a.sortOrder - b.sortOrder);
+    const categories = groupCategories(provider, pkgs, p.categoryLabels);
+    const errors = categories.length
+      ? validateTreeStructure(buildProviderTree(provider, categories), { strict: false })
+          .filter((e) => e.severity === 'error')
+          .map((e) => `${e.nodeId ?? ''} ${e.field ?? ''}: ${e.message}`.trim())
+      : [];
+    tiles.push({ provider, slug: segmentSlugFor(provider), categories: categories.length, products: pkgs.length, errors });
+  }
+  return tiles;
 }
 
 /** JSON with sorted keys: Postgres JSONB does not keep key order, so plain stringify never matches. */
@@ -280,7 +375,7 @@ function canonical(value: unknown): string {
 /** Ensures the "Paket <Operator>" tile exists and publishes a new tree version when it changed. */
 async function syncProviderSegment(adminId: string, provider: Provider, categoryLabels: Record<string, string>) {
   const active = await prisma.package.findMany({
-    where: { provider, supplierName: MANAGED_SUPPLIER, isActive: true },
+    where: { provider, supplierName: { in: MANAGED_SUPPLIERS }, isActive: true },
     orderBy: { sortOrder: 'asc' },
     select: { category: true, hargaAgen: true },
   });
@@ -290,16 +385,7 @@ async function syncProviderSegment(adminId: string, provider: Provider, category
     if (segment?.isActive) await prisma.segment.update({ where: { id: segment.id }, data: { isActive: false } });
     return { provider, slug, published: false, categories: 0 };
   }
-  const categories: { key: string; label: string; count: number; minPrice: number }[] = [];
-  for (const p of active) {
-    let c = categories.find((x) => x.key === p.category);
-    if (!c) {
-      c = { key: p.category, label: categoryLabels[p.category] ?? categoryLabel(p.category.replace(`${provider}_`, '').replace(/_/g, ' ')), count: 0, minPrice: p.hargaAgen };
-      categories.push(c);
-    }
-    c.count++;
-    c.minPrice = Math.min(c.minPrice, p.hargaAgen);
-  }
+  const categories = groupCategories(provider, active, categoryLabels);
   const tree = buildProviderTree(provider, categories);
   if (!segment) {
     await createSegment({
@@ -322,6 +408,11 @@ async function syncProviderSegment(adminId: string, provider: Provider, category
 export async function applyUpdate(adminId: string, input: UpdaterInput) {
   const p = await plan(input);
   const summary = summarize(p.rows);
+  const tiles = await projectTiles(p);
+  const broken = tiles.filter((t) => t.errors.length);
+  if (broken.length) {
+    throw badRequest(`Tile ${broken.map((t) => t.slug).join(', ')} tidak valid: ${broken[0].errors[0]}`, 'TILE_INVALID', { tiles });
+  }
   await prisma.$transaction(async (tx) => {
     for (const u of p.upserts) {
       if (u.existing) await tx.package.update({ where: { id: u.existing.id }, data: u.data });
@@ -340,7 +431,7 @@ export async function applyUpdate(adminId: string, input: UpdaterInput) {
   for (const provider of p.providers) segments.push(await syncProviderSegment(adminId, provider, p.categoryLabels));
 
   const record = await prisma.productUpdate.create({
-    data: { adminId, fileName: input.fileName, summary: { counts: summary, rule: input.rule, providers: p.providers, segments } as Prisma.InputJsonValue },
+    data: { adminId, fileName: input.fileName, summary: { counts: summary, rule: input.rule, codeType: input.codeType, providers: p.providers, segments } as Prisma.InputJsonValue },
   });
   await audit(adminId, 'PRODUCT_UPDATE', 'ProductUpdate', record.id, { fileName: input.fileName, counts: summary });
   return { id: record.id, rows: p.rows, summary, segments };

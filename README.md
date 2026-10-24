@@ -54,6 +54,16 @@ Domain kustom: buka komentar `routes` (`custom_domain: true`) di `wrangler.jsonc
 
 **Telegram**: buat bot di @BotFather, masukkan ke grup admin, isi `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALERT_CHAT_IDS` (id grup `-100…`), `DASHBOARD_URL`. Notifikasi: top up diklaim, order manual baru, order gagal di OtomaX, OtomaX tidak terjangkau, order masih diproses > `ALERT_PENDING_MINUTES` (default 10). Tombol *Kirim pesan tes* ada di Pengaturan → Integrasi.
 
+### Harga pasar (produk operator lain dari daftar harga publik)
+
+Untuk operator yang belum ada di OtomaX (XL, Axis, Telkomsel/by.U, Smartfren), daftar produk + harga referensi bisa diambil dari halaman harga **publik** penjual pulsa lain (konfigurasi di `pulsa-juan-backend/scripts/market-prices/sources.json`; hanya halaman publik, tanpa login, ±1 request/detik, robots.txt dicek):
+
+```bash
+cd pulsa-juan-backend && node scripts/market-prices/collect.mjs --out ~/Downloads/harga-pasar.xlsx   # ±10 menit
+```
+
+Hasilnya xlsx format Product Updater (sheet per operator; `harga` = harga reseller termurah yang ditemukan, kolom per sumber + stok) plus sheet RINGKASAN dan SEMUA SUMBER. Unggah di Product Updater dengan **Kode referensi pasar** (otomatis terpilih untuk file ini): produk disimpan sebagai `PSR-<kode>` (`supplierName = Pasar`), **diproses manual**, dan tidak pernah menonaktifkan produk OtomaX (begitu pula sebaliknya). Isi *Kode produk OtomaX* di halaman Paket untuk memindahkan satu produk ke proses otomatis — kode itu dipertahankan di upload pasar berikutnya. Grup yang tidak bisa dijual lewat aplikasi (perdana, bulk, aktivasi/cetak voucher) dikecualikan lewat `excludeGroups`. Product Updater juga menerima **.csv** (mis. ekspor dari aplikasi agen lain; kolom `OPERATOR` opsional untuk banyak operator dalam satu file). Lebih dari 50 kategori per operator otomatis dibagi ke beberapa halaman di aplikasi.
+
 ## Rilis aplikasi Android (versi + riwayat perubahan)
 
 1. Naikkan `expo.version` **dan** `expo.android.versionCode` (+1) di `pulsa-juan-app/app.json`.

@@ -1,0 +1,76 @@
+{
+  "_comment": "Public reseller price pages (same panel software: /harga/<category>[/all]?page=N with Kode/Produk/Reseller spans). Only public pages, no login. robots.txt checked 2026-10-24: no rule against /harga.",
+  "delayMs": 1200,
+  "primary": "topupkuota",
+  "operators": [
+    "XL",
+    "AXIS",
+    "TELKOMSEL",
+    "SMARTFREN"
+  ],
+  "excludeGroups": [
+    "perdana",
+    "bulk",
+    "digipost",
+    "aktivasi",
+    "cetak voucher"
+  ],
+  "sources": [
+    {
+      "name": "topupkuota",
+      "base": "https://topupkuota.com",
+      "categories": [
+        "pulsa",
+        "kuota-xl",
+        "xl-mini",
+        "kuota-axis",
+        "kuota-telkomsel2",
+        "paket-telkomsel",
+        "byu",
+        "kuota-smartfren"
+      ]
+    },
+    {
+      "name": "okekios",
+      "base": "https://okekios.com",
+      "categories": [
+        "pulsa",
+        "kuota-xl",
+        "kuota-axis",
+        "kuota-telkomsel",
+        "kuota-smartfren"
+      ]
+    },
+    {
+      "name": "ebudspay",
+      "base": "https://ebudspay.com",
+      "categories": [
+        "pulsa",
+        "xl-data",
+        "axis-data",
+        "paket-telkomsel",
+        "smartfren-data"
+      ]
+    },
+    {
+      "name": "flashpulsa",
+      "base": "https://flashpulsa.com",
+      "categories": [
+        "pulsa",
+        "xl-data",
+        "axis-data",
+        "telkomsel-combo",
+        "telkomsel-zona",
+        "smart-data"
+      ]
+    },
+    {
+      "name": "konterku",
+      "base": "https://konterku.com",
+      "categories": [
+        "pulsa",
+        "paket-internet"
+      ]
+    }
+  ]
+}
