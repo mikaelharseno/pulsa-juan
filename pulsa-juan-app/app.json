@@ -10,6 +10,7 @@
     "newArchEnabled": true,
     "android": {
       "package": "com.pulsajuan.agent",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#1E9C8F",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

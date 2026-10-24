@@ -56,6 +56,19 @@
     .btn-sm { height: 40px; padding: 0 16px; font-size: 14px; border-radius: 10px; }
     .apk-note { display: none; margin-top: 10px; font-size: 13px; color: var(--teal-dark); font-weight: 600; }
     .apk-note.show { display: block; }
+    .app-version { margin-top: 12px; font-size: 13px; color: var(--muted); }
+    .app-version a { color: var(--teal-dark); font-weight: 600; }
+
+    /* version history (filled from /releases.json) */
+    .releases { max-width: 760px; display: grid; gap: 14px; }
+    .release { border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; background: #fff; }
+    .release-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+    .release-head h3 { font-size: 17px; }
+    .release-head .badge { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--teal-dark); background: var(--teal-soft); border-radius: 999px; padding: 3px 9px; }
+    .release-head .meta { color: var(--muted); font-size: 13px; }
+    .release-head a { margin-left: auto; font-size: 13px; font-weight: 600; color: var(--teal-dark); }
+    .release ul { margin: 10px 0 0; padding-left: 18px; color: var(--ink2); font-size: 14px; }
+    .release li + li { margin-top: 4px; }
 
     /* hero */
     .hero { position: relative; overflow: hidden; background: radial-gradient(1200px 520px at 85% -10%, var(--teal-soft), transparent 60%), linear-gradient(180deg, #fff, var(--teal-tint)); }
@@ -208,6 +221,7 @@
             </a>
           </div>
           <div class="apk-note" data-apk-note>Aplikasi sedang disiapkan — hubungi kami via WhatsApp untuk mendapatkan link unduhan.</div>
+          <div class="app-version" data-app-version hidden></div>
           <div class="trust">
             <div><span class="dot"></span><span><b>Daftar gratis</b> dengan OTP</span></div>
             <div><span class="dot"></span><span><b>Login PIN</b> 6 angka</span></div>
@@ -325,6 +339,17 @@
       </div>
     </section>
 
+    <section id="versi" data-versions hidden>
+      <div class="wrap">
+        <div class="sec-head">
+          <div class="eyebrow">Riwayat versi</div>
+          <h2>Apa yang baru di aplikasi</h2>
+          <p>Versi terbaru selalu ada di tombol Download. Versi sebelumnya tetap bisa diunduh di bawah.</p>
+        </div>
+        <div class="releases" data-release-list></div>
+      </div>
+    </section>
+
     <section>
       <div class="wrap">
         <div class="final">
@@ -376,6 +401,49 @@
       }
     });
     document.querySelector('[data-year]').textContent = new Date().getFullYear();
+
+    // version line + history from releases.json (written by `npm run release:android`)
+    function fmtDate(iso) {
+      return new Date(iso + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+    function el(tag, cls, text) {
+      var e = document.createElement(tag);
+      if (cls) e.className = cls;
+      if (text != null) e.textContent = text;
+      return e;
+    }
+    fetch('/releases.json', { cache: 'no-cache' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data || !data.releases || !data.releases.length) return;
+        var latest = data.releases[0];
+        var line = document.querySelector('[data-app-version]');
+        line.textContent = 'Versi ' + latest.version + ' · ' + fmtDate(latest.date) + ' · ' + Math.round(latest.sizeBytes / 1048576) + ' MB · ';
+        var link = el('a', null, 'Apa yang baru?');
+        link.href = '#versi';
+        line.appendChild(link);
+        line.hidden = false;
+
+        var list = document.querySelector('[data-release-list]');
+        data.releases.forEach(function (r, i) {
+          var card = el('article', 'release');
+          var head = el('div', 'release-head');
+          head.appendChild(el('h3', null, 'Versi ' + r.version));
+          if (i === 0) head.appendChild(el('span', 'badge', 'TERBARU'));
+          head.appendChild(el('span', 'meta', fmtDate(r.date) + ' · ' + Math.round(r.sizeBytes / 1048576) + ' MB'));
+          var dl = el('a', null, 'Download');
+          dl.href = r.file;
+          dl.setAttribute('download', r.file.split('/').pop());
+          head.appendChild(dl);
+          card.appendChild(head);
+          var ul = el('ul');
+          r.notes.forEach(function (n) { ul.appendChild(el('li', null, n)); });
+          card.appendChild(ul);
+          list.appendChild(card);
+        });
+        document.querySelector('[data-versions]').hidden = false;
+      })
+      .catch(function () {});
   </script>
 </body>
 </html>

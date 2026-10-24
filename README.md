@@ -46,15 +46,21 @@ npm run deploy -w pulsa-juan-landing       # wrangler deploy (public/)
 
 Domain kustom: buka komentar `routes` (`custom_domain: true`) di `wrangler.jsonc` — wrangler membuat DNS record + sertifikat. Link APK & nomor WhatsApp landing diatur di konstanta `APK_URL` / `WHATSAPP_NUMBER` di bagian bawah `pulsa-juan-landing/public/index.html`; APK di-hosting di R2 atau memakai URL artifact EAS (bukan di aset Worker).
 
-## Rilis aplikasi Android (download dari landing)
+## Rilis aplikasi Android (versi + riwayat perubahan)
+
+1. Naikkan `expo.version` **dan** `expo.android.versionCode` (+1) di `pulsa-juan-app/app.json`.
+2. Tambah bagian `## <version> (versionCode <n>) — <tanggal>` berisi poin `- ` di `pulsa-juan-app/CHANGELOG.md` (ditampilkan ke agen di landing).
+3. Commit, lalu (Node ≥ 22, sudah `eas login` + `wrangler login`):
 
 ```bash
-cd pulsa-juan-app && npx eas-cli build -p android --profile release-apk   # APK -> https://pulsajuan.studiosclo.uk/api
-# unduh artifact .apk dari link build EAS, lalu:
-cd ../pulsa-juan-landing && npx wrangler r2 object put pulsa-juan-downloads/pulsa-juan.apk --file <apk> --content-type application/vnd.android.package-archive --remote
+npm run release:android -w pulsa-juan-app      # build EAS (profil release-apk) → R2 → releases.json → tag → deploy landing
+git add pulsa-juan-landing/public/releases.json && git commit -m "Release Android <version>"
+git push origin main --follow-tags
 ```
 
-Landing menyajikannya di `/download/pulsa-juan.apk` (`src/worker.js`, bucket R2 privat). Naikkan `version` di `app.json` setiap rilis. Profil `preview` = APK demo (data mock), `production` = AAB untuk Play Store.
+Hasilnya: `pulsa-juan-<version>.apk` (disimpan permanen) + `pulsa-juan.apk` (terbaru) di bucket R2 privat `pulsa-juan-downloads`, disajikan landing di `/download/...`; `pulsa-juan-landing/public/releases.json` mencatat tanggal, ukuran, sha256, commit dan ID build EAS; tag git `android-v<version>`. Landing menampilkan versi terbaru di bawah tombol Download dan bagian "Riwayat versi". Aplikasi menampilkan versinya di bawah tombol Keluar (Profil). Build yang sudah jadi bisa dipublikasikan ulang dengan `-- --build-id <id>`.
+
+Profil lain: `preview` = APK demo (data mock), `production` = AAB untuk Play Store.
 
 ## Konsep utama
 

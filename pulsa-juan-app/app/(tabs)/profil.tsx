@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { formatRp } from 'pulsa-juan-common';
 import React from 'react';
@@ -8,6 +9,9 @@ import { useClaimCommissions, useCommissions, useMe } from '../../src/api/hooks'
 import { useAuth } from '../../src/auth/useAuth';
 import { Button, Card, ErrorView, KeyValue, Loading, Screen, SectionBand } from '../../src/components/ui';
 import { colors, font, size } from '../../src/theme';
+
+// shown so agents can tell CS which build they run (matches releases.json on the landing page)
+const APP_VERSION = `${Constants.expoConfig?.version ?? '-'} (${Constants.expoConfig?.android?.versionCode ?? '-'})`;
 
 function Stat({ label, value, color, last }: { label: string; value: string; color?: string; last?: boolean }) {
   return (
@@ -120,6 +124,7 @@ export default function ProfilScreen() {
         </Card>
 
         <Button title="Keluar" variant="ghost" icon="log-out-outline" onPress={() => signOut()} style={{ borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.card }} />
+        <Text style={styles.version}>Pulsa Juan versi {APP_VERSION}</Text>
       </ScrollView>
     </Screen>
   );
@@ -151,4 +156,5 @@ const styles = StyleSheet.create({
   menuIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.tealSoft, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   menuLabel: { fontSize: font.rowLabel, fontWeight: '500', color: colors.ink },
   menuSub: { fontSize: font.tiny, color: colors.muted, marginTop: 1 },
+  version: { textAlign: 'center', fontSize: font.tiny, color: colors.subtle, marginTop: 14 },
 });
