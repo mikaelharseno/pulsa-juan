@@ -19,6 +19,16 @@
         "buildType": "app-bundle"
       },
       "node": "20.19.4"
+    },
+    "release-apk": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE": "https://pulsajuan.studiosclo.uk/api"
+      },
+      "node": "20.19.4"
     }
   }
 }
