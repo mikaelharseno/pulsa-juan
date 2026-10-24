@@ -7,8 +7,8 @@ Platform agen PPOB (pulsa, paket data, token PLN, e-wallet, game, tagihan): agen
 | `pulsa-juan-common` | Tipe + validator + walker `segmentDisplayTree`, deteksi operator, kode unik, format Rp, seed alur | — |
 | `pulsa-juan-backend` | Express + Prisma + Postgres (API agen & admin) | 3030 |
 | `pulsa-juan-app` | Expo 54 / expo-router — aplikasi agen (Android + web) | 8081 |
-| `pulsa-juan-dashboard` | Vite + React 18 + MUI — dashboard admin (Cloudflare Pages) | 3031 |
-| `pulsa-juan-landing` | Landing page statis (`public/index.html`) — download APK + WhatsApp (Cloudflare Pages) | 3032 |
+| `pulsa-juan-dashboard` | Vite + React 18 + MUI — dashboard admin (Cloudflare Worker, static assets) | 3031 |
+| `pulsa-juan-landing` | Landing page statis (`public/index.html`) — download APK + WhatsApp (Cloudflare Worker, static assets) | 3032 |
 
 ## Setup
 
@@ -33,24 +33,18 @@ npm run dev:landing      # http://localhost:3032
 
 OTP belum terhubung ke gateway WhatsApp/SMS: kode hanya dicetak di log backend (`[otp] …`). Dengan `OTP_DEBUG=1` (default di `.env` lokal) kode juga dikembalikan oleh API dan ditampilkan di layar OTP aplikasi. **Jangan aktifkan di production.**
 
-## Deploy dashboard & landing (Cloudflare Pages)
+## Deploy dashboard & landing (Cloudflare Workers, static assets)
+
+Sama dengan invoice-bellin-frontend: masing-masing Worker hanya menyajikan file statis (`wrangler.jsonc` di tiap paket). Dashboard memakai `not_found_handling: "single-page-application"` agar deep link (`/agents/:id`) jatuh ke `index.html`.
 
 ```bash
-cp pulsa-juan-dashboard/.env.example pulsa-juan-dashboard/.env.production   # isi VITE_API_BASE
-npm run deploy -w pulsa-juan-dashboard     # build + wrangler pages deploy dist (SPA fallback via public/_redirects)
-npm run deploy -w pulsa-juan-landing       # wrangler pages deploy public
+npx wrangler login
+cp pulsa-juan-dashboard/.env.example pulsa-juan-dashboard/.env.production   # isi VITE_API_BASE=https://pulsajuan.studiosclo.uk/api
+npm run deploy -w pulsa-juan-dashboard     # vite build + wrangler deploy (dist/)
+npm run deploy -w pulsa-juan-landing       # wrangler deploy (public/)
 ```
 
-Link APK & nomor WhatsApp landing diatur di konstanta `APK_URL` / `WHATSAPP_NUMBER` di bagian bawah `pulsa-juan-landing/public/index.html`. Cloudflare Pages membatasi file 25 MiB, jadi APK di-hosting di R2 atau memakai URL artifact EAS.
-
-Aplikasi membaca `EXPO_PUBLIC_API_BASE` (default `http://localhost:3030/api`; emulator Android otomatis memakai `10.0.2.2`). Dashboard membaca `VITE_API_BASE`.
-
-## Tes
-
-```bash
-npm run test:common
-npm run test:backend     # butuh Postgres lokal; memakai DB `pulsa_juan_test` (TEST_DATABASE_URL untuk override)
-```
+Domain kustom: buka komentar `routes` (`custom_domain: true`) di `wrangler.jsonc` — wrangler membuat DNS record + sertifikat. Link APK & nomor WhatsApp landing diatur di konstanta `APK_URL` / `WHATSAPP_NUMBER` di bagian bawah `pulsa-juan-landing/public/index.html`; APK di-hosting di R2 atau memakai URL artifact EAS (bukan di aset Worker).
 
 ## Konsep utama
 

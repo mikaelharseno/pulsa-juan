@@ -8,3 +8,4 @@ uploads/
 .expo/
 .DS_Store
 *.log
+.wrangler/

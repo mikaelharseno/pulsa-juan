@@ -8,7 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --port 3031",
     "typecheck": "tsc --noEmit",
-    "deploy": "npm run build && npx wrangler pages deploy dist --project-name pulsa-juan-dashboard"
+    "deploy": "npm run build && npx wrangler deploy"
   },
   "dependencies": {
     "@emotion/react": "^11.13.3",

@@ -2,9 +2,9 @@
   "name": "pulsa-juan-landing",
   "version": "0.1.0",
   "private": true,
-  "description": "Static landing page (single index.html) — deployed to Cloudflare Pages",
+  "description": "Static landing page (single index.html) \u2014 Cloudflare Worker static assets",
   "scripts": {
     "dev": "node scripts/serve.mjs 3032",
-    "deploy": "npx wrangler pages deploy public --project-name pulsa-juan-landing"
+    "deploy": "npx wrangler deploy"
   }
 }

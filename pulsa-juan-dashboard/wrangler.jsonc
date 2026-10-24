@@ -1,0 +1,14 @@
+// Cloudflare Worker serving the built dashboard as static assets (same setup as
+// invoice-bellin-frontend). `npm run deploy` builds, then `wrangler deploy`.
+// VITE_API_BASE is baked in at build time from .env.production.
+{
+  "name": "pulsa-juan-dashboard",
+  "compatibility_date": "2026-05-01",
+  "assets": {
+    "directory": "./dist",
+    // deep links like /agents/:id fall back to index.html (BrowserRouter)
+    "not_found_handling": "single-page-application"
+  }
+  // Attach the custom domain once chosen (wrangler creates the DNS record + cert):
+  // "routes": [{ "pattern": "admin.pulsajuan.studiosclo.uk", "custom_domain": true }]
+}

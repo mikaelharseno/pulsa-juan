@@ -1,0 +1,10 @@
+// Cloudflare Worker serving the static landing page (public/). `npm run deploy`.
+{
+  "name": "pulsa-juan-landing",
+  "compatibility_date": "2026-05-01",
+  "assets": {
+    "directory": "./public"
+  }
+  // Attach the custom domain once chosen (wrangler creates the DNS record + cert):
+  // "routes": [{ "pattern": "www.pulsajuan.studiosclo.uk", "custom_domain": true }]
+}

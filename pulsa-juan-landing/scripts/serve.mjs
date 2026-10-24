@@ -1,4 +1,4 @@
-// Zero-dependency static server for local preview of public/ (Cloudflare Pages serves it in prod).
+// Zero-dependency static server for local preview of public/ (a Cloudflare Worker serves it in prod).
 import { createReadStream, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, normalize } from 'node:path';
