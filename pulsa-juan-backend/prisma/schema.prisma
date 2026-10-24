@@ -262,8 +262,12 @@ model Package {
   /// supplier cost, admin-only
   hargaBeli    Int       @default(0)
   imageUrl     String?
+  /// "OtomaX" = managed by the Product Updater (may be deactivated when missing from a sheet)
   supplierName String?
+  /// OtomaX product code; set = fulfilled automatically via OtomaX when it is configured
   supplierSku  String?
+  /// true = hargaAgen was set by hand; the Product Updater keeps it instead of cost + margin
+  priceLocked  Boolean   @default(false)
   isActive     Boolean   @default(true)
   sortOrder    Int       @default(0)
   createdAt    DateTime  @default(now())
@@ -309,6 +313,10 @@ model Transaction {
   provider       String?
   /// supplier-side reference (Otomax trx id etc.)
   supplierRef    String?
+  /// last raw reply/report text from the supplier (OtomaX)
+  supplierMessage String?
+  /// set once the "order stuck PENDING" Telegram alert went out
+  stuckAlertedAt DateTime?
   serialNumber   String?
   failReason     String?
   refundReason   String?
@@ -342,7 +350,22 @@ model StoreConfig {
   /// ordered [{imageUrl, linkUrl?}] — one carousel for the whole app
   banners           Json     @default("[]")
   maxReferralMarkup Int      @default(2000)
+  /// Product Updater default margin: agent price = roundUp(cost + fixed + cost * percent / 100, roundTo)
+  productMarginFixed   Int   @default(0)
+  productMarginPercent Float @default(0)
+  productPriceRoundTo  Int   @default(100)
   updatedAt         DateTime @updatedAt
+}
+
+/// One Product Updater apply (price sheet upload) — history shown in the dashboard
+model ProductUpdate {
+  id        String   @id @default(cuid())
+  adminId   String
+  fileName  String
+  summary   Json
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
 }
 
 model AdminAuditLog {

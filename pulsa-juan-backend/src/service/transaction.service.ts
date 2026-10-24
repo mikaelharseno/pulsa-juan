@@ -14,11 +14,12 @@ import { Agent, Prisma, TransactionStatus } from '../../prisma/generated';
 import { prisma } from '../../prisma/client';
 import { badRequest, conflict, HttpError, notFound } from '../lib/errors';
 import { audit } from './audit.service';
-import { getFulfillmentProvider } from './fulfillment';
+import { getFulfillmentProvider, PurchaseOutcome, providerFor } from './fulfillment';
 import { packagesForTree } from './package.service';
 import { getPrefixEntries } from './prefix.service';
 import { resolveMarkup } from './referral.service';
 import { creditSaldo, debitSaldo } from './saldo.service';
+import { manualOrderAlert, queueAdminAlert, stuckOrderAlert, supplierFailedAlert, supplierUnreachableAlert } from './telegram.service';
 
 const stepSchema = z.object({ nodeId: z.string().min(1), type: z.string().min(1) }).passthrough();
 
@@ -116,7 +117,10 @@ export async function createTransaction(agent: Agent, input: z.infer<typeof crea
   const phoneStep = [...steps].reverse().find((s) => s.type === 'PhoneNumberInput');
   const phoneNumber = phoneStep && phoneStep.type === 'PhoneNumberInput' ? normalizeIndonesianMobile(phoneStep.phoneNumber) : null;
   const customerId = collectedCustomerId(steps);
-  const provider = getFulfillmentProvider();
+  const pkg = price.packageId
+    ? await prisma.package.findUnique({ where: { id: price.packageId }, select: { name: true, supplierSku: true } })
+    : null;
+  const provider = providerFor(pkg);
 
   const transaction = await prisma.$transaction(async (tx) => {
     const trx = await tx.transaction.create({
@@ -152,28 +156,74 @@ export async function createTransaction(agent: Agent, input: z.infer<typeof crea
     return trx;
   });
 
-  // fulfilment (v1 manual → stays PENDING)
+  if (provider.mode === 'MANUAL') queueAdminAlert(manualOrderAlert(transaction, pkg?.name ?? null, agent.name));
+
+  // fulfilment: manual → stays PENDING; OtomaX → reply may settle it right away (or a report later)
   try {
     const outcome = await provider.purchase({
       id: transaction.id,
+      trxNumber: transaction.trxNumber,
       packageId: transaction.packageId,
+      productCode: pkg?.supplierSku ?? null,
       customerId,
       phoneNumber,
       total: transaction.total,
     });
-    if (outcome.supplierRef) {
-      await prisma.transaction.update({ where: { id: transaction.id }, data: { supplierRef: outcome.supplierRef } });
-    }
-    if (outcome.status !== 'PENDING') {
-      const settled = await settleTransaction(transaction.id, outcome.status === 'SUCCESS'
-        ? { status: 'SUCCESS', serialNumber: outcome.serialNumber }
-        : { status: 'FAILED', failReason: outcome.reason }, null);
-      return { transaction: settled, reused: false };
-    }
+    return { transaction: await applySupplierOutcome(transaction.id, outcome), reused: false };
   } catch (error) {
-    if (!(error instanceof HttpError)) console.error('fulfilment dispatch failed', error);
+    // saldo is already debited and the order exists: never fail the request here
+    const message = (error as Error).message ?? String(error);
+    console.error(`fulfilment dispatch failed for #${transaction.trxNumber}`, message);
+    await prisma.transaction.update({ where: { id: transaction.id }, data: { supplierMessage: `Tidak terkirim: ${message}`.slice(0, 1000) } });
+    queueAdminAlert(supplierUnreachableAlert(transaction, message));
   }
-  return { transaction, reused: false };
+  return { transaction: await prisma.transaction.findUniqueOrThrow({ where: { id: transaction.id } }), reused: false };
+}
+
+/**
+ * Records a supplier reply/report on the order and settles it when final.
+ * Safe to call twice for the same order (purchase reply and report racing):
+ * the guarded settle turns the second one into a no-op.
+ */
+export async function applySupplierOutcome(id: string, outcome: PurchaseOutcome) {
+  const trx = await prisma.transaction.update({
+    where: { id },
+    data: {
+      ...(outcome.message !== undefined ? { supplierMessage: outcome.message.slice(0, 1000) } : {}),
+      ...(outcome.supplierRef ? { supplierRef: outcome.supplierRef } : {}),
+    },
+  });
+  if (outcome.status === 'PENDING' || trx.status !== 'PENDING') return trx;
+  try {
+    const settled = await settleTransaction(
+      id,
+      outcome.status === 'SUCCESS' ? { status: 'SUCCESS', serialNumber: outcome.serialNumber } : { status: 'FAILED', failReason: outcome.reason },
+      null,
+    );
+    if (outcome.status === 'FAILED') queueAdminAlert(supplierFailedAlert(settled, outcome.reason));
+    return settled;
+  } catch (error) {
+    if (error instanceof HttpError && error.status === 409) return prisma.transaction.findUniqueOrThrow({ where: { id } });
+    throw error;
+  }
+}
+
+/** Cron: one Telegram alert per order still PENDING after ALERT_PENDING_MINUTES (default 10). */
+export async function alertStuckOrders() {
+  const minutes = Number(process.env.ALERT_PENDING_MINUTES) || 10;
+  const stuck = await prisma.transaction.findMany({
+    where: { status: 'PENDING', stuckAlertedAt: null, createdAt: { lt: new Date(Date.now() - minutes * 60_000) } },
+    orderBy: { createdAt: 'asc' },
+    take: 50,
+  });
+  let sent = 0;
+  for (const t of stuck) {
+    const claimed = await prisma.transaction.updateMany({ where: { id: t.id, stuckAlertedAt: null }, data: { stuckAlertedAt: new Date() } });
+    if (claimed.count === 0) continue;
+    queueAdminAlert(stuckOrderAlert(t, minutes));
+    sent++;
+  }
+  return sent;
 }
 
 export type SettleInput =

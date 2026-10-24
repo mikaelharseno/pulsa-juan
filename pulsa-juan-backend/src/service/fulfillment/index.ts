@@ -1,23 +1,34 @@
 import { InquiryResult } from 'pulsa-juan-common';
 
 import { badRequest } from '../../lib/errors';
+import { otomaxConfig, OtomaxProvider } from './otomax';
 
-// v1: manual fulfilment. Purchases stay PENDING until an admin marks them
-// SUKSES/GAGAL in the dashboard. FULFILLMENT_PROVIDER=otomax switches to the
-// Otomax H2H provider once it is implemented; its async results arrive on
-// POST /api/fulfillment/callback/otomax.
+// Fulfilment is routed per package: a package with an OtomaX product code
+// (Package.supplierSku) goes to OtomaX once it is configured (OTOMAX_* env);
+// everything else stays PENDING until an admin marks it SUKSES/GAGAL.
 
 export type PurchaseOutcome =
-  | { status: 'PENDING'; supplierRef?: string }
-  | { status: 'SUCCESS'; serialNumber?: string; supplierRef?: string }
-  | { status: 'FAILED'; reason: string; supplierRef?: string };
+  | { status: 'PENDING'; supplierRef?: string; message?: string }
+  | { status: 'SUCCESS'; serialNumber?: string; supplierRef?: string; message?: string }
+  | { status: 'FAILED'; reason: string; supplierRef?: string; message?: string };
+
+export interface PurchaseRequest {
+  id: string;
+  trxNumber: number;
+  packageId: string | null;
+  /** supplier product code (OtomaX "product") */
+  productCode: string | null;
+  customerId: string | null;
+  phoneNumber: string | null;
+  total: number;
+}
 
 export interface FulfillmentProvider {
   /** stored on Transaction.provider */
   readonly name: string;
   readonly mode: 'MANUAL' | 'AUTO';
   inquire(product: string, customerId: string): Promise<InquiryResult>;
-  purchase(trx: { id: string; packageId: string | null; customerId: string | null; phoneNumber: string | null; total: number }): Promise<PurchaseOutcome>;
+  purchase(req: PurchaseRequest): Promise<PurchaseOutcome>;
 }
 
 export class ManualProvider implements FulfillmentProvider {
@@ -45,28 +56,26 @@ export class ManualProvider implements FulfillmentProvider {
   }
 }
 
-/**
- * Otomax H2H (stub). TODO once the Otomax centre details are known:
- * - purchase: GET/POST to OTOMAX_URL with memberid/pin/password, product code
- *   (Package.supplierSku), destination and our ref id (Transaction.id), then map
- *   the immediate reply to PENDING/SUCCESS/FAILED.
- * - callback: parse Otomax's report format in the fulfillment controller.
- * Until then it behaves like manual (orders wait for an admin).
- */
-export class OtomaxProvider extends ManualProvider {
-  readonly name: string = 'otomax';
+const manual = new ManualProvider();
+const otomax = new OtomaxProvider();
+let override: FulfillmentProvider | null = null;
+
+export function otomaxEnabled() {
+  return !!otomaxConfig();
 }
 
-function fromEnv(): FulfillmentProvider {
-  return process.env.FULFILLMENT_PROVIDER === 'otomax' ? new OtomaxProvider() : new ManualProvider();
+/** Provider for a purchase of `pkg` (null = no package, e.g. free amount). */
+export function providerFor(pkg: { supplierSku: string | null } | null): FulfillmentProvider {
+  if (override) return override;
+  return pkg?.supplierSku && otomaxEnabled() ? otomax : manual;
 }
 
-let provider: FulfillmentProvider = fromEnv();
-
+/** Bill inquiry stays on the manual/stub provider for now. */
 export function getFulfillmentProvider(): FulfillmentProvider {
-  return provider;
+  return override ?? manual;
 }
 
-export function setFulfillmentProvider(p: FulfillmentProvider) {
-  provider = p;
+/** Tests: force one provider for everything (null restores routing). */
+export function setFulfillmentProvider(p: FulfillmentProvider | null) {
+  override = p;
 }

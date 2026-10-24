@@ -46,6 +46,14 @@ npm run deploy -w pulsa-juan-landing       # wrangler deploy (public/)
 
 Domain kustom: buka komentar `routes` (`custom_domain: true`) di `wrangler.jsonc` — wrangler membuat DNS record + sertifikat. Link APK & nomor WhatsApp landing diatur di konstanta `APK_URL` / `WHATSAPP_NUMBER` di bagian bawah `pulsa-juan-landing/public/index.html`; APK di-hosting di R2 atau memakai URL artifact EAS (bukan di aset Worker).
 
+## Product Updater, OtomaX & notifikasi Telegram
+
+**Product Updater** (dashboard → Katalog → Product Updater): unggah daftar harga OtomaX `.xlsx` — satu sheet per operator (nama sheet INDOSAT/IM3, 3ID/TRI, XL, AXIS, TSEL, SMARTFREN dikenali otomatis), kolom `KODE PRODUK | NAMA | KATEGORI | KET | harga` (harga = **modal**). Harga agen = `bulatkan_ke_atas(modal + Rp tetap + modal × %, Rp n)`; harga yang diubah manual (di pratinjau atau di halaman Paket) dikunci dan tidak ikut margin berikutnya. Pratinjau menunjukkan baru / harga berubah / detail berubah / diaktifkan lagi / dinonaktifkan (kode yang hilang dari file disembunyikan, tidak dihapus). Paket hasil updater bertanda `supplierName = OtomaX`, `code = supplierSku = KODE PRODUK`, kategori `<OPERATOR>_<KATEGORI>`. Setelah diterapkan, tile aplikasi **Paket <Operator>** (nomor HP → kategori → paket) dibuat/dipublikasikan ulang otomatis bila kategorinya berubah — tanpa rilis aplikasi baru.
+
+**OtomaX** (pusat sendiri; pulsa-juan = reseller H2H): isi `OTOMAX_URL`, `OTOMAX_MEMBER_ID`, `OTOMAX_PIN`, `OTOMAX_PASSWORD` (+ `OTOMAX_AUTH`, `OTOMAX_REPORT_KEY`, opsional `OTOMAX_REPORT_IPS`) di `.env` server. Paket yang punya *Kode produk OtomaX* lalu dikirim otomatis: `GET {OTOMAX_URL}/trx?product&qty=1&dest&refID=<no. order>&memberID&sign`. Balasan/report dibaca dengan pola yang bisa diatur (`OTOMAX_SUCCESS_RE`, `OTOMAX_FAIL_RE`, `OTOMAX_SN_RE`); GAGAL = saldo agen direfund otomatis. Di OtomaX, set URL report reseller ke `https://<api>/api/fulfillment/otomax/report?key=<OTOMAX_REPORT_KEY>` (lihat kartu **Integrasi** di Pengaturan) dan whitelist IP droplet. Paket tanpa kode, atau bila OtomaX belum diatur, tetap manual. Uji lokal: `node pulsa-juan-backend/scripts/fake-otomax.mjs`.
+
+**Telegram**: buat bot di @BotFather, masukkan ke grup admin, isi `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALERT_CHAT_IDS` (id grup `-100…`), `DASHBOARD_URL`. Notifikasi: top up diklaim, order manual baru, order gagal di OtomaX, OtomaX tidak terjangkau, order masih diproses > `ALERT_PENDING_MINUTES` (default 10). Tombol *Kirim pesan tes* ada di Pengaturan → Integrasi.
+
 ## Rilis aplikasi Android (versi + riwayat perubahan)
 
 1. Naikkan `expo.version` **dan** `expo.android.versionCode` (+1) di `pulsa-juan-app/app.json`.

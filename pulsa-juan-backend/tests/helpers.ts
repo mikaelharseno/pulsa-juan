@@ -9,7 +9,7 @@ export { app, prisma, request };
 /** Wipes every table and re-seeds. */
 export async function resetDb() {
   await prisma.$executeRawUnsafe(`
-    TRUNCATE TABLE "AdminAuditLog","AgentMarkupCommision","SaldoLedger","Transaction","TopUpOrder","PhoneVerification",
+    TRUNCATE TABLE "AdminAuditLog","AgentMarkupCommision","SaldoLedger","Transaction","TopUpOrder","PhoneVerification","ProductUpdate",
     "Agent","AdminUser","SegmentTreeVersion","Segment","Package","ProviderPrefix","StoreConfig" RESTART IDENTITY CASCADE
   `);
   await seed();

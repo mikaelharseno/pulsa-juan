@@ -8,7 +8,7 @@ import { badRequest, conflict } from '../lib/errors';
 export const packageSchema = z.object({
   code: z.string().trim().min(1).max(40).regex(/^[A-Za-z0-9_.-]+$/, 'Kode hanya huruf/angka/_-.'),
   name: z.string().trim().min(1).max(120),
-  description: z.string().trim().max(500).optional().nullable(),
+  description: z.string().trim().max(1000).optional().nullable(),
   category: z.string().trim().min(1).max(60),
   provider: z.enum(PROVIDERS).optional().nullable(),
   hargaAgen: z.number().int().min(0),
@@ -18,6 +18,8 @@ export const packageSchema = z.object({
   supplierSku: z.string().trim().max(80).optional().nullable(),
   isActive: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
+  /** keep hargaAgen when the Product Updater re-prices from a new sheet */
+  priceLocked: z.boolean().optional(),
 });
 
 export function toPublic(p: Package): PackagePublic {
@@ -74,7 +76,13 @@ export async function updatePackage(id: string, input: Partial<z.infer<typeof pa
     const exists = await prisma.package.findUnique({ where: { code: input.code } });
     if (exists && exists.id !== id) throw conflict('Kode paket sudah ada');
   }
-  return prisma.package.update({ where: { id }, data: input });
+  // a hand-edited agent price on an updater-managed package sticks across sheet uploads
+  const current = await prisma.package.findUnique({ where: { id }, select: { hargaAgen: true, supplierName: true } });
+  const data = { ...input };
+  if (input.priceLocked === undefined && input.hargaAgen !== undefined && current?.supplierName === 'OtomaX' && input.hargaAgen !== current.hargaAgen) {
+    data.priceLocked = true;
+  }
+  return prisma.package.update({ where: { id }, data });
 }
 
 export async function deletePackage(id: string) {

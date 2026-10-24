@@ -23,6 +23,7 @@ export default function PackagesListScreen({ node, packages, markupTotal, segmen
             return (
               <ListRow
                 label={p.name}
+                detail={p.description}
                 sublabel={formatRp(p.hargaAgen + markupTotal)}
                 sublabelColor={colors.tealDark}
                 imageUrl={p.imageUrl}

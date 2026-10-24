@@ -263,6 +263,7 @@ export function AmountField({
 /** Grouped-list row: 40dp image/glyph, label, optional sub, chevron. Wrap rows in <ListCard>. */
 export function ListRow({
   label,
+  detail,
   sublabel,
   sublabelColor,
   imageUrl,
@@ -273,6 +274,8 @@ export function ListRow({
   last,
 }: {
   label: string;
+  /** muted 2-line description under the label (e.g. package quota details) */
+  detail?: string | null;
   sublabel?: string;
   sublabelColor?: string;
   imageUrl?: string | null;
@@ -289,6 +292,7 @@ export function ListRow({
         <Text style={styles.rowLabel} numberOfLines={2}>
           {label}
         </Text>
+        {detail ? <Text style={styles.rowDetail} numberOfLines={2}>{detail}</Text> : null}
         {sublabel ? <Text style={[styles.rowSub, sublabelColor ? { color: sublabelColor, fontWeight: '600' } : null]}>{sublabel}</Text> : null}
       </View>
       {rightText ? <Text style={styles.rowRight}>{rightText}</Text> : null}
@@ -418,6 +422,7 @@ export const styles = StyleSheet.create({
   fieldLabel: { fontSize: font.small, color: colors.ink2, marginBottom: 6, fontWeight: '600' },
   inputWrap: { height: size.input, borderWidth: 1, borderColor: colors.field, borderRadius: size.inputRadius, backgroundColor: colors.field, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14 },
   inputFocused: { borderColor: colors.teal, backgroundColor: colors.card },
+  rowDetail: { fontSize: font.tiny, color: colors.muted, marginTop: 2, lineHeight: 15 },
   codeBox: { flex: 1, height: 52, borderRadius: size.inputRadius, borderWidth: 1, borderColor: colors.field, backgroundColor: colors.field, alignItems: 'center', justifyContent: 'center' },
   codeChar: { fontSize: 22, fontWeight: '700', color: colors.ink },
   codeOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.011, color: 'transparent' },

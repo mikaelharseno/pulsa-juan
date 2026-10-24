@@ -5,7 +5,8 @@ import { z } from 'zod';
 import { prisma } from '../../prisma/client';
 import { asyncHandler, HttpError, notFound } from '../lib/errors';
 import { parse } from '../lib/validate';
-import { settleTransaction } from '../service/transaction.service';
+import { parseOtomaxMessage } from '../service/fulfillment/otomax';
+import { applySupplierOutcome, settleTransaction } from '../service/transaction.service';
 
 // Supplier result callback (semi-automated fulfilment). Body is our normalised
 // shape; the Otomax report format gets mapped onto it once the integration lands.
@@ -38,4 +39,45 @@ export const postCallback = asyncHandler(async (req: Request, res: Response) => 
     null,
   );
   res.json({ ok: true, status: settled.status });
+});
+
+/**
+ * OtomaX report URL (set on the reseller in OtomaX):
+ *   https://<api>/api/fulfillment/otomax/report?key=<OTOMAX_REPORT_KEY>
+ * OtomaX adds refid + message (query or form). OtomaX can't send headers, so the
+ * secret is in the URL; OTOMAX_REPORT_IPS optionally pins the center's IP
+ * (nginx passes the client IP as X-Real-IP). Always answers "OK" once
+ * authenticated so OtomaX stops retrying.
+ */
+export const otomaxReport = asyncHandler(async (req: Request, res: Response) => {
+  const key = process.env.OTOMAX_REPORT_KEY;
+  if (!key) throw new HttpError(503, 'Report OtomaX belum dikonfigurasi');
+  const params: Record<string, string> = {};
+  for (const [k, v] of Object.entries({ ...(req.query as Record<string, unknown>), ...((req.body as Record<string, unknown>) ?? {}) })) {
+    if (typeof v === 'string') params[k.toLowerCase()] = v;
+  }
+  if (!secretMatches(params.key, key)) throw new HttpError(401, 'Key tidak valid');
+  const allowed = (process.env.OTOMAX_REPORT_IPS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  const ip = (req.header('x-real-ip') ?? req.socket.remoteAddress ?? '').replace(/^::ffff:/, '');
+  if (allowed.length && !allowed.includes(ip)) throw new HttpError(403, 'IP tidak diizinkan');
+
+  const refId = Number(params.refid);
+  const message = (params.message ?? params.msg ?? '').trim();
+  const trx = Number.isInteger(refId) && refId > 0
+    ? await prisma.transaction.findFirst({ where: { trxNumber: refId, provider: 'otomax' }, select: { id: true } })
+    : null;
+  if (!trx) {
+    console.warn(`otomax report for unknown refid ${params.refid}: ${message.slice(0, 120)}`);
+    return res.type('text/plain').send('OK');
+  }
+  const parsed = parseOtomaxMessage(message);
+  await applySupplierOutcome(
+    trx.id,
+    parsed.status === 'FAILED'
+      ? { status: 'FAILED', reason: message, message }
+      : parsed.status === 'SUCCESS'
+        ? { status: 'SUCCESS', serialNumber: parsed.serialNumber, message }
+        : { status: 'PENDING', message },
+  );
+  res.type('text/plain').send('OK');
 });

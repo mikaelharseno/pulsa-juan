@@ -15,6 +15,8 @@ import { listConnections, transferCommissionId, updateConnectionAmount } from '.
 import * as seg from '../service/segment.service';
 import * as topup from '../service/topup.service';
 import * as trx from '../service/transaction.service';
+import { integrationStatus, sendTelegramTest } from '../service/integrations.service';
+import * as updater from '../service/productUpdater.service';
 import { listLedger } from '../service/saldo.service';
 import { uploadImage } from '../service/upload.service';
 
@@ -209,4 +211,23 @@ export const postUpload = asyncHandler(async (req: Request, res: Response) => {
   if (!file) throw badRequest('File tidak ditemukan (field "file")');
   const folder = typeof req.body?.folder === 'string' ? req.body.folder : 'media';
   res.status(201).json(await uploadImage(folder, file));
+});
+
+// ---- product updater ----
+export const getProductUpdaterInfo = asyncHandler(async (_req: Request, res: Response) => {
+  res.json({ rule: await updater.currentRule(), history: await updater.listUpdates() });
+});
+export const postProductUpdaterPreview = asyncHandler(async (req: Request, res: Response) => {
+  res.json(await updater.previewUpdate(parse(updater.updaterSchema, req.body)));
+});
+export const postProductUpdaterApply = asyncHandler(async (req: Request, res: Response) => {
+  res.json(await updater.applyUpdate(req.admin!.adminId, parse(updater.updaterSchema, req.body)));
+});
+
+// ---- integrations ----
+export const getIntegrations = asyncHandler(async (_req: Request, res: Response) => {
+  res.json(integrationStatus());
+});
+export const postTelegramTest = asyncHandler(async (req: Request, res: Response) => {
+  res.json(await sendTelegramTest(req.admin!.email));
 });

@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { api, errMsg } from '../api';
 import { useRole } from '../auth/useSession';
 import { PageHeader } from '../components/common';
+import { IntegrationsCard } from '../components/IntegrationsCard';
 import { MediaDropZone } from '../components/DropZone';
 
 interface Config {
@@ -100,6 +101,9 @@ export default function SettingsPage() {
           </Paper>
         </Grid>
       </Grid>
+      <Box sx={{ mt: 2 }}>
+        <IntegrationsCard canTest={canEdit} />
+      </Box>
     </Box>
   );
 }

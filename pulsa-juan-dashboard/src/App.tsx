@@ -6,6 +6,7 @@ import AgentDetailPage from './pages/AgentDetailPage';
 import AgentsPage from './pages/AgentsPage';
 import MitraPage from './pages/MitraPage';
 import PackagesPage from './pages/PackagesPage';
+import ProductUpdaterPage from './pages/ProductUpdaterPage';
 import SegmentsPage from './pages/SegmentsPage';
 import SettingsPage from './pages/SettingsPage';
 import TopUpsPage from './pages/TopUpsPage';
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="/segments" element={<SegmentsPage />} />
         <Route path="/segments/:id/tree" element={<TreeEditorPage />} />
         <Route path="/packages" element={<PackagesPage />} />
+        <Route path="/product-updater" element={<ProductUpdaterPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/topups" replace />} />
       </Route>

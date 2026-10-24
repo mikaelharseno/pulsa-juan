@@ -1,4 +1,4 @@
-import { Box, Button, MenuItem, Paper, Select, Switch, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
+import { Box, Button, Checkbox, Chip, FormControlLabel, MenuItem, Paper, Select, Switch, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PROVIDERS } from 'pulsa-juan-common';
 import { useState } from 'react';
@@ -11,8 +11,10 @@ import { SortableCell, useTableSort } from '../components/sortableTable';
 
 export interface Pkg {
   id: string; code: string; name: string; description: string | null; category: string; provider: string | null; hargaAgen: number; hargaBeli: number;
-  imageUrl: string | null; supplierName: string | null; supplierSku: string | null; isActive: boolean; sortOrder: number;
+  imageUrl: string | null; supplierName: string | null; supplierSku: string | null; isActive: boolean; sortOrder: number; priceLocked: boolean;
 }
+/** supplierName of packages created by the Product Updater */
+const MANAGED = 'OtomaX';
 const EMPTY: Partial<Pkg> = { code: '', name: '', category: '', provider: null, hargaAgen: 0, hargaBeli: 0, imageUrl: null, supplierSku: '', supplierName: '', isActive: true, sortOrder: 0 };
 
 export default function PackagesPage() {
@@ -63,7 +65,7 @@ export default function PackagesPage() {
             <TableCell>Operator</TableCell>
             <SortableCell label="Harga agen" sortKey="hargaAgen" sort={sort} onToggle={toggleSort} align="right" />
             <SortableCell label="Harga beli" sortKey="hargaBeli" sort={sort} onToggle={toggleSort} align="right" />
-            <TableCell>SKU supplier</TableCell>
+            <TableCell>Kode produk OtomaX</TableCell>
             <SortableCell label="Urutan" sortKey="sortOrder" sort={sort} onToggle={toggleSort} align="right" />
             <TableCell>Aktif</TableCell><TableCell />
           </TableRow></TableHead>
@@ -74,9 +76,12 @@ export default function PackagesPage() {
                 <TableCell>{p.imageUrl && <img src={p.imageUrl} alt="" style={{ width: 24, height: 24, borderRadius: 4, verticalAlign: 'middle', marginRight: 6 }} />}{p.name}</TableCell>
                 <TableCell>{p.category}</TableCell>
                 <TableCell>{p.provider ?? '-'}</TableCell>
-                <TableCell align="right">{fmtRp(p.hargaAgen)}</TableCell>
+                <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>{p.priceLocked && <span title="Harga dikunci: tidak ikut margin Product Updater">🔒 </span>}{fmtRp(p.hargaAgen)}</TableCell>
                 <TableCell align="right">{fmtRp(p.hargaBeli)}</TableCell>
-                <TableCell>{p.supplierSku ?? '-'}</TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                  {p.supplierSku ? <code>{p.supplierSku}</code> : '-'}
+                  {p.supplierSku && <Chip size="small" label="Otomatis" color="success" variant="outlined" sx={{ ml: 1 }} title="Diproses otomatis via OtomaX bila OtomaX terhubung" />}
+                </TableCell>
                 <TableCell align="right">{p.sortOrder}</TableCell>
                 <TableCell><Switch size="small" checked={p.isActive} disabled={!canEdit} onChange={() => toggle.mutate(p)} /></TableCell>
                 <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
@@ -97,12 +102,26 @@ export default function PackagesPage() {
             <TextField label="Kode" value={edit.code ?? ''} onChange={(e) => setEdit({ ...edit, code: e.target.value.toUpperCase() })} size="small" />
             <TextField label="Kategori" value={edit.category ?? ''} onChange={(e) => setEdit({ ...edit, category: e.target.value.toUpperCase() })} size="small" helperText="contoh: PULSA_TELKOMSEL" />
             <TextField label="Nama" value={edit.name ?? ''} onChange={(e) => setEdit({ ...edit, name: e.target.value })} size="small" sx={{ gridColumn: '1 / -1' }} />
-            <TextField label="Harga agen (Rp)" type="number" value={edit.hargaAgen ?? 0} onChange={(e) => setEdit({ ...edit, hargaAgen: Number(e.target.value) })} size="small" />
+            <TextField
+              label="Harga agen (Rp)"
+              type="number"
+              value={edit.hargaAgen ?? 0}
+              // a hand-set price on an updater-managed package must survive the next sheet upload
+              onChange={(e) => setEdit({ ...edit, hargaAgen: Number(e.target.value), ...(edit.supplierName === MANAGED ? { priceLocked: true } : {}) })}
+              size="small"
+            />
             <TextField label="Harga beli (Rp)" type="number" value={edit.hargaBeli ?? 0} onChange={(e) => setEdit({ ...edit, hargaBeli: Number(e.target.value) })} size="small" />
             <Select size="small" value={edit.provider ?? ''} onChange={(e) => setEdit({ ...edit, provider: e.target.value || null })} displayEmpty><MenuItem value="">Tanpa operator</MenuItem>{PROVIDERS.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}</Select>
             <TextField label="Urutan" type="number" value={edit.sortOrder ?? 0} onChange={(e) => setEdit({ ...edit, sortOrder: Number(e.target.value) })} size="small" />
             <TextField label="Supplier" value={edit.supplierName ?? ''} onChange={(e) => setEdit({ ...edit, supplierName: e.target.value })} size="small" />
-            <TextField label="SKU supplier" value={edit.supplierSku ?? ''} onChange={(e) => setEdit({ ...edit, supplierSku: e.target.value })} size="small" />
+            <TextField label="Kode produk OtomaX" value={edit.supplierSku ?? ''} onChange={(e) => setEdit({ ...edit, supplierSku: e.target.value })} size="small" helperText="terisi = diproses otomatis via OtomaX" />
+            {edit.supplierName === MANAGED && (
+              <FormControlLabel
+                sx={{ gridColumn: '1 / -1' }}
+                control={<Checkbox checked={!!edit.priceLocked} onChange={(e) => setEdit({ ...edit, priceLocked: e.target.checked })} />}
+                label="Kunci harga agen (tidak dihitung ulang dari modal + margin saat Product Updater)"
+              />
+            )}
             <TextField label="Deskripsi" value={edit.description ?? ''} onChange={(e) => setEdit({ ...edit, description: e.target.value })} size="small" sx={{ gridColumn: '1 / -1' }} />
             <Box sx={{ gridColumn: '1 / -1', display: 'flex', gap: 2, alignItems: 'center' }}>
               {edit.imageUrl && <img src={edit.imageUrl} alt="" style={{ width: 56, height: 56, borderRadius: 6, objectFit: 'cover' }} />}

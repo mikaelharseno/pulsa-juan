@@ -56,4 +56,11 @@ router.get('/config', c.getConfigHandler);
 router.put('/config', requireRole('OWNER', 'ADMIN'), c.putConfigHandler);
 router.post('/uploads', c.postUpload);
 
+router.get('/product-updater', requireRole('OWNER', 'ADMIN'), c.getProductUpdaterInfo);
+router.post('/product-updater/preview', requireRole('OWNER', 'ADMIN'), c.postProductUpdaterPreview);
+router.post('/product-updater/apply', requireRole('OWNER', 'ADMIN'), c.postProductUpdaterApply);
+
+router.get('/integrations', c.getIntegrations);
+router.post('/integrations/telegram/test', requireRole('OWNER', 'ADMIN'), c.postTelegramTest);
+
 export default router;

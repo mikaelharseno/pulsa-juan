@@ -7,6 +7,7 @@ import { badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import { audit } from './audit.service';
 import { bankAccounts, getConfig } from './config.service';
 import { creditSaldo } from './saldo.service';
+import { queueAdminAlert, topUpClaimedAlert } from './telegram.service';
 
 export const createTopUpSchema = z.object({ amount: z.number().int() });
 export const selectBankSchema = z.object({ bank: z.enum(['BRI', 'BCA']) });
@@ -77,6 +78,10 @@ export async function claimTopUp(agent: Agent, id: string) {
     where: { id },
     data: { status: 'CLAIMED', claimedAt: order.claimedAt ?? new Date() },
   });
+  // re-sending the WhatsApp confirmation must not re-alert the admins
+  if (!order.claimedAt) {
+    queueAdminAlert(topUpClaimedAlert({ orderNumber: updated.orderNumber, totalTransfer: Number(updated.totalTransfer), bank: updated.bank }, agent));
+  }
   const config = await getConfig();
   const waNumber = toInternationalMobile(config.csWhatsapp);
   const waText =

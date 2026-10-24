@@ -23,6 +23,7 @@ export interface Trx {
   serialNumber: string | null;
   failReason: string | null;
   refundReason: string | null;
+  supplierMessage: string | null;
   createdAt: string;
   processedAt: string | null;
   refundedAt: string | null;
@@ -244,6 +245,9 @@ export function TransactionsTable({ agentId, showAgent = true }: { agentId?: str
               <TableRow><TableCell><b>Total</b></TableCell><TableCell align="right"><b>{fmtRp(detail.total)}</b></TableCell></TableRow>
               <TableRow><TableCell sx={{ color: 'text.secondary' }}>Status</TableCell><TableCell align="right"><StatusChip status={detail.status} /></TableCell></TableRow>
               <TableRow><TableCell sx={{ color: 'text.secondary' }}>Diproses</TableCell><TableCell align="right">{fmtDate(detail.processedAt)}</TableCell></TableRow>
+              {detail.provider === 'otomax' && (
+                <TableRow><TableCell sx={{ color: 'text.secondary' }}>OtomaX (refID #{detail.trxNumber})</TableCell><TableCell align="right" sx={{ fontFamily: 'monospace', fontSize: 12, wordBreak: 'break-word' }}>{detail.supplierMessage ?? 'belum ada balasan'}</TableCell></TableRow>
+              )}
               {detail.refundedAt && (
                 <TableRow><TableCell sx={{ color: 'text.secondary' }}>Direfund</TableCell><TableCell align="right">{fmtDate(detail.refundedAt)} · {detail.refundReason}</TableCell></TableRow>
               )}
