@@ -46,6 +46,16 @@ npm run deploy -w pulsa-juan-landing       # wrangler deploy (public/)
 
 Domain kustom: buka komentar `routes` (`custom_domain: true`) di `wrangler.jsonc` — wrangler membuat DNS record + sertifikat. Link APK & nomor WhatsApp landing diatur di konstanta `APK_URL` / `WHATSAPP_NUMBER` di bagian bawah `pulsa-juan-landing/public/index.html`; APK di-hosting di R2 atau memakai URL artifact EAS (bukan di aset Worker).
 
+## Rilis aplikasi Android (download dari landing)
+
+```bash
+cd pulsa-juan-app && npx eas-cli build -p android --profile release-apk   # APK -> https://pulsajuan.studiosclo.uk/api
+# unduh artifact .apk dari link build EAS, lalu:
+cd ../pulsa-juan-landing && npx wrangler r2 object put pulsa-juan-downloads/pulsa-juan.apk --file <apk> --content-type application/vnd.android.package-archive --remote
+```
+
+Landing menyajikannya di `/download/pulsa-juan.apk` (`src/worker.js`, bucket R2 privat). Naikkan `version` di `app.json` setiap rilis. Profil `preview` = APK demo (data mock), `production` = AAB untuk Play Store.
+
 ## Konsep utama
 
 - **segmentDisplayTree**: setiap ikon beranda (Segment) punya alur berupa peta datar `{ rootId, nodes }` dengan node `ListNode`, `PackagesList`, `PhoneNumberInput`, `EnterAmount`, `CustomerIdInput`, `BillInquiry`. Walker yang sama (`walkPath`/`computeTotal`/`describeSteps` di common) dipakai aplikasi, backend (validasi ulang harga sebelum saldo dipotong) dan dashboard (validasi + pratinjau). Draf disimpan di `Segment.draftTree`; publikasi membuat `SegmentTreeVersion` yang tidak bisa diubah.
