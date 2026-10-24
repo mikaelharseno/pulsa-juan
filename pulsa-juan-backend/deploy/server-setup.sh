@@ -10,6 +10,8 @@ REPO="${REPO:-https://github.com/mikaelharseno/pulsa-juan.git}"
 APP_DIR=/root/code/pulsa-juan
 
 export DEBIAN_FRONTEND=noninteractive
+# fresh droplets run unattended-upgrades for the first minutes and hold the dpkg lock
+for _ in $(seq 1 60); do fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || break; sleep 10; done
 apt-get update -y
 apt-get install -y ca-certificates curl git nginx certbot python3-certbot-nginx ufw
 
