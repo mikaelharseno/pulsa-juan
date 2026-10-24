@@ -137,7 +137,8 @@ async function crawlSource(source) {
         if (!found.has(key)) found.set(key, { ...p, source: source.name, category, group, item, operator });
       }
       process.stdout.write(`\r  ${source.name}/${category} page ${i + 1}/${urls.length} — ${found.size} products   `);
-      if (i > 0 && products.length === 0) break;
+      // stop on a page with no product rows at all (not one whose rows were all filtered out)
+      if (i > 0 && !/<i>\s*Kode\s*<\/i>/i.test(html)) break;
     }
   }
   process.stdout.write('\n');
