@@ -18,6 +18,7 @@
     "migrate:dev": "prisma migrate dev",
     "migrate:prod": "npx -y dotenv-cli -e .env.production -- prisma migrate deploy",
     "seed": "prisma db seed",
+    "seed:bills:prod": "npx -y dotenv-cli -e .env.production -- ts-node prisma/seed.ts --bills-only",
     "pretest": "bash scripts/test-db.sh"
   },
   "prisma": {

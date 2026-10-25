@@ -71,13 +71,21 @@ export async function seed() {
     });
   }
 
-  // billers start inactive with empty OtomaX codes; filled in on the dashboard (Tagihan page)
+  await seedBillers();
+  await seedSegments(SEED_SEGMENTS);
+}
+
+// billers start inactive with empty OtomaX codes; filled in on the dashboard (Tagihan page)
+async function seedBillers() {
   for (const b of SEED_BILLERS) {
     await prisma.biller.upsert({ where: { key: b.key }, update: {}, create: b });
   }
+}
 
+/** Creates missing seed segments (published v1); existing ones only get a missing icon filled in. */
+async function seedSegments(segments: typeof SEED_SEGMENTS) {
   const packages = Object.fromEntries((await prisma.package.findMany()).map((p) => [p.id, { ...p, description: p.description ?? undefined }]));
-  for (const s of SEED_SEGMENTS) {
+  for (const s of segments) {
     const errors = validateTreeStructure(s.tree, { strict: true, packages: packages as never });
     if (hasBlockingErrors(errors)) throw new Error(`Seed tree ${s.slug} invalid: ` + JSON.stringify(errors));
     const existing = await prisma.segment.findUnique({ where: { slug: s.slug } });
@@ -97,8 +105,18 @@ export async function seed() {
   }
 }
 
+/**
+ * Production-safe subset for the bill-payment rollout (`npm run seed:bills:prod`):
+ * the two billers and the bill tiles, created only if missing. Unlike the full seed it
+ * never recreates demo packages/prefixes/tiles that were removed on production.
+ */
+export async function seedBillPayments() {
+  await seedBillers();
+  await seedSegments(SEED_SEGMENTS.filter((s) => s.slug === 'pln-pascabayar' || s.slug === 'telkom'));
+}
+
 if (require.main === module) {
-  seed()
+  (process.argv.includes('--bills-only') ? seedBillPayments() : seed())
     .then(() => {
       console.log('seed complete');
       return prisma.$disconnect();
