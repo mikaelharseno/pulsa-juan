@@ -13,9 +13,15 @@ const SEED_ICON_BY_SLUG: Record<string, string> = {
   'paket-data': 'paket-data',
   'token-pln': 'token-pln',
   'pln-pascabayar': 'pln-pascabayar',
+  telkom: 'internet',
   gopay: 'gopay',
   'mobile-legends': 'mobile-legends',
 };
+
+const SEED_BILLERS = [
+  { key: 'PLN_POSTPAID', name: 'PLN Pascabayar' },
+  { key: 'TELKOM', name: 'Telkom / IndiHome' },
+];
 
 // Idempotent: safe to re-run. Never overwrites an existing published tree.
 export async function seed() {
@@ -63,6 +69,11 @@ export async function seed() {
         sortOrder: p.sortOrder,
       },
     });
+  }
+
+  // billers start inactive with empty OtomaX codes; filled in on the dashboard (Tagihan page)
+  for (const b of SEED_BILLERS) {
+    await prisma.biller.upsert({ where: { key: b.key }, update: {}, create: b });
   }
 
   const packages = Object.fromEntries((await prisma.package.findMany()).map((p) => [p.id, { ...p, description: p.description ?? undefined }]));

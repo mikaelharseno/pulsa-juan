@@ -149,7 +149,19 @@ function todayCount() {
 }
 function inquiryFor(customerId: string) {
   const digits = customerId.replace(/\D/g, '');
-  return { customerId, customerName: 'PELANGGAN ' + (digits.slice(-4) || '0000'), periode: new Date().toISOString().slice(0, 7), amountDue: 50000 + (parseInt(digits.slice(-4) || '1234', 10) % 50) * 1000, adminFee: 2500 };
+  return { customerId, customerName: 'PELANGGAN ' + (digits.slice(-4) || '0000'), periode: new Date().toISOString().slice(0, 7), amountDue: 50000 + (parseInt(digits.slice(-4) || '1234', 10) % 50) * 1000, adminFee: 3500 };
+}
+
+// demo bill checks: the bill "arrives" ~3 s after the check (like an OtomaX report);
+// a customer id ending in 0 has no bill
+const mockChecks = new Map<string, { customerId: string; readyAt: number }>();
+function checkView(checkId: string) {
+  const c = mockChecks.get(checkId);
+  if (!c) return null;
+  if (c.customerId.endsWith('0')) return { checkId, status: 'NOT_PAYABLE', message: 'Tagihan sudah lunas atau belum ada tagihan' };
+  if (Date.now() < c.readyAt) return { checkId, status: 'PENDING', message: 'Mengecek tagihan…' };
+  const result = { ...inquiryFor(c.customerId), checkId };
+  return { ...result, status: 'READY', result };
 }
 
 export async function mockApi(path: string, method: string, json: any, query: Record<string, unknown> = {}): Promise<MockResponse> {
@@ -212,7 +224,15 @@ export async function mockApi(path: string, method: string, json: any, query: Re
     if (!s) return fail(404, 'Layanan tidak ditemukan');
     return ok({ segment: { id: s.id, slug: s.slug, label: s.label, iconUrl: s.iconUrl, maintenanceMessage: null }, treeVersion: 1, treeVersionId: 'v1', tree: s.tree, packages, markupTotal: 0 });
   }
-  if (route === 'inquiries') return ok(inquiryFor(String(json?.customerId ?? '')));
+  if (route === 'inquiries' && m === 'POST') {
+    const checkId = id('chk');
+    mockChecks.set(checkId, { customerId: String(json?.customerId ?? ''), readyAt: Date.now() + 3000 });
+    return ok(checkView(checkId));
+  }
+  if (seg[1] === 'inquiries' && seg[2]) {
+    const view = checkView(seg[2]);
+    return view ? ok(view) : fail(404, 'Cek tagihan tidak ditemukan');
+  }
 
   // ---- top ups ----
   if (route === 'topups' && m === 'POST') {

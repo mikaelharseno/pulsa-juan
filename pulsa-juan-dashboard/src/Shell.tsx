@@ -5,6 +5,7 @@ import {
   Hub,
   Inventory2,
   Logout,
+  ElectricBolt,
   Menu as MenuIcon,
   ReceiptLong,
   Settings,
@@ -25,6 +26,7 @@ export const NAV_ITEMS = [
   { key: 'mitra', label: 'Referral & Komisi', to: '/mitra', group: 'Mitra', icon: <Hub fontSize="small" /> },
   { key: 'segments', label: 'Segmen & Alur', to: '/segments', group: 'Katalog', icon: <AccountTree fontSize="small" /> },
   { key: 'packages', label: 'Paket', to: '/packages', group: 'Katalog', icon: <Inventory2 fontSize="small" /> },
+  { key: 'billers', label: 'Tagihan (Biller)', to: '/billers', group: 'Katalog', icon: <ElectricBolt fontSize="small" /> },
   { key: 'product-updater', label: 'Product Updater', to: '/product-updater', group: 'Katalog', icon: <UploadFile fontSize="small" /> },
   { key: 'settings', label: 'Pengaturan', to: '/settings', group: 'Toko', icon: <Settings fontSize="small" /> },
 ];

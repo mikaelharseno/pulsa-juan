@@ -1,4 +1,4 @@
-import { ConfirmationRow, FlowStep, PackagePublic, PrefixEntry, SegmentTree, TopUpStatus, TransactionStatus } from 'pulsa-juan-common';
+import { ConfirmationRow, FlowStep, PackagePublic, PrefixEntry, SegmentTree, TopUpStatus, TransactionStatus, InquiryResult } from 'pulsa-juan-common';
 
 export interface AgentProfile {
   id: string;
@@ -142,6 +142,8 @@ export interface Transaction {
   status: TransactionStatus;
   serialNumber: string | null;
   failReason: string | null;
+  /** set on bill payments (the BillCheck that priced it) */
+  billCheckId?: string | null;
   refundReason?: string | null;
   refundedAt?: string | null;
   createdAt: string;
@@ -183,4 +185,14 @@ export interface MitraOverview {
   referralMarkup: number;
   parent: { name: string; commisionAmount: number } | null;
   children: { id: string; name: string; commisionUniqueId: string; commisionAmount: number; joinedAt: string }[];
+}
+
+/** POST /agent/inquiries and GET /agent/inquiries/:id */
+export interface BillCheckResponse {
+  /** null = dev stub answer (no OtomaX check behind it) */
+  checkId: string | null;
+  status: 'PENDING' | 'READY' | 'NOT_PAYABLE' | 'FAILED' | 'USED' | 'EXPIRED';
+  result?: InquiryResult;
+  /** agent-facing reason when not READY */
+  message?: string;
 }

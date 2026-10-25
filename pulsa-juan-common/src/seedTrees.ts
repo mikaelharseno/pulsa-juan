@@ -138,7 +138,7 @@ export const SEED_SEGMENTS: SeedSegment[] = [
     label: 'PLN Pascabayar',
     groupLabel: 'Tagihan',
     sortOrder: 6,
-    isActive: false, // inquiry is a stub in v1
+    isActive: false, // turn on once the PLN_POSTPAID biller has its OtomaX codes
     tree: {
       schemaVersion: 1,
       rootId: 'idpel',
@@ -151,6 +151,39 @@ export const SEED_SEGMENTS: SeedSegment[] = [
           nextId: 'inquiry',
         },
         inquiry: { id: 'inquiry', type: 'BillInquiry', title: 'Tagihan Listrik', product: 'PLN_POSTPAID', adminFee: 2500, nextId: null },
+      },
+    },
+  },
+  {
+    slug: 'telkom',
+    label: 'Telkom / IndiHome',
+    groupLabel: 'Tagihan',
+    sortOrder: 6,
+    isActive: false, // turn on once the TELKOM biller has its OtomaX codes
+    tree: {
+      schemaVersion: 1,
+      rootId: 'idpel',
+      nodes: {
+        idpel: {
+          id: 'idpel',
+          type: 'CustomerIdInput',
+          title: 'Telkom / IndiHome',
+          fields: [
+            {
+              key: 'customerId',
+              label: 'Nomor Telepon / ID IndiHome',
+              placeholder: 'contoh 0215551234',
+              helpText: 'Telepon rumah dengan kode area, atau nomor IndiHome 12 digit',
+              regex: '^[0-9]{9,13}$',
+              minLength: 9,
+              maxLength: 13,
+              keyboard: 'numeric',
+              required: true,
+            },
+          ],
+          nextId: 'inquiry',
+        },
+        inquiry: { id: 'inquiry', type: 'BillInquiry', title: 'Tagihan Telkom', product: 'TELKOM', adminFee: 2500, nextId: null },
       },
     },
   },

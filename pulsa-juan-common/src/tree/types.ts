@@ -162,6 +162,10 @@ export type FlowStep =
       amountDue: number;
       customerName?: string;
       periode?: string;
+      /** BillCheck id from POST /agent/inquiries — the stored check is what gets paid. */
+      checkId?: string;
+      /** Admin fee the check came back with (supplier admin + our fee); echoed for the app's total. */
+      adminFee?: number;
     };
 
 export interface FlowSession {
@@ -171,6 +175,7 @@ export interface FlowSession {
 }
 
 export interface InquiryResult {
+  checkId?: string;
   customerId: string;
   customerName?: string;
   periode?: string;

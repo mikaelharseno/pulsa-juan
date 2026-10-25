@@ -23,6 +23,7 @@ router.get('/ledger', c.getLedger);
 router.get('/home', c.getHome);
 router.get('/segments/:id/tree', c.getSegmentTree);
 router.post('/inquiries', c.postInquiry);
+router.get('/inquiries/:id', c.getInquiry);
 
 router.post('/topups', c.postTopUp);
 router.get('/topups', c.getTopUps);

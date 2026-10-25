@@ -13,7 +13,7 @@ describe('segment admin', () => {
   it('draft validation, publish bumps version, duplicate remaps ids, roles enforced', async () => {
     const admin = await adminToken();
     const list = await request(app).get('/api/admin/segments').set(auth(admin));
-    expect(list.body.segments).toHaveLength(8);
+    expect(list.body.segments).toHaveLength(9);
     const xl = list.body.segments.find((s: { slug: string }) => s.slug === 'xl');
     expect(xl.publishedVersion.version).toBe(1);
 

@@ -48,7 +48,7 @@ export default function ResultScreen() {
             <KeyValue key={i} label={r.label} value={r.value} />
           ))}
           <KeyValue label="Total" value={formatRp(t.total)} bold />
-          {t.serialNumber ? <KeyValue label="SN / Token" value={t.serialNumber} bold /> : null}
+          {t.serialNumber ? <KeyValue label={t.steps.some((x) => x.type === 'BillInquiry') ? 'No. Referensi' : 'SN / Token'} value={t.serialNumber} bold /> : null}
           <KeyValue label="Waktu" value={fmtDate(t.createdAt)} />
         </Card>
         <View style={{ flex: 1 }} />

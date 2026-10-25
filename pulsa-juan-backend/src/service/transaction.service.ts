@@ -14,6 +14,7 @@ import { Agent, Prisma, TransactionStatus } from '../../prisma/generated';
 import { prisma } from '../../prisma/client';
 import { badRequest, conflict, HttpError, notFound } from '../lib/errors';
 import { audit } from './audit.service';
+import { billerUsable, checkResult, checkView, claimCheck, getAgentCheck, payableCheck, startAgentCheck } from './bill.service';
 import { getFulfillmentProvider, PurchaseOutcome, providerFor } from './fulfillment';
 import { packagesForTree } from './package.service';
 import { getPrefixEntries } from './prefix.service';
@@ -75,11 +76,24 @@ async function loadPublished(segmentId: string) {
   return { segment, version: segment.publishedVersion, tree: segment.publishedVersion.tree as unknown as SegmentTree };
 }
 
-export async function inquire(agent: Agent, input: z.infer<typeof inquirySchema>): Promise<InquiryResult> {
+/**
+ * Starts a bill check for a BillInquiry node. With a usable Biller (codes set,
+ * active, OtomaX on) it goes to OtomaX and the app polls GET /agent/inquiries/:id;
+ * otherwise only the dev stub (FULFILLMENT_STUB=1) answers, with no checkId.
+ */
+export async function inquire(agent: Agent, input: z.infer<typeof inquirySchema>) {
   const { tree } = await loadPublished(input.segmentId);
   const node = tree.nodes[input.nodeId];
   if (!node || node.type !== 'BillInquiry') throw badRequest('Node cek tagihan tidak ditemukan');
-  return getFulfillmentProvider().inquire(node.product, input.customerId);
+  const biller = await prisma.biller.findUnique({ where: { key: node.product } });
+  if (billerUsable(biller)) return checkView(await startAgentCheck(agent.id, biller, input.customerId));
+  const result = await getFulfillmentProvider().inquire(node.product, input.customerId);
+  // top-level fields kept for app 1.0.0, which reads the result directly
+  return { ...result, checkId: null, status: 'READY' as const, result };
+}
+
+export async function getInquiry(agent: Agent, id: string) {
+  return checkView(await getAgentCheck(agent.id, id));
 }
 
 export async function createTransaction(agent: Agent, input: z.infer<typeof createTransactionSchema>) {
@@ -101,12 +115,21 @@ export async function createTransaction(agent: Agent, input: z.infer<typeof crea
   const walk = walkPath(tree, steps, ctx);
   if (!walk.ok) throw badRequest(walk.error.message, walk.error.code, { nodeId: walk.error.nodeId });
 
+  // bill: the stored check is the price (no re-inquiry); dev stub only without a checkId
   let inquiry: InquiryResult | null = null;
+  let bill: Awaited<ReturnType<typeof payableCheck>> | null = null;
   const inquiryStep = steps.find((s) => s.type === 'BillInquiry');
   if (inquiryStep && inquiryStep.type === 'BillInquiry') {
     const node = tree.nodes[inquiryStep.nodeId];
     if (node.type !== 'BillInquiry') throw badRequest('Alur transaksi tidak valid');
-    inquiry = await getFulfillmentProvider().inquire(node.product, inquiryStep.customerId);
+    if (inquiryStep.checkId) {
+      bill = await payableCheck(agent.id, inquiryStep.checkId, node.product, inquiryStep.customerId);
+      inquiry = checkResult(bill);
+    } else {
+      const biller = await prisma.biller.findUnique({ where: { key: node.product } });
+      if (billerUsable(biller)) throw badRequest('Data tagihan tidak ditemukan, silakan cek ulang', 'CHECK_INVALID');
+      inquiry = await getFulfillmentProvider().inquire(node.product, inquiryStep.customerId);
+    }
   }
 
   const price = computeTotal(steps, tree, ctx, markup.markupTotal, inquiry);
@@ -120,7 +143,8 @@ export async function createTransaction(agent: Agent, input: z.infer<typeof crea
   const pkg = price.packageId
     ? await prisma.package.findUnique({ where: { id: price.packageId }, select: { name: true, supplierSku: true } })
     : null;
-  const provider = providerFor(pkg);
+  const productCode = bill ? bill.biller.payCode : pkg?.supplierSku ?? null;
+  const provider = providerFor(productCode ? { supplierSku: productCode } : null);
 
   const transaction = await prisma.$transaction(async (tx) => {
     const trx = await tx.transaction.create({
@@ -141,8 +165,10 @@ export async function createTransaction(agent: Agent, input: z.infer<typeof crea
         idempotencyKey: input.idempotencyKey,
         provider: provider.name,
         fulfillmentMode: provider.mode,
+        ...(bill ? { billCheckId: bill.id, supplierAdmin: bill.supplierAdmin } : {}),
       },
     });
+    if (bill) await claimCheck(tx, bill.id);
     await debitSaldo(tx, agent.id, price.total, 'PURCHASE', trx.id, `${segment.label} #${trx.trxNumber}`);
     const commissions = [
       markup.parent ? { beneficiaryCommisionId: markup.parent.commisionId, level: 1, amount: markup.parent.amount } : null,
@@ -156,7 +182,7 @@ export async function createTransaction(agent: Agent, input: z.infer<typeof crea
     return trx;
   });
 
-  if (provider.mode === 'MANUAL') queueAdminAlert(manualOrderAlert(transaction, pkg?.name ?? null, agent.name));
+  if (provider.mode === 'MANUAL') queueAdminAlert(manualOrderAlert(transaction, pkg?.name ?? bill?.biller.name ?? null, agent.name));
 
   // fulfilment: manual → stays PENDING; OtomaX → reply may settle it right away (or a report later)
   try {
@@ -164,7 +190,7 @@ export async function createTransaction(agent: Agent, input: z.infer<typeof crea
       id: transaction.id,
       trxNumber: transaction.trxNumber,
       packageId: transaction.packageId,
-      productCode: pkg?.supplierSku ?? null,
+      productCode,
       customerId,
       phoneNumber,
       total: transaction.total,
@@ -384,7 +410,13 @@ export async function adminList(q: z.infer<typeof adminListSchema>) {
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * pageSize,
       take: pageSize,
-      include: { agent: { select: { id: true, name: true, phone: true } }, package: { select: { code: true, name: true, supplierSku: true } } },
+      include: {
+        agent: { select: { id: true, name: true, phone: true } },
+        package: { select: { code: true, name: true, supplierSku: true } },
+        billCheck: {
+          select: { number: true, customerName: true, periode: true, amountDue: true, supplierAdmin: true, ourFee: true, biller: { select: { key: true, name: true, payCode: true } } },
+        },
+      },
     }),
   ]);
   return { total, page, pageSize, transactions };

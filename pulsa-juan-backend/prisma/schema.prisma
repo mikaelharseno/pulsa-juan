@@ -61,6 +61,15 @@ enum LedgerType {
   COMMISSION
 }
 
+enum BillCheckStatus {
+  PENDING
+  READY
+  NOT_PAYABLE
+  FAILED
+  USED
+  EXPIRED
+}
+
 enum BankCode {
   BRI
   BCA
@@ -142,6 +151,7 @@ model Agent {
   topUps       TopUpOrder[]
   transactions Transaction[]
   commissionsGenerated AgentMarkupCommision[] @relation("commissionSource")
+  billChecks   BillCheck[]
 }
 
 /// OTP for a phone that has no Agent yet (registration). Existing agents keep
@@ -317,6 +327,11 @@ model Transaction {
   supplierMessage String?
   /// set once the "order stuck PENDING" Telegram alert went out
   stuckAlertedAt DateTime?
+  /// bill payment: the check that priced this order (amountBase = its bill)
+  billCheckId    String?           @unique
+  billCheck      BillCheck?        @relation(fields: [billCheckId], references: [id])
+  /// bill payment: supplier admin fee inside adminFee (the rest is Biller.ourFee)
+  supplierAdmin  Int               @default(0)
   serialNumber   String?
   failReason     String?
   refundReason   String?
@@ -379,4 +394,61 @@ model AdminAuditLog {
   createdAt  DateTime  @default(now())
 
   @@index([targetType, targetId])
+}
+
+/// A postpaid biller (PLN pascabayar, Telkom, …) paid through OtomaX: check code
+/// → bill details, pay code → payment. `key` is what BillInquiry.product names.
+/// The reply patterns are regexes with one capture group (empty = built-in default).
+model Biller {
+  id              String   @id @default(cuid())
+  key             String   @unique
+  name            String
+  checkCode       String   @default("")
+  payCode         String   @default("")
+  /// our fee on top of the supplier admin fee (Rp)
+  ourFee          Int      @default(0)
+  nameRe          String?
+  amountRe        String?
+  adminRe         String?
+  totalRe         String?
+  periodeRe       String?
+  notPayableRe    String?
+  failRe          String?
+  /// a READY check can be paid for this long
+  validityMinutes Int      @default(30)
+  isActive        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  checks BillCheck[]
+}
+
+/// One bill check (OtomaX refID = OTOMAX_CHECK_REF_PREFIX + number). Paying uses
+/// the stored bill; the check becomes USED in the same DB transaction as the debit.
+model BillCheck {
+  id            String          @id @default(cuid())
+  number        Int             @unique @default(autoincrement())
+  /// null for an admin test check from the dashboard
+  agentId       String?
+  agent         Agent?          @relation(fields: [agentId], references: [id])
+  adminId       String?
+  billerId      String
+  biller        Biller          @relation(fields: [billerId], references: [id])
+  customerId    String
+  status        BillCheckStatus @default(PENDING)
+  rawMessage    String?
+  customerName  String?
+  periode       String?
+  amountDue     Int             @default(0)
+  supplierAdmin Int             @default(0)
+  /// our fee frozen at check time
+  ourFee        Int             @default(0)
+  expiresAt     DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  transaction Transaction?
+
+  @@index([agentId, createdAt])
+  @@index([billerId, createdAt])
 }

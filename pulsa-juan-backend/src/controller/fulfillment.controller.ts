@@ -5,7 +5,8 @@ import { z } from 'zod';
 import { prisma } from '../../prisma/client';
 import { asyncHandler, HttpError, notFound } from '../lib/errors';
 import { parse } from '../lib/validate';
-import { parseOtomaxMessage } from '../service/fulfillment/otomax';
+import { reportCheck } from '../service/bill.service';
+import { checkRefPrefix, parseOtomaxMessage } from '../service/fulfillment/otomax';
 import { applySupplierOutcome, settleTransaction } from '../service/transaction.service';
 
 // Supplier result callback (semi-automated fulfilment). Body is our normalised
@@ -61,8 +62,16 @@ export const otomaxReport = asyncHandler(async (req: Request, res: Response) => 
   const ip = (req.header('x-real-ip') ?? req.socket.remoteAddress ?? '').replace(/^::ffff:/, '');
   if (allowed.length && !allowed.includes(ip)) throw new HttpError(403, 'IP tidak diizinkan');
 
-  const refId = Number(params.refid);
+  const rawRef = (params.refid ?? '').trim();
   const message = (params.message ?? params.msg ?? '').trim();
+  // bill checks use refID = prefix + BillCheck.number; orders use the bare trxNumber
+  const prefix = checkRefPrefix();
+  if (rawRef.toUpperCase().startsWith(prefix.toUpperCase()) && /^\d+$/.test(rawRef.slice(prefix.length))) {
+    const known = await reportCheck(Number(rawRef.slice(prefix.length)), message);
+    if (!known) console.warn(`otomax report for unknown check ${rawRef}: ${message.slice(0, 120)}`);
+    return res.type('text/plain').send('OK');
+  }
+  const refId = Number(rawRef);
   const trx = Number.isInteger(refId) && refId > 0
     ? await prisma.transaction.findFirst({ where: { trxNumber: refId, provider: 'otomax' }, select: { id: true } })
     : null;

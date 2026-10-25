@@ -238,7 +238,7 @@ export function computeTotal(
     }
     if (step.type === 'BillInquiry' && node.type === 'BillInquiry') {
       const amountBase = inquiry ? inquiry.amountDue : step.amountDue;
-      const adminFee = inquiry ? inquiry.adminFee : node.adminFee;
+      const adminFee = inquiry ? inquiry.adminFee : step.adminFee ?? node.adminFee;
       return { amountBase, adminFee, markupTotal, total: amountBase + adminFee + markupTotal, priceSource: 'inquiry' };
     }
   }

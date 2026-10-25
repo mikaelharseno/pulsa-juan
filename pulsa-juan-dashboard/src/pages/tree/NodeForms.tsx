@@ -17,8 +17,10 @@ import {
   SegmentTree,
   TreeNode,
 } from 'pulsa-juan-common';
+import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
+import { api } from '../../api';
 import { MediaDropZone } from '../../components/DropZone';
 
 export interface FormCtx {
@@ -217,14 +219,29 @@ export function CustomerIdInputForm({ node, ctx, onChange }: P<CustomerIdInput>)
 }
 
 export function BillInquiryForm({ node, ctx, onChange }: P<BillInquiry>) {
+  const billers = useQuery({ queryKey: ['admin-billers'], queryFn: async () => (await api.get<{ key: string; name: string; usable: boolean; ourFee: number }[]>('/admin/billers')).data });
+  const known = (billers.data ?? []).some((b) => b.key === node.product);
   return (
     <Box>
       <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5, mt: 2 }}>
-        <TextField size="small" label="Kode produk inquiry" value={node.product} onChange={(e) => onChange({ ...node, product: e.target.value.toUpperCase() })} helperText="mis. PLN_POSTPAID, PDAM_JAKARTA" />
-        <TextField size="small" type="number" label="Biaya admin (Rp)" value={node.adminFee} onChange={(e) => onChange({ ...node, adminFee: Number(e.target.value) })} />
+        <TextField
+          select
+          size="small"
+          label="Biller"
+          value={node.product}
+          onChange={(e) => onChange({ ...node, product: e.target.value })}
+          helperText={known || !node.product ? 'Kode cek/bayar & pola diatur di Katalog → Tagihan (Biller)' : 'Kunci ini belum ada di halaman Tagihan (Biller)'}
+          error={!!node.product && !!billers.data && !known}
+        >
+          {(billers.data ?? []).map((b) => (
+            <MenuItem key={b.key} value={b.key}>{b.name} <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>{b.key}{b.usable ? '' : ' · belum siap'}</Typography></MenuItem>
+          ))}
+          {node.product && !known && <MenuItem value={node.product}>{node.product}</MenuItem>}
+        </TextField>
+        <TextField size="small" type="number" label="Biaya admin cadangan (Rp)" value={node.adminFee} onChange={(e) => onChange({ ...node, adminFee: Number(e.target.value) })} helperText="dipakai hanya bila hasil cek tidak membawa admin" />
       </Box>
       <Err list={ctx.errorsFor(node.id, 'product')} />
-      <Typography variant="caption" color="text.secondary">Membutuhkan node Input ID pelanggan (atau nomor HP) sebelumnya. Nominal tagihan diambil dari supplier saat agen mengecek.</Typography>
+      <Typography variant="caption" color="text.secondary">Membutuhkan node Input ID pelanggan sebelumnya. Tagihan dan admin diambil dari hasil cek OtomaX; agen membayar tagihan + admin supplier + biaya kita (+ markup referral).</Typography>
       <Typography variant="subtitle2" sx={{ mt: 2 }}>Setelah tagihan tampil</Typography>
       <ChildSlot label="Lanjut ke" childId={node.nextId} ctx={ctx} onLink={(id) => onChange({ ...node, nextId: id })} />
     </Box>

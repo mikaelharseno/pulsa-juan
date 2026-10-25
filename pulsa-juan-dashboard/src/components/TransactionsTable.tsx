@@ -29,6 +29,11 @@ export interface Trx {
   refundedAt: string | null;
   agent: { id: string; name: string; phone: string | null };
   package: { code: string; name: string; supplierSku: string | null } | null;
+  supplierAdmin?: number;
+  billCheck?: {
+    number: number; customerName: string | null; periode: string | null; amountDue: number; supplierAdmin: number; ourFee: number;
+    biller: { key: string; name: string; payCode: string };
+  } | null;
 }
 
 interface TrxPage {
@@ -159,6 +164,12 @@ export function TransactionsTable({ agentId, showAgent = true }: { agentId?: str
                       <br />
                       <Typography variant="caption" color="text.secondary">{t.package.supplierSku ?? t.package.code}</Typography>
                     </>
+                  ) : t.billCheck ? (
+                    <>
+                      Tagihan {fmtRp(t.amountBase)}
+                      <br />
+                      <Typography variant="caption" color="text.secondary">{t.billCheck.biller.payCode || t.billCheck.biller.key}</Typography>
+                    </>
                   ) : (
                     <Typography variant="caption" color="text.secondary">{fmtRp(t.amountBase)} + admin {fmtRp(t.adminFee)}</Typography>
                   )}
@@ -240,11 +251,17 @@ export function TransactionsTable({ agentId, showAgent = true }: { agentId?: str
                 <TableRow key={i}><TableCell sx={{ color: 'text.secondary' }}>{r.label}</TableCell><TableCell align="right">{r.value}</TableCell></TableRow>
               ))}
               <TableRow><TableCell sx={{ color: 'text.secondary' }}>Harga dasar</TableCell><TableCell align="right">{fmtRp(detail.amountBase)}</TableCell></TableRow>
-              <TableRow><TableCell sx={{ color: 'text.secondary' }}>Biaya admin</TableCell><TableCell align="right">{fmtRp(detail.adminFee)}</TableCell></TableRow>
+              <TableRow><TableCell sx={{ color: 'text.secondary' }}>Biaya admin</TableCell><TableCell align="right">{fmtRp(detail.adminFee)}{detail.billCheck && <Typography component="span" variant="caption" color="text.secondary"> (supplier {fmtRp(detail.billCheck.supplierAdmin)} + kita {fmtRp(detail.billCheck.ourFee)})</Typography>}</TableCell></TableRow>
               <TableRow><TableCell sx={{ color: 'text.secondary' }}>Markup referral</TableCell><TableCell align="right">{fmtRp(detail.markupTotal)}</TableCell></TableRow>
               <TableRow><TableCell><b>Total</b></TableCell><TableCell align="right"><b>{fmtRp(detail.total)}</b></TableCell></TableRow>
               <TableRow><TableCell sx={{ color: 'text.secondary' }}>Status</TableCell><TableCell align="right"><StatusChip status={detail.status} /></TableCell></TableRow>
               <TableRow><TableCell sx={{ color: 'text.secondary' }}>Diproses</TableCell><TableCell align="right">{fmtDate(detail.processedAt)}</TableCell></TableRow>
+              {detail.billCheck && (
+                <TableRow><TableCell sx={{ color: 'text.secondary' }}>Tagihan</TableCell><TableCell align="right">{detail.billCheck.biller.name} · cek C{detail.billCheck.number} · kode bayar <code>{detail.billCheck.biller.payCode || '-'}</code></TableCell></TableRow>
+              )}
+              {detail.billCheck && detail.serialNumber && (
+                <TableRow><TableCell sx={{ color: 'text.secondary' }}>No. Referensi</TableCell><TableCell align="right" sx={{ fontFamily: 'monospace' }}>{detail.serialNumber}</TableCell></TableRow>
+              )}
               {detail.provider === 'otomax' && (
                 <TableRow><TableCell sx={{ color: 'text.secondary' }}>OtomaX (refID #{detail.trxNumber})</TableCell><TableCell align="right" sx={{ fontFamily: 'monospace', fontSize: 12, wordBreak: 'break-word' }}>{detail.supplierMessage ?? 'belum ada balasan'}</TableCell></TableRow>
               )}

@@ -60,6 +60,12 @@ router.get('/product-updater', requireRole('OWNER', 'ADMIN'), c.getProductUpdate
 router.post('/product-updater/preview', requireRole('OWNER', 'ADMIN'), c.postProductUpdaterPreview);
 router.post('/product-updater/apply', requireRole('OWNER', 'ADMIN'), c.postProductUpdaterApply);
 
+router.get('/billers', c.getBillers);
+router.post('/billers', requireRole('OWNER', 'ADMIN'), c.postBiller);
+router.put('/billers/:id', requireRole('OWNER', 'ADMIN'), c.putBiller);
+router.post('/billers/:id/check', requireRole('OWNER', 'ADMIN'), c.postBillerCheck);
+router.get('/bill-checks/:id', c.getBillCheck);
+
 router.get('/integrations', c.getIntegrations);
 router.post('/integrations/telegram/test', requireRole('OWNER', 'ADMIN'), c.postTelegramTest);
 

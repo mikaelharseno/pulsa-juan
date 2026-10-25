@@ -121,7 +121,11 @@ export const getSegmentTree = asyncHandler(async (req: Request, res: Response) =
 });
 
 export const postInquiry = asyncHandler(async (req: Request, res: Response) => {
-  res.json(await trx.inquire(req.agent!, parse(trx.inquirySchema, req.body)));
+  res.json(toPlain(await trx.inquire(req.agent!, parse(trx.inquirySchema, req.body))));
+});
+
+export const getInquiry = asyncHandler(async (req: Request, res: Response) => {
+  res.json(toPlain(await trx.getInquiry(req.agent!, req.params.id)));
 });
 
 export const postTopUp = asyncHandler(async (req: Request, res: Response) => {

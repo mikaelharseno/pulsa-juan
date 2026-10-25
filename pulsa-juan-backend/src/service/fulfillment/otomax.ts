@@ -88,6 +88,21 @@ export function otomaxTrxUrl(cfg: OtomaxConfig, product: string, dest: string, r
   return `${cfg.url}/trx?${params.toString()}`;
 }
 
+/** One H2H request; returns the reply text. Throws on network errors, timeouts and non-2xx. */
+export async function otomaxRequest(product: string, dest: string, refId: string): Promise<string> {
+  const cfg = otomaxConfig();
+  if (!cfg) throw new Error('OtomaX belum dikonfigurasi');
+  const res = await fetch(otomaxTrxUrl(cfg, product, dest, refId), { signal: AbortSignal.timeout(cfg.timeoutMs) });
+  const message = (await res.text()).trim().slice(0, 1000);
+  if (!res.ok) throw new Error(`OtomaX HTTP ${res.status}: ${message.slice(0, 120)}`);
+  return message;
+}
+
+/** refID of a bill check: OTOMAX_CHECK_REF_PREFIX (default "C") + BillCheck.number. */
+export function checkRefPrefix() {
+  return process.env.OTOMAX_CHECK_REF_PREFIX || 'C';
+}
+
 export class OtomaxProvider implements FulfillmentProvider {
   readonly name = 'otomax';
   readonly mode = 'AUTO' as const;
@@ -98,13 +113,9 @@ export class OtomaxProvider implements FulfillmentProvider {
 
   /** Throws on network errors/timeouts: the order stays PENDING and admins are alerted. */
   async purchase(req: PurchaseRequest): Promise<PurchaseOutcome> {
-    const cfg = otomaxConfig();
-    if (!cfg) throw new Error('OtomaX belum dikonfigurasi');
     const dest = req.phoneNumber ?? req.customerId;
     if (!req.productCode || !dest) throw new Error('Kode produk atau tujuan kosong');
-    const res = await fetch(otomaxTrxUrl(cfg, req.productCode, dest, String(req.trxNumber)), { signal: AbortSignal.timeout(cfg.timeoutMs) });
-    const message = (await res.text()).trim().slice(0, 1000);
-    if (!res.ok) throw new Error(`OtomaX HTTP ${res.status}: ${message.slice(0, 120)}`);
+    const message = await otomaxRequest(req.productCode, dest, String(req.trxNumber));
     const parsed = parseOtomaxMessage(message);
     if (parsed.status === 'FAILED') return { status: 'FAILED', reason: message, message };
     if (parsed.status === 'SUCCESS') return { status: 'SUCCESS', serialNumber: parsed.serialNumber, message };

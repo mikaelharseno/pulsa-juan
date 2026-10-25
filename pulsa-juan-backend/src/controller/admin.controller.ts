@@ -17,6 +17,7 @@ import * as topup from '../service/topup.service';
 import * as trx from '../service/transaction.service';
 import { integrationStatus, sendTelegramTest } from '../service/integrations.service';
 import * as updater from '../service/productUpdater.service';
+import * as bills from '../service/bill.service';
 import { listLedger } from '../service/saldo.service';
 import { uploadImage } from '../service/upload.service';
 
@@ -230,4 +231,25 @@ export const getIntegrations = asyncHandler(async (_req: Request, res: Response)
 });
 export const postTelegramTest = asyncHandler(async (req: Request, res: Response) => {
   res.json(await sendTelegramTest(req.admin!.email));
+});
+
+export const getBillers = asyncHandler(async (_req: Request, res: Response) => {
+  res.json(await bills.listBillers());
+});
+
+export const postBiller = asyncHandler(async (req: Request, res: Response) => {
+  res.status(201).json(await bills.createBiller(req.admin!.adminId, parse(bills.billerSchema, req.body)));
+});
+
+export const putBiller = asyncHandler(async (req: Request, res: Response) => {
+  res.json(await bills.updateBiller(req.admin!.adminId, req.params.id, parse(bills.billerSchema, req.body)));
+});
+
+export const postBillerCheck = asyncHandler(async (req: Request, res: Response) => {
+  const { customerId } = parse(bills.checkInputSchema, req.body);
+  res.json(await bills.adminCheck(req.admin!.adminId, req.params.id, customerId));
+});
+
+export const getBillCheck = asyncHandler(async (req: Request, res: Response) => {
+  res.json(await bills.adminGetCheck(req.params.id));
 });
