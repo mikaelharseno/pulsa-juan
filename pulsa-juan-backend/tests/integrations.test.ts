@@ -2,7 +2,7 @@ import http from 'http';
 import { AddressInfo } from 'net';
 import { FlowStep, PackagePublic } from 'pulsa-juan-common';
 
-import { parseOtomaxMessage } from '../src/service/fulfillment/otomax';
+import { parseOtomaxMessage, unwrapOtomaxReply } from '../src/service/fulfillment/otomax';
 import { sendAdminAlert, setTelegramSender, telegramConfigured } from '../src/service/telegram.service';
 import { alertStuckOrders } from '../src/service/transaction.service';
 import { adminToken, app, auth, giveSaldo, prisma, registerAgent, request, resetDb } from './helpers';
@@ -79,6 +79,15 @@ describe('parseOtomaxMessage', () => {
     expect(parseOtomaxMessage('R#123 DY3.0856.. GAGAL. Nomor tujuan salah')).toEqual({ status: 'FAILED' });
     expect(parseOtomaxMessage('Saldo tidak cukup')).toEqual({ status: 'FAILED' });
     expect(parseOtomaxMessage('Sukses tapi gagal?')).toEqual({ status: 'PENDING' });
+  });
+  it('reads the replies of our center (test order 2026-10-26)', () => {
+    const reply = unwrapOtomaxReply('status=1&message=#235710 DY3.085659595659 akan diproses @21:30. Saldo 100,000 - 8,500 = 91,500 * TRX Normal');
+    expect(reply).toBe('#235710 DY3.085659595659 akan diproses @21:30. Saldo 100,000 - 8,500 = 91,500 * TRX Normal');
+    expect(parseOtomaxMessage(reply)).toEqual({ status: 'PENDING' });
+    expect(
+      parseOtomaxMessage('#235710 DY3.085659595659 SUKSES. SN/Ref: 04316500039859239935.. Saldo 100,000-8,500=91,500 @26/10 21:30:20 * TRX Normal'),
+    ).toEqual({ status: 'SUCCESS', serialNumber: '04316500039859239935' });
+    expect(unwrapOtomaxReply('R#1 DY3.0856 akan diproses')).toBe('R#1 DY3.0856 akan diproses');
   });
   it('honours env overrides', () => {
     process.env.OTOMAX_SUCCESS_RE = '\\bOK\\b';

@@ -6,8 +6,10 @@ import type { FulfillmentProvider, PurchaseOutcome, PurchaseRequest } from './in
 
 // OtomaX H2H (our own OtomaX center; pulsa-juan is a reseller/H2H member in it).
 //   request: GET {OTOMAX_URL}/trx?product&qty&dest&refID&memberID + (sign | pin&password)
-//   reply:   plain text, e.g. "R#123 DY3.0856.. akan diproses" / "... SUKSES. SN: 0412.." / "... GAGAL ..."
-//   report:  OtomaX calls /api/fulfillment/otomax/report?key=..&refid=..&message=.. when the final status is known
+//   reply:   "status=1&message=#235710 DY3.0856.. akan diproses @21:30. Saldo 100,000 - 8,500 = 91,500 * TRX Normal"
+//            (older centers send the message alone)
+//   report:  OtomaX calls /api/fulfillment/otomax/report?key=..&refid=..&status=20&price=8500&message=..
+//            e.g. message "#235710 DY3.0856.. SUKSES. SN/Ref: 0431650003985923.. Saldo 100,000-8,500=91,500 @26/10 21:30:20"
 // Message wording is configured per center, so the patterns are overridable via env.
 
 export interface OtomaxConfig {
@@ -38,7 +40,7 @@ export function otomaxConfig(): OtomaxConfig | null {
 const DEFAULT_SUCCESS_RE = /\b(sukses|berhasil|success)\b/i;
 const DEFAULT_FAIL_RE =
   /\b(gagal|failed|salah|ditolak|gangguan|dibatalkan|batal|invalid|tidak (?:tersedia|aktif|valid|terdaftar|dikenal|sesuai|bisa|ditemukan)|saldo (?:tidak cukup|kurang)|stok (?:kosong|habis)|produk (?:kosong|habis|tidak))\b/i;
-const DEFAULT_SN_RE = /\b(?:SN|S\/N|Token)\s*[:=.]?\s*([0-9A-Za-z][0-9A-Za-z/-]{3,})/i;
+const DEFAULT_SN_RE = /\b(?:SN|S\/N|Token)(?:\s*\/\s*Ref)?\s*[:=.]?\s*([0-9A-Za-z][0-9A-Za-z/-]{3,})/i;
 
 function envRe(name: string, fallback: RegExp) {
   const src = process.env[name];
@@ -72,6 +74,12 @@ export function parseOtomaxMessage(text: string): ParsedOtomaxMessage {
   return { status: 'PENDING' };
 }
 
+/** The IP Center answers "status=<n>&message=<text>"; keep just the text. */
+export function unwrapOtomaxReply(body: string) {
+  const text = (body ?? '').trim();
+  return /^status=\d*&message=([\s\S]*)$/.exec(text)?.[1].trim() ?? text;
+}
+
 /** url-safe base64(sha1("OtomaX|member|product|dest|refID|pin|password")) — check against the center's H2H setting. */
 export function otomaxSign(cfg: OtomaxConfig, product: string, dest: string, refId: string) {
   const raw = ['OtomaX', cfg.memberId, product, dest, refId, cfg.pin, cfg.password].join('|');
@@ -93,7 +101,7 @@ export async function otomaxRequest(product: string, dest: string, refId: string
   const cfg = otomaxConfig();
   if (!cfg) throw new Error('OtomaX belum dikonfigurasi');
   const res = await fetch(otomaxTrxUrl(cfg, product, dest, refId), { signal: AbortSignal.timeout(cfg.timeoutMs) });
-  const message = (await res.text()).trim().slice(0, 1000);
+  const message = unwrapOtomaxReply(await res.text()).slice(0, 1000);
   if (!res.ok) throw new Error(`OtomaX HTTP ${res.status}: ${message.slice(0, 120)}`);
   return message;
 }
