@@ -1,6 +1,6 @@
 import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, InputAdornment, MenuItem, Paper, Select, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { isOtomaxExport, OtomaxExportRow, planOtomaxImport, PROVIDERS, readOtomaxExport, SkipReason } from 'pulsa-juan-common';
+import { isMarketExport, isOtomaxExport, OtomaxExportRow, planOtomaxImport, PROVIDERS, readOtomaxExport, SkipReason } from 'pulsa-juan-common';
 import { useMemo, useState } from 'react';
 
 import { api, errMsg, fmtDate, fmtRp } from '../api';
@@ -158,7 +158,8 @@ export default function ProductUpdaterPage() {
         setExported(readOtomaxExport(exportSheet.rows));
         setGroupInclude({});
         setSheets(null);
-        setCodeType('OTOMAX');
+        // the market collector writes the same layout plus a "Sumber Harga" column
+        setCodeType(exportSheet.rows.some(isMarketExport) ? 'MARKET' : 'OTOMAX');
         return;
       }
       const parsed = raw.map((s) => parseSheet(s.name, s.rows));
@@ -208,7 +209,11 @@ export default function ProductUpdaterPage() {
         {exportPlan && (
           <>
             <Alert severity="info" sx={{ mt: 2 }}>
-              Ekspor Produk OtomaX: {exportPlan.rows.length} produk operator akan diimpor. Modal = <b>Hrg Beli</b> (akun reseller aplikasi di OtomaX membayar harga beli).
+              {codeType === 'MARKET' ? (
+                <>Daftar harga pasar (format ekspor OtomaX): {exportPlan.rows.length} produk akan diimpor sebagai produk manual PSR-, modal = harga pasar termurah. </>
+              ) : (
+                <>Ekspor Produk OtomaX: {exportPlan.rows.length} produk operator akan diimpor. Modal = <b>Hrg Beli</b> (akun reseller aplikasi di OtomaX membayar harga beli). </>
+              )}
               Produk yang sama persis (nama &amp; harga) hanya diambil sekali. E-wallet, game, token PLN dan tagihan belum didukung di sini.
             </Alert>
             <Box sx={{ overflowX: 'auto' }}>

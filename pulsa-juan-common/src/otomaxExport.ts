@@ -1,10 +1,12 @@
-import { Provider } from './tree/types';
+import { Provider, PROVIDERS } from './tree/types';
 
 // OtomaX "Produk" export (TSV: Aktif, Kode, Nama, Provider, ..., Nominal, Hrg Beli,
 // Hrg Jual, Kosong, Gangguan, ...) → Product Updater rows. "Provider" in the export
 // is the OtomaX product group (ID, I, THD, SBU, ...), mapped here to an app operator
 // and a category. The app's cost is Hrg Beli: the app's reseller account is set to
 // pay Hrg Beli in OtomaX (harga jual = harga beli), so all margin is set in the app.
+// The market price collector (backend scripts/market-prices) writes the same layout,
+// with an operator name as Provider, its own Kategori column and a "Sumber Harga" column.
 
 export interface OtomaxExportRow {
   active: boolean;
@@ -16,6 +18,9 @@ export interface OtomaxExportRow {
   hargaJual: number;
   /** Kosong or Gangguan flagged in OtomaX */
   unavailable: boolean;
+  /** optional Kategori / Ket columns (market files); otherwise derived from the name */
+  category?: string;
+  description?: string;
 }
 
 export type OtomaxGroupKind = 'PULSA' | 'DATA' | 'OTHER';
@@ -68,10 +73,22 @@ const num = (s: string) => {
   return Number.isFinite(n) ? Math.round(n) : 0;
 };
 
+/** Provider column → mapping: an OtomaX group, or an operator name (market files carry their own Kategori). */
+export function otomaxGroupMapping(group: string): OtomaxGroupMapping | null {
+  if (OTOMAX_GROUPS[group]) return OTOMAX_GROUPS[group];
+  if ((PROVIDERS as readonly string[]).includes(group)) return { operator: group as Provider, label: 'Kategori dari file', kind: 'OTHER', include: true };
+  return null;
+}
+
 /** True when the header row is an OtomaX product export. */
 export function isOtomaxExport(header: string[]) {
   const h = header.map((c) => clean(c).toUpperCase());
   return ['KODE', 'NAMA', 'PROVIDER', 'HRG BELI'].every((c) => h.includes(c));
+}
+
+/** Same layout written by the market price collector: codes are other sellers' codes (manual products). */
+export function isMarketExport(header: string[]) {
+  return isOtomaxExport(header) && header.some((c) => clean(c).toUpperCase() === 'SUMBER HARGA');
 }
 
 export function readOtomaxExport(rows: string[][]): OtomaxExportRow[] {
@@ -82,7 +99,9 @@ export function readOtomaxExport(rows: string[][]): OtomaxExportRow[] {
   const c = {
     active: col('AKTIF'), code: col('KODE'), name: col('NAMA'), group: col('PROVIDER'), nominal: col('NOMINAL'),
     beli: col('HRG BELI'), jual: col('HRG JUAL'), kosong: col('KOSONG'), gangguan: col('GANGGUAN'),
+    category: col('KATEGORI'), description: h.findIndex((x) => x === 'KET' || x === 'KETERANGAN'),
   };
+  const opt = (r: string[], i: number) => (i >= 0 ? clean(r[i] ?? '') || undefined : undefined);
   const flag = (r: string[], i: number) => i >= 0 && clean(r[i] ?? '') === '1';
   return rows
     .slice(headerIdx + 1)
@@ -94,8 +113,10 @@ export function readOtomaxExport(rows: string[][]): OtomaxExportRow[] {
       group: clean(r[c.group] ?? '').toUpperCase(),
       nominal: c.nominal >= 0 ? num(r[c.nominal] ?? '') : 0,
       hargaBeli: c.beli >= 0 ? num(r[c.beli] ?? '') : 0,
-      hargaJual: num(r[c.jual] ?? ''),
+      hargaJual: c.jual >= 0 ? num(r[c.jual] ?? '') : 0,
       unavailable: flag(r, c.kosong) || flag(r, c.gangguan),
+      category: opt(r, c.category),
+      description: opt(r, c.description),
     }));
 }
 
@@ -153,10 +174,10 @@ export interface OtomaxGroupSummary {
  */
 export function planOtomaxImport(rows: OtomaxExportRow[], include: Record<string, boolean> = {}) {
   const groups = new Map<string, OtomaxGroupSummary>();
-  const picked: (OtomaxImportRow & { order: number; group: string; nominal: number })[] = [];
+  const picked: (OtomaxImportRow & { order: number; group: string; nominal: number; fromFile: boolean })[] = [];
   const seen = new Set<string>();
   rows.forEach((r, order) => {
-    const mapping = OTOMAX_GROUPS[r.group] ?? null;
+    const mapping = otomaxGroupMapping(r.group);
     let g = groups.get(r.group);
     if (!g) {
       g = { group: r.group, mapping, include: mapping ? include[r.group] ?? mapping.include : false, total: 0, imported: 0, skipped: {}, examples: [] };
@@ -181,28 +202,39 @@ export function planOtomaxImport(rows: OtomaxExportRow[], include: Record<string
       provider: mapping.operator,
       sku: r.code,
       name,
-      category: otomaxCategory(mapping, name),
-      description: '',
+      category: r.category ?? otomaxCategory(mapping, name),
+      description: r.description ?? '',
       cost: r.hargaBeli,
       order,
       group: r.group,
       nominal: r.nominal,
+      fromFile: !!r.category,
     });
   });
 
-  // same name, different price ("TSel", "TSel MIX Mochan") → add the nominal or code
-  const nameKey = (p: { provider: string; name: string }) => `${p.provider}|${p.name.toUpperCase()}`;
+  // same name, different price in one category ("TSel", "TSel MIX Mochan") → add the nominal or code
+  const nameKey = (p: { provider: string; category: string; name: string }) => `${p.provider}|${p.category}|${p.name.toUpperCase()}`;
   const nameCount = new Map<string, number>();
   for (const p of picked) nameCount.set(nameKey(p), (nameCount.get(nameKey(p)) ?? 0) + 1);
   for (const p of picked) {
     if ((nameCount.get(nameKey(p)) ?? 0) > 1) p.name = `${p.name} ${p.nominal > 0 ? `${p.nominal}K` : p.sku}`;
   }
 
+  // known categories in CATEGORY_ORDER, others (market files) in the order they first appear
+  const firstSeen = new Map<string, number>();
+  for (const p of picked) if (!firstSeen.has(p.category)) firstSeen.set(p.category, p.order);
   const rank = (c: string) => {
     const i = CATEGORY_ORDER.indexOf(c);
-    return i < 0 ? CATEGORY_ORDER.length : i;
+    return i < 0 ? CATEGORY_ORDER.length + (firstSeen.get(c) ?? 0) : i;
   };
-  picked.sort((a, b) => a.provider.localeCompare(b.provider) || rank(a.category) - rank(b.category) || a.cost - b.cost || a.order - b.order);
+  // inside a category: cheapest first, except categories given by the file (market files keep their order)
+  picked.sort(
+    (a, b) =>
+      a.provider.localeCompare(b.provider) ||
+      rank(a.category) - rank(b.category) ||
+      (a.fromFile && b.fromFile ? 0 : a.cost - b.cost) ||
+      a.order - b.order,
+  );
   const importRows: OtomaxImportRow[] = picked.map(({ provider, sku, name, category, description, cost }) => ({ provider, sku, name, category, description, cost }));
   return { rows: importRows, groups: [...groups.values()] };
 }

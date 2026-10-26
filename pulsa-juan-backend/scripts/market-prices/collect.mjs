@@ -3,21 +3,26 @@
 //
 // Reads the PUBLIC price pages of other pulsa reseller sites listed in sources.json
 // (all run the same panel: /harga/<category>[/all]?page=N with "Kode / Produk /
-// Reseller" per product), and writes an .xlsx in Product Updater format:
-//   one sheet per operator: KODE PRODUK | NAMA | KATEGORI | KET | harga | SUMBER HARGA | <source>…
-//   harga = cheapest reseller price seen for that product (reference cost)
-//   + RINGKASAN (run summary) and SEMUA SUMBER (every product from every source)
-// Upload it in the dashboard Product Updater with "Kode referensi pasar" — the codes
-// are the other sites' codes, NOT our OtomaX codes, so those products start manual.
+// Reseller" per product), and writes a .tsv in the same layout as OtomaX's own
+// "Produk" export, so the dashboard Product Updater reads both the same way:
+//   Aktif | Kode | Nama | Provider (operator) | Kategori | Nominal | Hrg Beli | Hrg Jual |
+//   Kosong | Gangguan | Sumber Harga | Stok | <source>…
+//   Hrg Beli = Hrg Jual = cheapest reseller price seen for that product (reference cost)
+// The "Sumber Harga" column marks it as a market file: the codes are the other sites'
+// codes, NOT our OtomaX codes, so those products are imported as manual PSR-<code>.
 //
-//   node scripts/market-prices/collect.mjs [--out file.xlsx] [--only topupkuota,okekios]
-//                                          [--max-pages 60] [--union]
-//   --union: also add products that only appear in non-primary sources
+//   node scripts/market-prices/collect.mjs [--out file.tsv] [--only topupkuota,okekios]
+//        [--max-pages 60] [--union] [--otomax Produk.tsv] [--from-xlsx harga-pasar-….xlsx]
+//   --union:     also add products that only appear in non-primary sources
+//   --otomax:    leave out products our OtomaX center already sells (from its Produk export);
+//                what was left out goes to <out>-duplikat.tsv for review
+//   --from-xlsx: rebuild from an earlier run's .xlsx instead of crawling (prices unchanged)
 //
 // Etiquette: public pages only, one request at a time with delayMs between them,
 // an honest User-Agent, robots.txt checked when sources were added.
-import { strToU8, zipSync } from 'fflate';
+import { strFromU8, unzipSync } from 'fflate';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -28,8 +33,11 @@ const config = JSON.parse(readFileSync(arg('--config', join(HERE, 'sources.json'
 const only = arg('--only', null)?.split(',');
 const maxPages = Number(arg('--max-pages', 60));
 const union = argv.includes('--union');
+const otomaxFile = arg('--otomax', null);
+const fromXlsx = arg('--from-xlsx', null);
 const today = new Date().toISOString().slice(0, 10);
-const out = resolve(arg('--out', `harga-pasar-${today}.xlsx`));
+const out = resolve(arg('--out', `harga-pasar-${today}.tsv`));
+const { otomaxGroupMapping, readOtomaxExport, validityDays } = createRequire(import.meta.url)('pulsa-juan-common');
 const UA = 'Mozilla/5.0 (compatible; PulsaJuanPriceReference/1.0; +https://pulsajuan.studiosclo.uk)';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -145,40 +153,111 @@ async function crawlSource(source) {
   return [...found.values()];
 }
 
-// ---- xlsx writer (inline strings, no styles) ----
+// ---- earlier .xlsx runs (our own writer: inline strings and plain numbers) ----
 
-const xmlEsc = (s) => String(s).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[c]).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '');
-const colName = (n) => (n < 26 ? String.fromCharCode(65 + n) : colName(Math.floor(n / 26) - 1) + String.fromCharCode(65 + (n % 26)));
-function sheetXml(rows) {
-  const body = rows
-    .map((row, r) =>
-      `<row r="${r + 1}">${row
-        .map((v, c) => {
-          const ref = `${colName(c)}${r + 1}`;
-          if (v === null || v === undefined || v === '') return '';
-          return typeof v === 'number' ? `<c r="${ref}"><v>${v}</v></c>` : `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${xmlEsc(v)}</t></is></c>`;
-        })
-        .join('')}</row>`,
-    )
-    .join('');
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${body}</sheetData></worksheet>`;
+const xmlText = (s) => decode(s.replace(/<[^>]+>/g, ''));
+/** Operator sheets of an earlier run → catalog rows, same shape as a fresh crawl. */
+export function readEarlierXlsx(path, operators, sourceNames) {
+  const files = unzipSync(new Uint8Array(readFileSync(path)));
+  const workbook = strFromU8(files['xl/workbook.xml']);
+  const names = [...workbook.matchAll(/<sheet name="([^"]+)"/g)].map((m) => decode(m[1]));
+  const rows = [];
+  names.forEach((name, i) => {
+    if (!operators.includes(name)) return;
+    const xml = strFromU8(files[`xl/worksheets/sheet${i + 1}.xml`]);
+    const table = [...xml.matchAll(/<row[^>]*>([\s\S]*?)<\/row>/g)].map((r) => {
+      const cells = [];
+      for (const c of r[1].matchAll(/<c r="([A-Z]+)\d+"[^>]*>([\s\S]*?)<\/c>/g)) {
+        let col = 0;
+        for (const ch of c[1]) col = col * 26 + ch.charCodeAt(0) - 64;
+        cells[col - 1] = xmlText(c[2]);
+      }
+      return Array.from(cells, (x) => x ?? '');
+    });
+    const head = table[0] ?? [];
+    const at = (label) => head.indexOf(label);
+    for (const r of table.slice(1)) {
+      rows.push({
+        operator: name,
+        code: r[at('KODE PRODUK')],
+        item: r[at('NAMA')],
+        group: r[at('KATEGORI')],
+        price: Number(r[at('harga')]),
+        priceSource: r[at('SUMBER HARGA')],
+        stock: r[at('STOK')],
+        perSource: sourceNames.map((s) => (at(s) >= 0 ? r[at(s)] ?? '' : '')),
+      });
+    }
+  });
+  return rows;
 }
-function writeXlsx(path, sheets) {
-  const files = {
-    '[Content_Types].xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`,
-    '_rels/.rels': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
-    'xl/workbook.xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map((s, i) => `<sheet name="${xmlEsc(s.name.slice(0, 31))}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets></workbook>`,
-    'xl/_rels/workbook.xml.rels': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}</Relationships>`,
-  };
-  sheets.forEach((s, i) => (files[`xl/worksheets/sheet${i + 1}.xml`] = sheetXml(s.rows)));
-  writeFileSync(path, zipSync(Object.fromEntries(Object.entries(files).map(([k, v]) => [k, strToU8(v)]))));
+
+// ---- products our OtomaX center already sells ----
+
+const STOP = new Set(['data', 'kuota', 'paket', 'internet', 'inet', 'hari', 'hr', 'jam', 'gb', 'mb', 'telkomsel', 'tsel', 'xl', 'axis', 'smartfren', 'smart', 'indosat', 'isat', 'three', 'tri', 'all', 'full', 'new', 'promo', 'nasional']);
+const words = (s) => new Set((s.toLowerCase().match(/[a-z]+/g) ?? []).filter((w) => w.length > 1 && !STOP.has(w)));
+/** "2GB + 3GB" → "2048+3072" (MB, sorted): two products with the same quota mix compare equal. */
+function quotaKey(s) {
+  const q = [...s.toUpperCase().matchAll(/(\d+(?:[.,]\d+)?)\s*(GB|MB)\b/g)].map((m) => Math.round(Number(m[1].replace(',', '.')) * (m[2] === 'GB' ? 1024 : 1)));
+  return q.sort((a, b) => a - b).join('+');
 }
+/** Pulsa nominal in thousands: "Xl 10.000" → 10, "by.U 5K" / "5rb" → 5. */
+function nominalOf(s) {
+  const dotted = /(\d{1,3}(?:\.\d{3})+)/.exec(s);
+  if (dotted) return Number(dotted[1].replace(/\./g, '')) / 1000;
+  const k = /(\d+)\s*(?:K|RB|RIBU)\b/i.exec(s);
+  return k ? Number(k[1]) : null;
+}
+const isByU = (s) => /\bby\.?\s?u\b|\bbyu\b/i.test(s);
+
+/**
+ * Match keys of the OtomaX products that are imported into the app: pulsa by operator +
+ * brand (by.U apart) + nominal; data by operator + quota + validity + the product family
+ * words of the OtomaX name (e.g. "flash"). Products without family words never match, so
+ * a market product is only dropped when it is clearly the same thing.
+ */
+export function otomaxIndex(exportRows, operators) {
+  const pulsa = new Map();
+  const data = [];
+  for (const r of exportRows) {
+    const m = otomaxGroupMapping(r.group);
+    if (!m || !m.include || !r.active || r.unavailable || !operators.includes(m.operator)) continue;
+    if (m.kind === 'PULSA') {
+      const nominal = r.nominal > 0 ? r.nominal : nominalOf(r.name);
+      if (nominal) pulsa.set(`${m.operator}|${r.group === 'SBU' ? 'BYU' : 'PULSA'}|${nominal}`, r);
+    } else if (m.kind === 'DATA') {
+      const family = words(r.name);
+      if (family.size) data.push({ operator: m.operator, quota: quotaKey(r.name), days: validityDays(r.name), family, row: r });
+    }
+  }
+  return { pulsa, data };
+}
+
+/** The OtomaX product a market product duplicates, or null. */
+export function otomaxDuplicate(p, index) {
+  const text = `${p.group} ${p.item}`;
+  // by.U vouchers come as their own "By.U" category
+  if (p.group === 'Pulsa' || isByU(p.group)) {
+    const nominal = nominalOf(p.item);
+    return nominal ? index.pulsa.get(`${p.operator}|${isByU(text) ? 'BYU' : 'PULSA'}|${nominal}`) ?? null : null;
+  }
+  const quota = quotaKey(text);
+  if (!quota) return null;
+  const days = validityDays(text);
+  const have = words(text);
+  const hit = index.data.find((d) => d.operator === p.operator && d.quota === quota && d.days === days && [...d.family].every((w) => have.has(w)));
+  return hit?.row ?? null;
+}
+
+// ---- .tsv writer (OtomaX "Produk" export layout) ----
+
+const tsvCell = (v) => String(v ?? '').replace(/[\t\r\n]+/g, ' ');
+const writeTsv = (path, rows) => writeFileSync(path, rows.map((r) => r.map(tsvCell).join('\t')).join('\n') + '\n');
 
 // ---- main ----
 
-async function main() {
-  const sources = config.sources.filter((s) => !only || only.includes(s.name));
-  const operators = config.operators;
+/** Fresh crawl → catalog rows (cheapest in-stock price per product across sources). */
+async function crawlCatalog(sources, operators) {
   const all = [];
   for (const source of sources) {
     console.log(`→ ${source.name} (${source.base})`);
@@ -209,60 +288,56 @@ async function main() {
     }
   }
 
-  const sheets = [];
-  const summary = [['Operator', 'Produk', 'Ada pembanding', ...sources.map((s) => s.name)]];
-  for (const op of operators) {
-    const products = catalog.filter((p) => p.operator === op);
-    if (!products.length) continue;
-    const rows = [['KODE PRODUK', 'NAMA', 'KATEGORI', 'KET', 'harga', 'SUMBER HARGA', 'STOK', ...sources.map((s) => s.name)]];
-    let compared = 0;
-    const counts = Object.fromEntries(sources.map((s) => [s.name, 0]));
-    for (const p of products) {
-      const prices = { [p.source]: p };
-      for (const o of [primary, ...others]) {
-        if (o === p.source) continue;
-        const m = byCode.get(`${o}|${op}|${p.code}`) ?? byName.get(`${o}|${op}|${norm(p.group + p.item)}`);
-        if (m) prices[o] = m;
-      }
-      const entries = Object.entries(prices);
-      if (entries.length > 1) compared++;
-      entries.forEach(([s]) => counts[s]++);
-      // cheapest in-stock price; out-of-stock prices only when nothing is in stock
-      const pool = entries.some(([, x]) => x.available) ? entries.filter(([, x]) => x.available) : entries;
-      const [cheapSource, cheap] = pool.reduce((a, b) => (b[1].price < a[1].price ? b : a));
-      rows.push([
-        p.code,
-        p.item,
-        p.group,
-        '',
-        cheap.price,
-        `${cheapSource} (${cheap.code})`,
-        entries.some(([, x]) => x.available) ? 'tersedia' : 'gangguan di semua sumber',
-        ...sources.map((s) => (prices[s.name] ? `${prices[s.name].code} · ${prices[s.name].price}${prices[s.name].available ? '' : ' (gangguan)'}` : '')),
-      ]);
+  return catalog.map((p) => {
+    const prices = { [p.source]: p };
+    for (const o of [primary, ...others]) {
+      if (o === p.source) continue;
+      const m = byCode.get(`${o}|${p.operator}|${p.code}`) ?? byName.get(`${o}|${p.operator}|${norm(p.group + p.item)}`);
+      if (m) prices[o] = m;
     }
-    sheets.push({ name: op, rows });
-    summary.push([op, products.length, compared, ...sources.map((s) => counts[s.name])]);
+    const entries = Object.entries(prices);
+    // cheapest in-stock price; out-of-stock prices only when nothing is in stock
+    const pool = entries.some(([, x]) => x.available) ? entries.filter(([, x]) => x.available) : entries;
+    const [cheapSource, cheap] = pool.reduce((a, b) => (b[1].price < a[1].price ? b : a));
+    return {
+      operator: p.operator,
+      code: p.code,
+      item: p.item,
+      group: p.group,
+      price: cheap.price,
+      priceSource: `${cheapSource} (${cheap.code})`,
+      stock: entries.some(([, x]) => x.available) ? 'tersedia' : 'gangguan di semua sumber',
+      perSource: sources.map((s) => (prices[s.name] ? `${prices[s.name].code} · ${prices[s.name].price}${prices[s.name].available ? '' : ' (gangguan)'}` : '')),
+    };
+  });
+}
+
+async function main() {
+  const sources = config.sources.filter((s) => !only || only.includes(s.name));
+  const operators = config.operators;
+  let catalog = fromXlsx ? readEarlierXlsx(resolve(fromXlsx), operators, sources.map((s) => s.name)) : await crawlCatalog(sources, operators);
+
+  const duplicates = [];
+  if (otomaxFile) {
+    const exportRows = readOtomaxExport(readFileSync(resolve(otomaxFile), 'utf8').replace(/^﻿/, '').split(/\r?\n/).filter(Boolean).map((l) => l.split('\t')));
+    const index = otomaxIndex(exportRows, operators);
+    catalog = catalog.filter((p) => {
+      const hit = otomaxDuplicate(p, index);
+      if (hit) duplicates.push([p.operator, p.code, p.group, p.item, p.price, hit.code, hit.name, hit.hargaBeli]);
+      return !hit;
+    });
   }
-  sheets.unshift({
-    name: 'RINGKASAN',
-    rows: [
-      [`Harga pasar ${today} — referensi harga reseller dari situs publik. Kode = kode situs sumber, BUKAN kode OtomaX.`],
-      ['Unggah di Product Updater dengan pilihan "Kode referensi pasar". harga = harga reseller termurah yang ditemukan.'],
-      [],
-      ...summary,
-      [],
-      ['Sumber', 'URL'],
-      ...sources.map((s) => [s.name, s.base]),
-    ],
-  });
-  sheets.push({
-    name: 'SEMUA SUMBER',
-    rows: [['Sumber', 'Operator', 'Kategori situs', 'Kode toko', 'Grup', 'Produk', 'Rp', 'Tersedia'], ...all.map((p) => [p.source, p.operator, p.category, p.code, p.group, p.item, p.price, p.available ? 'ya' : 'tidak'])],
-  });
-  writeXlsx(out, sheets);
-  console.log(`\n✔ ${catalog.length} produk (${operators.join(', ')}) dari ${sources.length} sumber → ${out}`);
-  for (const r of summary.slice(1)) console.log(`  ${r[0]}: ${r[1]} produk, ${r[2]} dengan pembanding`);
+
+  const header = ['Aktif', 'Kode', 'Nama', 'Provider', 'Kategori', 'Nominal', 'Hrg Beli', 'Hrg Jual', 'Kosong', 'Gangguan', 'Sumber Harga', 'Stok', ...sources.map((s) => s.name)];
+  const rows = catalog.map((p) => [1, p.code, p.item, p.operator, p.group, p.group === 'Pulsa' || isByU(p.group) ? nominalOf(p.item) ?? 0 : 0, p.price, p.price, 0, 0, p.priceSource, p.stock, ...p.perSource]);
+  writeTsv(out, [header, ...rows]);
+  console.log(`\n✔ ${catalog.length} produk (${operators.join(', ')}) ${fromXlsx ? `dari ${fromXlsx}` : `dari ${sources.length} sumber`} → ${out}`);
+  for (const op of operators) console.log(`  ${op}: ${catalog.filter((p) => p.operator === op).length} produk`);
+  if (otomaxFile) {
+    const dupOut = out.replace(/\.tsv$/i, '') + '-duplikat.tsv';
+    writeTsv(dupOut, [['Operator', 'Kode pasar', 'Kategori', 'Nama pasar', 'Harga pasar', 'Kode OtomaX', 'Nama OtomaX', 'Hrg Beli OtomaX'], ...duplicates]);
+    console.log(`  ${duplicates.length} produk sudah dijual OtomaX, tidak dimasukkan → ${dupOut}`);
+  }
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

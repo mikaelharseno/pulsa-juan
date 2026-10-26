@@ -13,6 +13,7 @@
     "dev": "nodemon",
     "build": "tsc && node scripts/copy-prisma-client.js",
     "test": "jest --runInBand --detectOpenHandles",
+    "test:market": "node --test scripts/market-prices",
     "lint": "eslint .",
     "database": "prisma studio",
     "migrate:dev": "prisma migrate dev",

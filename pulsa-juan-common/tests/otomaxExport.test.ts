@@ -1,4 +1,4 @@
-import { otomaxCategory, OTOMAX_GROUPS, planOtomaxImport, readOtomaxExport, validityDays } from '../src';
+import { isMarketExport, otomaxCategory, OTOMAX_GROUPS, planOtomaxImport, readOtomaxExport, validityDays } from '../src';
 
 const HEADER = ['Aktif', 'Kode', 'Nama', 'Provider', 'Fisik', 'Tanpa Kode', 'Nominal', 'Hrg Beli', 'Hrg Jual', 'Kosong', 'Gangguan', 'Stok', 'Qty yg diijinkan', 'Filter Prefix Tujuan'];
 const row = (aktif: string, kode: string, nama: string, provider: string, nominal: string, beli: string, jual: string, kosong = '0') =>
@@ -71,5 +71,26 @@ describe('OtomaX product export', () => {
     expect(otomaxCategory(OTOMAX_GROUPS.ID, 'UNLIMITED JUMBO (90GB)')).toBe('Data');
     expect(otomaxCategory(OTOMAX_GROUPS.I, 'Isat SMS 300+100lain 7hr')).toBe('SMS');
     expect(otomaxCategory(OTOMAX_GROUPS.AON, 'THREE DATA AON 5 GB')).toBe('AON');
+  });
+});
+
+describe('market files in the export layout', () => {
+  const MARKET = [
+    ['Aktif', 'Kode', 'Nama', 'Provider', 'Kategori', 'Nominal', 'Hrg Beli', 'Hrg Jual', 'Kosong', 'Gangguan', 'Sumber Harga'],
+    ['1', 'XDH3', '3GB Full 24 Jam 30 Hari', 'XL', 'XL Data All jaringan 24 Jam 30 Hari', '0', '24450', '24450', '0', '0', 'topupkuota (XDH3)'],
+    ['1', 'X10', 'Xl 10.000', 'XL', 'Pulsa', '10', '10944', '10944', '0', '0', 'okekios (X10)'],
+    ['1', 'XDH1', '1GB Full 24 Jam 30 Hari', 'XL', 'XL Data All jaringan 24 Jam 30 Hari', '0', '14000', '14000', '0', '0', 'topupkuota (XDH1)'],
+  ];
+
+  it('is recognised and keeps its own categories and row order (Pulsa first)', () => {
+    expect(isMarketExport(MARKET[0])).toBe(true);
+    expect(isMarketExport(SAMPLE[0])).toBe(false);
+    const { rows: out, groups } = planOtomaxImport(readOtomaxExport(MARKET));
+    expect(out.map((r) => `${r.sku} ${r.category} ${r.cost}`)).toEqual([
+      'X10 Pulsa 10944',
+      'XDH3 XL Data All jaringan 24 Jam 30 Hari 24450',
+      'XDH1 XL Data All jaringan 24 Jam 30 Hari 14000',
+    ]);
+    expect(groups[0]).toMatchObject({ group: 'XL', imported: 3, mapping: { operator: 'XL' } });
   });
 });
