@@ -3,7 +3,8 @@ import { Provider } from './tree/types';
 // OtomaX "Produk" export (TSV: Aktif, Kode, Nama, Provider, ..., Nominal, Hrg Beli,
 // Hrg Jual, Kosong, Gangguan, ...) → Product Updater rows. "Provider" in the export
 // is the OtomaX product group (ID, I, THD, SBU, ...), mapped here to an app operator
-// and a category. The app's cost is Hrg Jual: what our reseller account is charged.
+// and a category. The app's cost is Hrg Beli: the app's reseller account is set to
+// pay Hrg Beli in OtomaX (harga jual = harga beli), so all margin is set in the app.
 
 export interface OtomaxExportRow {
   active: boolean;
@@ -70,12 +71,12 @@ const num = (s: string) => {
 /** True when the header row is an OtomaX product export. */
 export function isOtomaxExport(header: string[]) {
   const h = header.map((c) => clean(c).toUpperCase());
-  return ['KODE', 'NAMA', 'PROVIDER', 'HRG JUAL'].every((c) => h.includes(c));
+  return ['KODE', 'NAMA', 'PROVIDER', 'HRG BELI'].every((c) => h.includes(c));
 }
 
 export function readOtomaxExport(rows: string[][]): OtomaxExportRow[] {
   const headerIdx = rows.findIndex(isOtomaxExport);
-  if (headerIdx < 0) throw new Error('Bukan file ekspor produk OtomaX (kolom Kode / Nama / Provider / Hrg Jual tidak ditemukan)');
+  if (headerIdx < 0) throw new Error('Bukan file ekspor produk OtomaX (kolom Kode / Nama / Provider / Hrg Beli tidak ditemukan)');
   const h = rows[headerIdx].map((c) => clean(c).toUpperCase());
   const col = (name: string) => h.indexOf(name);
   const c = {
@@ -170,9 +171,9 @@ export function planOtomaxImport(rows: OtomaxExportRow[], include: Record<string
     if (!g.include) return skip('EXCLUDED');
     if (!r.active) return skip('INACTIVE');
     if (r.unavailable) return skip('UNAVAILABLE');
-    if (r.hargaJual <= 0) return skip('NO_PRICE');
+    if (r.hargaBeli <= 0) return skip('NO_PRICE');
     const name = r.name || r.code;
-    const key = `${mapping.operator}|${name.toUpperCase()}|${r.hargaJual}`;
+    const key = `${mapping.operator}|${name.toUpperCase()}|${r.hargaBeli}`;
     if (seen.has(key)) return skip('DUPLICATE');
     seen.add(key);
     g.imported++;
@@ -182,7 +183,7 @@ export function planOtomaxImport(rows: OtomaxExportRow[], include: Record<string
       name,
       category: otomaxCategory(mapping, name),
       description: '',
-      cost: r.hargaJual,
+      cost: r.hargaBeli,
       order,
       group: r.group,
       nominal: r.nominal,

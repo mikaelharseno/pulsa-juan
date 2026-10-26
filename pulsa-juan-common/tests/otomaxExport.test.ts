@@ -26,7 +26,7 @@ const SAMPLE = [
 describe('OtomaX product export', () => {
   const rows = readOtomaxExport(SAMPLE);
 
-  it('reads the export with Hrg Jual as cost', () => {
+  it('reads the export', () => {
     expect(rows).toHaveLength(14);
     expect(rows.find((r) => r.code === 'DY3')).toMatchObject({ active: true, group: 'ID', hargaBeli: 8000, hargaJual: 8500, unavailable: false });
     expect(rows.find((r) => r.code === 'TDH4')?.unavailable).toBe(true);
@@ -36,14 +36,14 @@ describe('OtomaX product export', () => {
   it('plans operator rows: dedupes, names, categories, skips', () => {
     const { rows: out, groups } = planOtomaxImport(rows);
     expect(out.map((r) => `${r.provider} ${r.sku} ${r.category} ${r.cost}`)).toEqual([
-      'INDOSAT I5 Pulsa 6850',
-      'INDOSAT DY3 Data Harian 8500',
-      'INDOSAT FI7 Data Bulanan 35500',
-      'INDOSAT FIGH10 5G 10500',
-      'INDOSAT IT2K Telepon 5000',
-      'INDOSAT IMA30 Masa Aktif 14900',
-      'TELKOMSEL S5 Pulsa 5900',
-      'TELKOMSEL S10 Pulsa 10600',
+      'INDOSAT I5 Pulsa 6750',
+      'INDOSAT DY3 Data Harian 8000',
+      'INDOSAT FI7 Data Bulanan 35000',
+      'INDOSAT FIGH10 5G 10000',
+      'INDOSAT IT2K Telepon 4500',
+      'INDOSAT IMA30 Masa Aktif 14000',
+      'TELKOMSEL S5 Pulsa 5700',
+      'TELKOMSEL S10 Pulsa 10350',
     ]);
     expect(out.find((r) => r.sku === 'S5')?.name).toBe('TSel 5K');
     const g = Object.fromEntries(groups.map((x) => [x.group, x]));

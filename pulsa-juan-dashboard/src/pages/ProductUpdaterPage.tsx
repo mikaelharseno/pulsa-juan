@@ -97,7 +97,7 @@ export default function ProductUpdaterPage() {
   });
   const [fileName, setFileName] = useState('');
   const [sheets, setSheets] = useState<ParsedSheet[] | null>(null);
-  // OtomaX "Produk" export: one file with every product group, cost = Hrg Jual
+  // OtomaX "Produk" export: one file with every product group, cost = Hrg Beli
   const [exported, setExported] = useState<OtomaxExportRow[] | null>(null);
   const [groupInclude, setGroupInclude] = useState<Record<string, boolean>>({});
   const [retire, setRetire] = useState<Provider[]>([]);
@@ -186,7 +186,7 @@ export default function ProductUpdaterPage() {
     <Box>
       <PageHeader
         title="Product Updater"
-        subtitle="Unggah ekspor Produk dari OtomaX (.tsv: Kode, Nama, Provider, Hrg Jual = modal) atau daftar harga .xlsx (satu sheet per operator: KODE PRODUK, NAMA, KATEGORI, KET, harga = modal). Harga agen = modal + margin. Produk tampil di aplikasi sebagai tile Paket <Operator> dan diproses otomatis via OtomaX."
+        subtitle="Unggah ekspor Produk dari OtomaX (.tsv: Kode, Nama, Provider, Hrg Beli = modal) atau daftar harga .xlsx (satu sheet per operator: KODE PRODUK, NAMA, KATEGORI, KET, harga = modal). Harga agen = modal + margin. Produk tampil di aplikasi sebagai tile Paket <Operator> dan diproses otomatis via OtomaX."
       />
 
       <Paper sx={{ p: 2, mb: 2 }}>
@@ -208,7 +208,7 @@ export default function ProductUpdaterPage() {
         {exportPlan && (
           <>
             <Alert severity="info" sx={{ mt: 2 }}>
-              Ekspor Produk OtomaX: {exportPlan.rows.length} produk operator akan diimpor. Modal = <b>Hrg Jual</b> (yang dipotong dari saldo akun reseller aplikasi di OtomaX).
+              Ekspor Produk OtomaX: {exportPlan.rows.length} produk operator akan diimpor. Modal = <b>Hrg Beli</b> (akun reseller aplikasi di OtomaX membayar harga beli).
               Produk yang sama persis (nama &amp; harga) hanya diambil sekali. E-wallet, game, token PLN dan tagihan belum didukung di sini.
             </Alert>
             <Box sx={{ overflowX: 'auto' }}>

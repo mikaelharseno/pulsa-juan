@@ -223,8 +223,8 @@ describe('market reference mode', () => {
       .set(auth(admin))
       .send({ ...body(rows), fileName: 'Produk.tsv', retireMarketFor: ['XL'] });
     expect(res.body.summary).toMatchObject({ NEW: 2, DEACTIVATED: 1 });
-    // cost = Hrg Jual (what our reseller account is charged)
-    expect(await prisma.package.findUniqueOrThrow({ where: { code: 'XR5' } })).toMatchObject({ supplierSku: 'XR5', hargaBeli: 6000, hargaAgen: 6500, category: 'XL_PULSA' });
+    // cost = Hrg Beli (the app's reseller account pays Hrg Beli in OtomaX)
+    expect(await prisma.package.findUniqueOrThrow({ where: { code: 'XR5' } })).toMatchObject({ supplierSku: 'XR5', hargaBeli: 5850, hargaAgen: 6400, category: 'XL_PULSA' });
     expect((await prisma.package.findUniqueOrThrow({ where: { code: 'PSR-X10' } })).isActive).toBe(false);
     // market products of other operators stay
     expect((await prisma.package.findUniqueOrThrow({ where: { code: 'PSR-DY3' } })).isActive).toBe(true);
