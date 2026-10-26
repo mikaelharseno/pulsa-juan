@@ -1,6 +1,6 @@
-import { Alert, Box, Button, Chip, InputAdornment, MenuItem, Paper, Select, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, InputAdornment, MenuItem, Paper, Select, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { PROVIDERS } from 'pulsa-juan-common';
+import { isOtomaxExport, OtomaxExportRow, planOtomaxImport, PROVIDERS, readOtomaxExport, SkipReason } from 'pulsa-juan-common';
 import { useMemo, useState } from 'react';
 
 import { api, errMsg, fmtDate, fmtRp } from '../api';
@@ -20,12 +20,26 @@ interface PreviewRow {
   sku: string; provider: Provider; name: string; category: string; categoryLabel: string; status: Status;
   cost: number | null; oldCost: number | null; agentPrice: number | null; oldAgentPrice: number | null; priceLocked: boolean; warnings: string[]; error: string | null;
 }
-interface TilePreview { provider: string; slug: string; categories: number; products: number; errors: string[] }
+interface TilePreview { provider: Provider; slug: string; categories: number; products: number; marketProducts: number; errors: string[] }
 interface PreviewResult { rows: PreviewRow[]; summary: Record<Status, number>; tiles?: TilePreview[] }
 interface ApplyResult extends PreviewResult { segments: { provider: string; slug: string; published: boolean; version?: number; categories: number }[] }
 interface HistoryRow { id: string; fileName: string; createdAt: string; admin: { name: string; email: string } | null; summary: { counts: Record<Status, number>; rule: Rule; codeType?: CodeType } }
 
-const FILE_ACCEPT = { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'], 'text/csv': ['.csv'] };
+const FILE_ACCEPT = {
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+  'text/csv': ['.csv'],
+  'text/tab-separated-values': ['.tsv'],
+  'text/plain': ['.txt'],
+};
+
+const SKIP_LABEL: Record<SkipReason, string> = {
+  INACTIVE: 'nonaktif di OtomaX',
+  UNAVAILABLE: 'kosong/gangguan',
+  EXCLUDED: 'tidak diimpor',
+  UNSUPPORTED: 'belum didukung',
+  DUPLICATE: 'duplikat',
+  NO_PRICE: 'tanpa harga',
+};
 
 const STATUS: Record<Status, { label: string; color: 'default' | 'success' | 'warning' | 'info' | 'error' }> = {
   NEW: { label: 'Baru', color: 'success' },
@@ -83,6 +97,10 @@ export default function ProductUpdaterPage() {
   });
   const [fileName, setFileName] = useState('');
   const [sheets, setSheets] = useState<ParsedSheet[] | null>(null);
+  // OtomaX "Produk" export: one file with every product group, cost = Hrg Jual
+  const [exported, setExported] = useState<OtomaxExportRow[] | null>(null);
+  const [groupInclude, setGroupInclude] = useState<Record<string, boolean>>({});
+  const [retire, setRetire] = useState<Provider[]>([]);
   const [readError, setReadError] = useState<string | null>(null);
   const [ruleEdit, setRuleEdit] = useState<Rule | null>(null);
   const rule = ruleEdit ?? info.data?.rule ?? { fixed: 0, percent: 0, roundTo: 100 };
@@ -92,14 +110,18 @@ export default function ProductUpdaterPage() {
   const [confirm, setConfirm] = useState(false);
   const [result, setResult] = useState<ApplyResult | null>(null);
 
+  const exportPlan = useMemo(() => (exported ? planOtomaxImport(exported, groupInclude) : null), [exported, groupInclude]);
+
   const payload = useMemo(() => {
     const rows: (SheetRow & { agentPrice?: number })[] = [];
+    const withOverride = (r: SheetRow) => ({ ...r, ...(overrides[r.sku] ? { agentPrice: overrides[r.sku] } : {}) });
+    if (exportPlan) for (const r of exportPlan.rows) rows.push(withOverride(r));
     for (const s of sheets ?? []) {
       if (s.provider === 'SKIP') continue;
-      for (const r of s.rows) rows.push({ ...r, provider: s.provider as Provider, ...(overrides[r.sku] ? { agentPrice: overrides[r.sku] } : {}) });
+      for (const r of s.rows) rows.push(withOverride({ ...r, provider: s.provider as Provider }));
     }
-    return { fileName: fileName || 'upload.xlsx', codeType, rule, rows };
-  }, [sheets, fileName, codeType, rule, overrides]);
+    return { fileName: fileName || 'upload.xlsx', codeType, rule, rows, retireMarketFor: codeType === 'OTOMAX' ? retire : [] };
+  }, [exportPlan, sheets, fileName, codeType, rule, overrides, retire]);
 
   const preview = useMutation({
     mutationFn: async () => (await api.post<PreviewResult>('/admin/product-updater/preview', payload)).data,
@@ -111,6 +133,8 @@ export default function ProductUpdaterPage() {
       setConfirm(false);
       preview.reset();
       setSheets(null);
+      setExported(null);
+      setRetire([]);
       setOverrides({});
       qc.invalidateQueries({ queryKey: ['product-updater'] });
       qc.invalidateQueries({ queryKey: ['admin-packages'] });
@@ -126,9 +150,19 @@ export default function ProductUpdaterPage() {
     preview.reset();
     setOverrides({});
     try {
-      const raw = /\.csv$/i.test(f.name) ? await readCsv(f) : await readXlsx(f);
-      const parsed = raw.map((s) => parseSheet(s.name, s.rows));
+      const raw = /\.(csv|tsv|txt)$/i.test(f.name) ? await readCsv(f) : await readXlsx(f);
       setFileName(f.name);
+      setRetire([]);
+      const exportSheet = raw.find((s) => s.rows.some(isOtomaxExport));
+      if (exportSheet) {
+        setExported(readOtomaxExport(exportSheet.rows));
+        setGroupInclude({});
+        setSheets(null);
+        setCodeType('OTOMAX');
+        return;
+      }
+      const parsed = raw.map((s) => parseSheet(s.name, s.rows));
+      setExported(null);
       setSheets(parsed);
       setCodeType(parsed.some((s) => s.market) ? 'MARKET' : 'OTOMAX');
     } catch (e) {
@@ -141,6 +175,8 @@ export default function ProductUpdaterPage() {
   const s = preview.data?.summary;
   const changes = s ? s.NEW + s.PRICE_CHANGED + s.DETAILS_CHANGED + s.REACTIVATED + s.DEACTIVATED : 0;
   const tileErrors = (preview.data?.tiles ?? []).filter((t) => t.errors.length);
+  // tiles that still mix in market products, plus the ones the admin chose to clean up
+  const marketTiles = (preview.data?.tiles ?? []).filter((t) => t.marketProducts > 0 || retire.includes(t.provider));
   const ruleNum = (k: keyof Rule) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setRuleEdit({ ...rule, [k]: Number(e.target.value) || 0 });
     preview.reset();
@@ -150,15 +186,15 @@ export default function ProductUpdaterPage() {
     <Box>
       <PageHeader
         title="Product Updater"
-        subtitle="Unggah daftar harga OtomaX (.xlsx, satu sheet per operator: KODE PRODUK, NAMA, KATEGORI, KET, harga = modal). Harga agen = modal + margin. Produk tampil di aplikasi sebagai tile Paket <Operator> dan diproses otomatis via OtomaX."
+        subtitle="Unggah ekspor Produk dari OtomaX (.tsv: Kode, Nama, Provider, Hrg Jual = modal) atau daftar harga .xlsx (satu sheet per operator: KODE PRODUK, NAMA, KATEGORI, KET, harga = modal). Harga agen = modal + margin. Produk tampil di aplikasi sebagai tile Paket <Operator> dan diproses otomatis via OtomaX."
       />
 
       <Paper sx={{ p: 2, mb: 2 }}>
         <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>1. File harga</Typography>
-        <FileDropZone accept={FILE_ACCEPT} onFiles={onFile} label={fileName ? `${fileName} — klik atau tarik file lain untuk mengganti` : 'Tarik & letakkan file .xlsx / .csv, atau klik untuk pilih'} />
+        <FileDropZone accept={FILE_ACCEPT} onFiles={onFile} label={fileName ? `${fileName} — klik atau tarik file lain untuk mengganti` : 'Tarik & letakkan file .tsv / .xlsx / .csv, atau klik untuk pilih'} />
         <Box sx={{ mt: 2, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
           <Typography variant="body2" sx={{ fontWeight: 600 }}>Kode produk di file:</Typography>
-          <ToggleButtonGroup size="small" exclusive value={codeType} onChange={(_, v) => { if (v) { setCodeType(v); preview.reset(); } }}>
+          <ToggleButtonGroup size="small" exclusive value={codeType} disabled={!!exported} onChange={(_, v) => { if (v) { setCodeType(v); preview.reset(); } }}>
             <ToggleButton value="OTOMAX">Kode OtomaX (otomatis)</ToggleButton>
             <ToggleButton value="MARKET">Kode referensi pasar (manual)</ToggleButton>
           </ToggleButtonGroup>
@@ -169,6 +205,46 @@ export default function ProductUpdaterPage() {
           </Typography>
         </Box>
         {readError && <Alert severity="error" sx={{ mt: 1 }}>{readError}</Alert>}
+        {exportPlan && (
+          <>
+            <Alert severity="info" sx={{ mt: 2 }}>
+              Ekspor Produk OtomaX: {exportPlan.rows.length} produk operator akan diimpor. Modal = <b>Hrg Jual</b> (yang dipotong dari saldo akun reseller aplikasi di OtomaX).
+              Produk yang sama persis (nama &amp; harga) hanya diambil sekali. E-wallet, game, token PLN dan tagihan belum didukung di sini.
+            </Alert>
+            <Box sx={{ overflowX: 'auto' }}>
+              <Table size="small" sx={{ mt: 1 }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell padding="checkbox">Impor</TableCell><TableCell>Grup OtomaX</TableCell><TableCell>Operator · kategori</TableCell><TableCell>Contoh</TableCell>
+                    <TableCell align="right">Produk</TableCell><TableCell align="right">Diimpor</TableCell><TableCell>Dilewati</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {[...exportPlan.groups].sort((a, b) => Number(!!b.mapping) - Number(!!a.mapping) || b.imported - a.imported).map((g) => (
+                    <TableRow key={g.group} sx={{ opacity: g.mapping ? 1 : 0.55 }}>
+                      <TableCell padding="checkbox">
+                        <Checkbox size="small" checked={g.include} disabled={!g.mapping} onChange={(e) => { setGroupInclude({ ...groupInclude, [g.group]: e.target.checked }); preview.reset(); }} />
+                      </TableCell>
+                      <TableCell><code>{g.group}</code></TableCell>
+                      <TableCell>
+                        {g.mapping ? `${g.mapping.operator} · ${g.mapping.label}` : 'Belum didukung'}
+                        {g.mapping?.note && <Typography variant="caption" color="text.secondary" component="div">{g.mapping.note}</Typography>}
+                      </TableCell>
+                      <TableCell sx={{ maxWidth: 320 }}><Typography variant="caption">{g.examples.join(' · ')}</Typography></TableCell>
+                      <TableCell align="right">{g.total}</TableCell>
+                      <TableCell align="right">{g.imported}</TableCell>
+                      <TableCell>
+                        <Typography variant="caption" color="text.secondary">
+                          {(Object.entries(g.skipped) as [SkipReason, number][]).map(([k, n]) => `${n} ${SKIP_LABEL[k]}`).join(', ')}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Box>
+          </>
+        )}
         {sheets && (
           <Table size="small" sx={{ mt: 2, maxWidth: 720 }}>
             <TableHead><TableRow><TableCell>Sheet</TableCell><TableCell align="right">Produk</TableCell><TableCell>Operator</TableCell><TableCell /></TableRow></TableHead>
@@ -226,6 +302,21 @@ export default function ProductUpdaterPage() {
           </Box>
         )}
         {tileErrors.map((t) => <Alert key={t.slug} severity="error" sx={{ mt: 1 }}>Tile {t.slug} tidak valid: {t.errors.slice(0, 3).join('; ')}</Alert>)}
+        {codeType === 'OTOMAX' && marketTiles.length > 0 && (
+          <Box sx={{ mt: 1.5 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>Produk pasar (manual, kode PSR-) di tile yang sama</Typography>
+            <Typography variant="caption" color="text.secondary" component="div">
+              Centang untuk menyembunyikan produk pasar operator itu, sehingga agen hanya melihat produk OtomaX (otomatis). Biarkan kosong bila produk pasar masih perlu dijual manual.
+            </Typography>
+            {marketTiles.map((t) => (
+              <FormControlLabel
+                key={t.provider}
+                control={<Checkbox size="small" checked={retire.includes(t.provider)} onChange={(e) => { setRetire(e.target.checked ? [...retire, t.provider] : retire.filter((x) => x !== t.provider)); preview.reset(); }} />}
+                label={retire.includes(t.provider) ? `${t.slug}: produk pasar disembunyikan` : `${t.slug}: sembunyikan ${t.marketProducts} produk pasar`}
+              />
+            ))}
+          </Box>
+        )}
       </Paper>
 
       {result && (

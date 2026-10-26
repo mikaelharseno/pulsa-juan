@@ -9,3 +9,4 @@ export * from './icons';
 export * from './status';
 export * from './pin';
 export * from './bill';
+export * from './otomaxExport';

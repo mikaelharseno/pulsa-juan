@@ -12,7 +12,9 @@ import { createSegment, publishSegment, saveDraft } from './segment.service';
 // NAMA, KATEGORI, KET, harga = our cost) becomes Packages priced at
 // cost + margin, plus one "Paket <Operator>" app tile per operator whose tree
 // is regenerated from the active categories. Packages it manages carry
-// supplierName = 'OtomaX'; only those are ever deactivated.
+// supplierName = 'OtomaX'; only those are deactivated, plus the market (PSR-)
+// products of operators listed in retireMarketFor. The dashboard also turns
+// OtomaX's own product export into these rows (pulsa-juan-common otomaxExport).
 
 export const MANAGED_SUPPLIER = 'OtomaX';
 /** Products imported from market reference price lists (other sellers' codes → manual fulfilment) */
@@ -45,6 +47,8 @@ export const updaterSchema = z.object({
    * OtomaX code (manual) unless an admin later sets one on the Paket page.
    */
   codeType: z.enum(['OTOMAX', 'MARKET']).default('OTOMAX'),
+  /** OTOMAX imports only: operators whose market (PSR-) products are hidden now that OtomaX sells them */
+  retireMarketFor: z.array(z.enum(PROVIDERS)).max(PROVIDERS.length).default([]),
   rule: ruleSchema,
   rows: z.array(rowSchema).min(1).max(3000),
 });
@@ -93,7 +97,7 @@ export function categoryKey(provider: Provider, kategori: string) {
 /** Tree node ids are limited to 40 chars of [A-Za-z0-9_-]. */
 const nodeId = (prefix: string, key: string) => fit(`${prefix}_${key.toLowerCase()}`, 40);
 
-const LABELS: Record<string, string> = { HIFI: 'HiFi Air', TELP: 'Telepon', AON: 'AON', '5G': '5G' };
+const LABELS: Record<string, string> = { HIFI: 'HiFi Air', 'HIFI AIR': 'HiFi Air', TELP: 'Telepon', AON: 'AON', '5G': '5G', SMS: 'SMS', 'BY.U': 'by.U' };
 
 export function categoryLabel(kategori: string) {
   const key = kategori.trim().toUpperCase();
@@ -120,8 +124,15 @@ async function plan(input: UpdaterInput): Promise<Planned> {
   const providers = Array.from(new Set(input.rows.map((r) => r.provider)));
   const codes = input.rows.map((r) => codeOf(r.sku));
   // each mode only manages (and deactivates) its own packages
+  const retire = market ? [] : input.retireMarketFor.filter((p) => providers.includes(p));
   const existingRows = await prisma.package.findMany({
-    where: { OR: [{ code: { in: codes } }, { supplierName: supplier, provider: { in: providers } }] },
+    where: {
+      OR: [
+        { code: { in: codes } },
+        { supplierName: supplier, provider: { in: providers } },
+        ...(retire.length ? [{ supplierName: MARKET_SUPPLIER, provider: { in: retire }, isActive: true }] : []),
+      ],
+    },
   });
   const byCode = new Map(existingRows.map((p) => [p.code, p]));
 
@@ -211,7 +222,11 @@ async function plan(input: UpdaterInput): Promise<Planned> {
   }
 
   const deactivate = existingRows.filter(
-    (p) => p.supplierName === supplier && p.isActive && p.provider && providers.includes(p.provider) && !seenCodes.has(p.code),
+    (p) =>
+      p.isActive &&
+      p.provider &&
+      ((p.supplierName === supplier && providers.includes(p.provider) && !seenCodes.has(p.code)) ||
+        (p.supplierName === MARKET_SUPPLIER && retire.includes(p.provider))),
   );
   for (const p of deactivate) {
     rows.push({
@@ -226,7 +241,7 @@ async function plan(input: UpdaterInput): Promise<Planned> {
       agentPrice: null,
       oldAgentPrice: p.hargaAgen,
       priceLocked: p.priceLocked,
-      warnings: ['Tidak ada di file: disembunyikan dari aplikasi'],
+      warnings: [p.supplierName === supplier ? 'Tidak ada di file: disembunyikan dari aplikasi' : 'Produk pasar (manual) diganti produk OtomaX'],
       error: null,
     });
   }
@@ -340,13 +355,13 @@ async function projectTiles(p: Planned) {
   for (const provider of p.providers) {
     const current = await prisma.package.findMany({
       where: { provider, supplierName: { in: MANAGED_SUPPLIERS }, isActive: true },
-      select: { code: true, category: true, hargaAgen: true, sortOrder: true },
+      select: { code: true, category: true, hargaAgen: true, sortOrder: true, supplierName: true },
     });
     const byCode = new Map(current.map((c) => [c.code, c]));
     for (const d of p.deactivate) byCode.delete(d.code);
     for (const u of p.upserts) {
       if (u.data.provider !== provider) continue;
-      byCode.set(u.data.code, { code: u.data.code, category: u.data.category, hargaAgen: u.data.hargaAgen, sortOrder: u.data.sortOrder ?? 0 });
+      byCode.set(u.data.code, { code: u.data.code, category: u.data.category, hargaAgen: u.data.hargaAgen, sortOrder: u.data.sortOrder ?? 0, supplierName: u.data.supplierName ?? null });
     }
     const pkgs = [...byCode.values()].sort((a, b) => a.sortOrder - b.sortOrder);
     const categories = groupCategories(provider, pkgs, p.categoryLabels);
@@ -355,7 +370,8 @@ async function projectTiles(p: Planned) {
           .filter((e) => e.severity === 'error')
           .map((e) => `${e.nodeId ?? ''} ${e.field ?? ''}: ${e.message}`.trim())
       : [];
-    tiles.push({ provider, slug: segmentSlugFor(provider), categories: categories.length, products: pkgs.length, errors });
+    const marketProducts = pkgs.filter((x) => x.supplierName === MARKET_SUPPLIER).length;
+    tiles.push({ provider, slug: segmentSlugFor(provider), categories: categories.length, products: pkgs.length, marketProducts, errors });
   }
   return tiles;
 }
@@ -431,7 +447,7 @@ export async function applyUpdate(adminId: string, input: UpdaterInput) {
   for (const provider of p.providers) segments.push(await syncProviderSegment(adminId, provider, p.categoryLabels));
 
   const record = await prisma.productUpdate.create({
-    data: { adminId, fileName: input.fileName, summary: { counts: summary, rule: input.rule, codeType: input.codeType, providers: p.providers, segments } as Prisma.InputJsonValue },
+    data: { adminId, fileName: input.fileName, summary: { counts: summary, rule: input.rule, codeType: input.codeType, providers: p.providers, retireMarketFor: input.retireMarketFor, segments } as Prisma.InputJsonValue },
   });
   await audit(adminId, 'PRODUCT_UPDATE', 'ProductUpdate', record.id, { fileName: input.fileName, counts: summary });
   return { id: record.id, rows: p.rows, summary, segments };

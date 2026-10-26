@@ -44,7 +44,7 @@ export function parseCsv(text: string): string[][] {
 
 export async function readCsv(file: File): Promise<XlsxSheet[]> {
   const rows = parseCsv((await file.text()).replace(/^﻿/, ''));
-  const baseName = file.name.replace(/\.csv$/i, '');
+  const baseName = file.name.replace(/\.(csv|tsv|txt)$/i, '');
   const headerIdx = rows.findIndex((r) => r.some((c) => /^KODE/i.test(c)) && r.some((c) => /^HARGA/i.test(c)));
   const opCol = headerIdx >= 0 ? rows[headerIdx].findIndex((c) => /^OPERATOR$/i.test(c.trim())) : -1;
   if (opCol < 0) return [{ name: baseName, rows }];

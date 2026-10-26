@@ -1,4 +1,4 @@
-import { FlowStep, PackagePublic } from 'pulsa-juan-common';
+import { FlowStep, PackagePublic, planOtomaxImport, readOtomaxExport } from 'pulsa-juan-common';
 
 import { agentPriceFor, categoryKey, categoryLabel } from '../src/service/productUpdater.service';
 import { adminToken, app, auth, giveSaldo, prisma, registerAgent, request, resetDb } from './helpers';
@@ -201,6 +201,33 @@ describe('market reference mode', () => {
     expect(res.body.summary.DEACTIVATED).toBe(1);
     expect((await prisma.package.findUniqueOrThrow({ where: { code: 'PSR-X10' } })).supplierSku).toBe('XL10OTX');
     expect((await prisma.package.findUniqueOrThrow({ where: { code: 'PSR-XDH3' } })).isActive).toBe(false);
+  });
+
+  it('imports an OtomaX product export and can retire the market products it replaces', async () => {
+    const admin = await adminToken();
+    const exported = readOtomaxExport([
+      ['Aktif', 'Kode', 'Nama', 'Provider', 'Nominal', 'Hrg Beli', 'Hrg Jual', 'Kosong', 'Gangguan'],
+      ['1', 'XR5', 'XL REGULER 5K', 'X', '5', '5850.0000', '6000.0000', '0', '0'],
+      ['1', 'XR10', 'XL REGULER 10K', 'X', '10', '10800.0000', '11000.0000', '0', '0'],
+      ['1', 'GRB10', 'SALDO GRAB / OVO 10K', 'GRAB', '10', '10000.0000', '10900.0000', '0', '0'],
+    ]);
+    const { rows } = planOtomaxImport(exported);
+    expect(rows.map((r) => r.sku)).toEqual(['XR5', 'XR10']);
+
+    const keep = await request(app).post('/api/admin/product-updater/preview').set(auth(admin)).send({ ...body(rows), fileName: 'Produk.tsv' });
+    expect(keep.body.summary).toMatchObject({ NEW: 2, DEACTIVATED: 0 });
+    expect(keep.body.tiles[0]).toMatchObject({ slug: 'paket-xl', products: 3, marketProducts: 1 });
+
+    const res = await request(app)
+      .post('/api/admin/product-updater/apply')
+      .set(auth(admin))
+      .send({ ...body(rows), fileName: 'Produk.tsv', retireMarketFor: ['XL'] });
+    expect(res.body.summary).toMatchObject({ NEW: 2, DEACTIVATED: 1 });
+    // cost = Hrg Jual (what our reseller account is charged)
+    expect(await prisma.package.findUniqueOrThrow({ where: { code: 'XR5' } })).toMatchObject({ supplierSku: 'XR5', hargaBeli: 6000, hargaAgen: 6500, category: 'XL_PULSA' });
+    expect((await prisma.package.findUniqueOrThrow({ where: { code: 'PSR-X10' } })).isActive).toBe(false);
+    // market products of other operators stay
+    expect((await prisma.package.findUniqueOrThrow({ where: { code: 'PSR-DY3' } })).isActive).toBe(true);
   });
 });
 
