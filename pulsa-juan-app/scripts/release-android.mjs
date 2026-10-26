@@ -4,6 +4,7 @@
 //   npm run release:android                       # build a new release from the committed tree
 //   npm run release:android -- --build-id <id>    # publish an already-finished EAS build instead
 //   npm run release:android -- --no-deploy        # skip `wrangler deploy` of the landing page
+//   npm run release:android -- --build-id <id> --skip-upload   # both APKs are already in R2 (resume after a failed run)
 //
 // Version comes from app.json (expo.version + expo.android.versionCode); release notes from the
 // matching `## <version>` section of CHANGELOG.md. Each release is stored twice in R2 bucket
@@ -26,6 +27,7 @@ const PROFILE = 'release-apk';
 const args = process.argv.slice(2);
 const buildIdArg = args.includes('--build-id') ? args[args.indexOf('--build-id') + 1] : null;
 const deploy = !args.includes('--no-deploy');
+const skipUpload = args.includes('--skip-upload');
 
 const run = (cmd, cmdArgs, cwd, opts = {}) =>
   execFileSync(cmd, cmdArgs, { cwd, encoding: 'utf8', stdio: opts.inherit ? 'inherit' : ['ignore', 'pipe', 'inherit'], maxBuffer: 64 * 1024 * 1024 });
@@ -81,10 +83,18 @@ run('curl', ['-fsSL', '-o', apk, artifactUrl], dir);
 const sizeBytes = statSync(apk).size;
 const sha256 = createHash('sha256').update(readFileSync(apk)).digest('hex');
 
-// ---- upload: versioned + latest ----
-for (const key of [`pulsa-juan-${version}.apk`, 'pulsa-juan.apk']) {
-  console.log(`Uploading ${key}…`);
-  run('npx', ['-y', 'wrangler@4', 'r2', 'object', 'put', `${BUCKET}/${key}`, '--file', apk, '--content-type', 'application/vnd.android.package-archive', '--remote'], LANDING_DIR);
+// ---- upload: versioned + latest (large uploads sometimes drop: retry) ----
+const UPLOAD_ATTEMPTS = 3;
+for (const key of skipUpload ? [] : [`pulsa-juan-${version}.apk`, 'pulsa-juan.apk']) {
+  for (let attempt = 1; ; attempt++) {
+    console.log(`Uploading ${key}… (attempt ${attempt}/${UPLOAD_ATTEMPTS})`);
+    try {
+      run('npx', ['-y', 'wrangler@4', 'r2', 'object', 'put', `${BUCKET}/${key}`, '--file', apk, '--content-type', 'application/vnd.android.package-archive', '--remote'], LANDING_DIR);
+      break;
+    } catch (error) {
+      if (attempt >= UPLOAD_ATTEMPTS) fail(`upload of ${key} failed ${UPLOAD_ATTEMPTS}x — rerun with --build-id ${build.id} (add --skip-upload once both files are in R2)`);
+    }
+  }
 }
 
 // ---- record ----
