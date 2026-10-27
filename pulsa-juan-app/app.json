@@ -2,15 +2,15 @@
   "expo": {
     "name": "Pulsa Juan",
     "slug": "pulsa-juan",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "pulsajuan",
+    "scheme": ["pulsajuan", "com.pulsajuan.agent"],
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "android": {
       "package": "com.pulsajuan.agent",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "backgroundColor": "#1E9C8F",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

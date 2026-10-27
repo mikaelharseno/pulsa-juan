@@ -26,7 +26,9 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE": "https://pulsajuan.studiosclo.uk/api"
+        "EXPO_PUBLIC_API_BASE": "https://pulsajuan.studiosclo.uk/api",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "144176093530-5mp6821t0lb2b2ssem07adualoars5aq.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "144176093530-reihblaum8rfrfmf0cs7vc226gmllmsi.apps.googleusercontent.com"
       },
       "node": "20.19.4"
     }

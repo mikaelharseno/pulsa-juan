@@ -5,6 +5,11 @@ isi berupa poin `- ` yang ditampilkan di landing page (Riwayat versi), jadi tuli
 Sebelum rilis: naikkan `expo.version` dan `expo.android.versionCode` di `app.json`, tambah bagian
 baru di sini, commit, lalu `npm run release:android`.
 
+## 1.0.2 (versionCode 3) — 2026-10-27
+- Daftar dan masuk dengan akun Google
+- Daftar tanpa kode OTP: cukup isi nomor HP dan data diri, akun langsung aktif
+- Tetap masuk selama 1 tahun tanpa perlu login ulang
+
 ## 1.0.1 (versionCode 2) — 2026-10-25
 - Bayar tagihan PLN Pascabayar dan Telkom / IndiHome: cek tagihan langsung dari aplikasi, lalu bayar dengan saldo
 - Cek tagihan menunggu otomatis bila data tagihan masih diproses, dan memberi tahu bila tagihan sudah lunas
