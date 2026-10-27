@@ -395,6 +395,24 @@ function groupCategories(t: ProductTile, pkgs: { category: string; hargaAgen: nu
 }
 
 /**
+ * Category labels of a published tile tree (category → row label). Categories not in
+ * the uploaded file (e.g. market products on an OtomaX import) keep these names.
+ */
+function publishedLabels(tree: unknown): Record<string, string> {
+  const nodes = (tree as SegmentTree | null)?.nodes;
+  if (!nodes) return {};
+  const labels: Record<string, string> = {};
+  for (const n of Object.values(nodes)) {
+    if (n.type !== 'ListNode') continue;
+    for (const r of n.rows) {
+      const child = nodes[r.childId];
+      if (child?.type === 'PackagesList' && child.source.kind === 'CATEGORY') labels[child.source.category] = r.label;
+    }
+  }
+  return labels;
+}
+
+/**
  * The tiles as they would look after applying `p`, validated up front so an
  * apply never commits packages whose tile tree cannot be published.
  */
@@ -412,7 +430,8 @@ async function projectTiles(p: Planned) {
       byCode.set(u.data.code, { code: u.data.code, category: u.data.category, hargaAgen: u.data.hargaAgen, sortOrder: u.data.sortOrder ?? 0, supplierName: u.data.supplierName ?? null });
     }
     const pkgs = [...byCode.values()].sort((a, b) => a.sortOrder - b.sortOrder);
-    const categories = groupCategories(t, pkgs, p.categoryLabels);
+    const segment = await prisma.segment.findUnique({ where: { slug: t.slug }, include: { publishedVersion: true } });
+    const categories = groupCategories(t, pkgs, { ...publishedLabels(segment?.publishedVersion?.tree), ...p.categoryLabels });
     const errors = categories.length
       ? validateTreeStructure(buildTileTree(t, categories), { strict: false })
           .filter((e) => e.severity === 'error')
@@ -450,7 +469,7 @@ async function syncTileSegment(adminId: string, t: ProductTile, categoryLabels: 
     if (segment?.isActive) await prisma.segment.update({ where: { id: segment.id }, data: { isActive: false } });
     return { tile, slug, published: false, categories: 0 };
   }
-  const categories = groupCategories(t, active, categoryLabels);
+  const categories = groupCategories(t, active, { ...publishedLabels(segment?.publishedVersion?.tree), ...categoryLabels });
   const tree = buildTileTree(t, categories);
   if (!segment) {
     await createSegment({ slug, label: t.label, iconUrl: t.icon, groupLabel: t.groupLabel, isActive: true });

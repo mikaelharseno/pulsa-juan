@@ -205,6 +205,22 @@ describe('market reference mode', () => {
     expect((await prisma.package.findUniqueOrThrow({ where: { code: 'PSR-XDH3' } })).isActive).toBe(false);
   });
 
+  it('an OtomaX import keeps the names of market categories it does not carry', async () => {
+    const admin = await adminToken();
+    await request(app)
+      .post('/api/admin/product-updater/apply')
+      .set(auth(admin))
+      .send(market([{ provider: 'AXIS', sku: 'AXHJ1', name: 'Haji 1GB', category: 'Axis Data Haji & Umrah', cost: 50000 }]));
+    const res = await request(app)
+      .post('/api/admin/product-updater/apply')
+      .set(auth(admin))
+      .send(body([{ provider: 'AXIS', sku: 'AX5', name: 'AXIS REGULER 5K', category: 'Pulsa', cost: 5850 }]));
+    expect(res.status).toBe(200);
+    const seg = await prisma.segment.findUniqueOrThrow({ where: { slug: 'paket-axis' }, include: { publishedVersion: true } });
+    const rows = (seg.publishedVersion!.tree as { nodes: { cat: { rows: { label: string }[] } } }).nodes.cat.rows;
+    expect(rows.map((r) => r.label)).toEqual(['Axis Data Haji & Umrah', 'Pulsa']);
+  });
+
   it('imports an OtomaX product export and can retire the market products it replaces', async () => {
     const admin = await adminToken();
     const exported = readOtomaxExport([
