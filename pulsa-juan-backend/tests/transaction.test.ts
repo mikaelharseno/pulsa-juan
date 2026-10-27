@@ -204,7 +204,7 @@ describe('referral commissions (A → B → C → D)', () => {
 });
 
 describe('google login', () => {
-  it('unknown account must verify a phone first, then reuses the agent', async () => {
+  it('unknown account adds a phone (no OTP), then reuses the agent', async () => {
     const A = await registerAgent('Ref');
     setGoogleVerifier(async (idToken) => ({ sub: 'sub-' + idToken, email: `${idToken}@gmail.com`, name: 'G User', picture: undefined }));
     const first = await request(app).post('/api/agent/auth/google').send({ idToken: 'google-token-1' });
@@ -215,9 +215,9 @@ describe('google login', () => {
     const phone = '+62 813-0000-1111';
     const reg = await request(app)
       .post('/api/agent/auth/register')
-      .send({ otpTicket: await otpTicket(phone), googleTicket: first.body.googleTicket, name: 'G User', pin: TEST_PIN, referralCode: A.agent.commisionUniqueId });
+      .send({ phone, googleTicket: first.body.googleTicket, name: 'G User', pin: TEST_PIN, referralCode: A.agent.commisionUniqueId });
     expect(reg.status).toBe(201);
-    expect(reg.body.agent.phone).toBe('081300001111');
+    expect(reg.body.agent).toMatchObject({ phone: '081300001111', phoneVerified: false, hasPin: true, hasPassword: false });
     expect(reg.body.agent.email).toBe('google-token-1@gmail.com');
     expect(reg.body.agent.googleLinked).toBe(true);
 

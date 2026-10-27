@@ -29,3 +29,14 @@ export function AuthShell({ title, subtitle, logo, children }: { title: string; 
     </LinearGradient>
   );
 }
+
+/** "atau" rule between the Google button and the phone form. */
+export function OrDivider({ label = 'atau' }: { label?: string }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 16 }}>
+      <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+      <Text style={{ color: colors.muted, fontSize: font.small, marginHorizontal: 10 }}>{label}</Text>
+      <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+    </View>
+  );
+}

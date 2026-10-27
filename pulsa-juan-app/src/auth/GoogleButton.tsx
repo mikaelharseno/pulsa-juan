@@ -16,21 +16,23 @@ const extra = (Constants.expoConfig?.extra ?? {}) as { googleWebClientId?: strin
 const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || extra.googleWebClientId || '';
 const androidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || extra.googleAndroidClientId || '';
 
-type Props = { onError: (m: string) => void; onNeedsPhone: () => void };
+// The Google hook throws when its client id is missing, so only mount it once configured.
+export const GOOGLE_CONFIGURED = Platform.OS === 'web' ? !!webClientId : !!(androidClientId || webClientId);
+
+type Props = { onError: (m: string) => void; onNeedsPhone: () => void; label?: string };
 
 /**
  * "Masuk dengan Google": id_token → POST /agent/auth/google. A known account
- * signs in; a new one is parked in useAuth.pendingGoogle and must verify a
- * phone (register flow). Hidden until client ids are configured.
+ * signs in; a new one is parked in useAuth.pendingGoogle and finishes on the
+ * register screen with just a phone number (no OTP). Hidden until client ids
+ * are configured.
  */
 export function GoogleButton(props: Props) {
-  // The Google hook throws when its client id is missing, so only mount it once configured.
-  const configured = Platform.OS === 'web' ? !!webClientId : !!(androidClientId || webClientId);
-  if (!configured) return null;
+  if (!GOOGLE_CONFIGURED) return null;
   return <GoogleButtonInner {...props} />;
 }
 
-function GoogleButtonInner({ onError, onNeedsPhone }: Props) {
+function GoogleButtonInner({ onError, onNeedsPhone, label = 'MASUK DENGAN GOOGLE' }: Props) {
   const signIn = useAuth((s) => s.signIn);
   const setPendingGoogle = useAuth((s) => s.setPendingGoogle);
   const [busy, setBusy] = useState(false);
@@ -73,9 +75,9 @@ function GoogleButtonInner({ onError, onNeedsPhone }: Props) {
         opacity: !request || busy ? 0.5 : 1,
       }}
     >
-      <Ionicons name="logo-google" size={20} color="#DB4437" />
+      <Ionicons name="logo-google" size={20} color={colors.text} />
       <View style={{ width: 10 }} />
-      <Text style={{ fontSize: font.button, fontWeight: '700', color: colors.text }}>MASUK DENGAN GOOGLE</Text>
+      <Text style={{ fontSize: font.button, fontWeight: '700', color: colors.text }}>{label}</Text>
     </Pressable>
   );
 }

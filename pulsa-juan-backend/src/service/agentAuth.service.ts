@@ -9,12 +9,12 @@ import { prisma } from '../../prisma/client';
 import { badRequest, conflict, unauthorized } from '../lib/errors';
 import { randomCode } from '../lib/ids';
 import { AgentClaims } from '../interfaces/http';
-import { readOtpTicket } from './otp/otp.service';
+import { normalizePhoneOrThrow, readOtpTicket } from './otp/otp.service';
 import { findReferrer, resolveMarkup } from './referral.service';
 
 export type AgentRow = Agent;
 
-const TOKEN_TTL = '30d';
+const TOKEN_TTL = '365d';
 const GOOGLE_TICKET_TTL = '30m';
 export const PIN_MAX_ATTEMPTS = 5;
 export const PIN_LOCK_MS = 15 * 60 * 1000;
@@ -22,16 +22,21 @@ export const PIN_LOCK_MS = 15 * 60 * 1000;
 const pinField = z.string().trim().refine(isValidPin, 'PIN harus 6 angka, tidak boleh sama semua atau berurutan');
 const nikField = z.string().trim().refine(isValidNik, 'NIK harus 16 angka');
 
-export const registerSchema = z.object({
-  otpTicket: z.string().min(10),
-  googleTicket: z.string().min(10).optional(),
-  name: z.string().trim().min(2, 'Nama minimal 2 karakter').max(80),
-  pin: pinField,
-  nik: nikField.optional(),
-  email: z.string().trim().email('Email tidak valid').max(120).optional(),
-  password: z.string().min(6, 'Password minimal 6 karakter').max(100).optional(),
-  referralCode: z.string().trim().max(20).optional(),
-});
+// Sign-up costs nothing per agent: the phone may come with an OTP ticket
+// (verified) or as typed (unverified, no SMS/WhatsApp sent).
+export const registerSchema = z
+  .object({
+    otpTicket: z.string().min(10).optional(),
+    phone: z.string().trim().min(8).max(20).optional(),
+    googleTicket: z.string().min(10).optional(),
+    name: z.string().trim().min(2, 'Nama minimal 2 karakter').max(80),
+    pin: pinField,
+    nik: nikField.optional(),
+    email: z.string().trim().email('Email tidak valid').max(120).optional(),
+    password: z.string().min(6, 'Password minimal 6 karakter').max(100).optional(),
+    referralCode: z.string().trim().max(20).optional(),
+  })
+  .refine((v) => v.otpTicket || v.phone, { message: 'Nomor HP wajib diisi', path: ['phone'] });
 
 export const loginSchema = z.object({
   identifier: z.string().trim().min(3),
@@ -154,8 +159,8 @@ export function setGoogleVerifier(fn: typeof verifyGoogleIdToken) {
 
 /**
  * Known Google account (by sub, or linked by email) → session. Unknown account →
- * `{ needsPhone, googleTicket }`: phone is mandatory, so the app runs the OTP
- * REGISTER flow and passes the ticket to /auth/register.
+ * `{ needsPhone, googleTicket }`: the app asks for the phone number (no OTP)
+ * and passes the ticket to /auth/register.
  */
 export async function googleLogin(input: z.infer<typeof googleSchema>) {
   const g = await verifyGoogleIdToken(input.idToken);
@@ -185,7 +190,7 @@ export async function googleLogin(input: z.infer<typeof googleSchema>) {
 // ---- register / login ----
 
 export async function registerAgent(input: z.infer<typeof registerSchema>) {
-  const phone = readOtpTicket(input.otpTicket, 'REGISTER');
+  const phone = input.otpTicket ? readOtpTicket(input.otpTicket, 'REGISTER') : normalizePhoneOrThrow(input.phone!);
   const google = input.googleTicket ? readGoogleTicket(input.googleTicket) : null;
   const email = (google?.email ?? input.email)?.toLowerCase() ?? null;
 
@@ -205,7 +210,7 @@ export async function registerAgent(input: z.infer<typeof registerSchema>) {
     data: {
       name: input.name,
       phone,
-      phoneVerifiedAt: new Date(),
+      phoneVerifiedAt: input.otpTicket ? new Date() : null,
       nik: input.nik ?? null,
       email,
       passwordHash: input.password ? await bcrypt.hash(input.password, 10) : null,

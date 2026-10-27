@@ -4,8 +4,8 @@ import { Pressable, Text, View } from 'react-native';
 
 import { IS_MOCK, post } from '../../src/api/client';
 import { Session } from '../../src/api/types';
-import { AuthShell } from '../../src/auth/AuthShell';
-import { GoogleButton } from '../../src/auth/GoogleButton';
+import { AuthShell, OrDivider } from '../../src/auth/AuthShell';
+import { GOOGLE_CONFIGURED, GoogleButton } from '../../src/auth/GoogleButton';
 import { useAuth } from '../../src/auth/useAuth';
 import { Button, CodeInput, Field } from '../../src/components/ui';
 import { colors, font } from '../../src/theme';
@@ -38,6 +38,12 @@ export default function LoginScreen() {
 
   return (
     <AuthShell logo title="Pulsa Juan" subtitle="Aplikasi mitra agen pulsa & pembayaran">
+      {GOOGLE_CONFIGURED ? (
+        <>
+          <GoogleButton onError={setError} onNeedsPhone={() => router.push('/(auth)/register')} />
+          <OrDivider />
+        </>
+      ) : null}
       {mode === 'pin' ? (
         <>
           <Field label="Nomor HP" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="08xxxxxxxxxx" testID="login-phone" />
@@ -73,8 +79,6 @@ export default function LoginScreen() {
       <Pressable onPress={() => { setMode(mode === 'pin' ? 'password' : 'pin'); setError(null); }} style={{ alignItems: 'center', marginTop: 12 }}>
         <Text style={{ color: colors.teal, fontWeight: '600', fontSize: font.body }}>{mode === 'pin' ? 'Masuk dengan email / password' : 'Masuk dengan nomor HP & PIN'}</Text>
       </Pressable>
-      <View style={{ height: 12 }} />
-      <GoogleButton onError={setError} onNeedsPhone={() => router.push('/(auth)/register')} />
       <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 18 }}>
         <Text style={{ color: colors.muted }}>Belum punya akun? </Text>
         <Link href="/(auth)/register" style={{ color: colors.teal, fontWeight: '700' }}>

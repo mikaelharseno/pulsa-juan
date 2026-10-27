@@ -72,6 +72,36 @@ describe('OTP', () => {
   });
 });
 
+describe('sign-up without OTP', () => {
+  it('phone + password signs up unverified and logs in with the password', async () => {
+    const phone = nextPhone();
+    const reg = await request(app).post('/api/agent/auth/register').send({ phone: '+62' + phone.slice(1), name: 'No OTP', pin: TEST_PIN, password: 'rahasia1' });
+    expect(reg.status).toBe(201);
+    expect(reg.body.agent).toMatchObject({ phone, phoneVerified: false, hasPassword: true, hasPin: true });
+    const row = await prisma.agent.findUniqueOrThrow({ where: { phone } });
+    expect(row.phoneVerifiedAt).toBeNull();
+
+    const login = await request(app).post('/api/agent/auth/login').send({ identifier: phone, password: 'rahasia1' });
+    expect(login.status).toBe(200);
+    expect((await pinLogin(phone, TEST_PIN)).status).toBe(200);
+    const again = await request(app).post('/api/agent/auth/register').send({ phone, name: 'Dup', pin: TEST_PIN });
+    expect(again.status).toBe(409);
+  });
+
+  it('still needs a valid phone and a PIN; sessions last a year', async () => {
+    const noPin = await request(app).post('/api/agent/auth/register').send({ phone: nextPhone(), name: 'No PIN', password: 'rahasia1' });
+    expect(noPin.status).toBe(400);
+    const noPhone = await request(app).post('/api/agent/auth/register').send({ name: 'No Phone', pin: TEST_PIN });
+    expect(noPhone.status).toBe(400);
+    const badPhone = await request(app).post('/api/agent/auth/register').send({ phone: '0211234567', name: 'Landline', pin: TEST_PIN });
+    expect(badPhone.status).toBe(400);
+
+    const ok = await request(app).post('/api/agent/auth/register').send({ phone: nextPhone(), name: 'Long Session', pin: TEST_PIN });
+    const { exp, iat } = JSON.parse(Buffer.from(ok.body.token.split('.')[1], 'base64url').toString());
+    expect((exp - iat) / 86400).toBe(365);
+  });
+});
+
 describe('PIN', () => {
   it('logs in with phone + PIN, locks after 5 misses, resets via OTP', async () => {
     const { phone } = await registerAgent('Pinny');
