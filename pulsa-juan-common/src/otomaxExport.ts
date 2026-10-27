@@ -1,9 +1,10 @@
+import { PRODUCT_TILES } from './productTiles';
 import { Provider, PROVIDERS } from './tree/types';
 
 // OtomaX "Produk" export (TSV: Aktif, Kode, Nama, Provider, ..., Nominal, Hrg Beli,
 // Hrg Jual, Kosong, Gangguan, ...) → Product Updater rows. "Provider" in the export
-// is the OtomaX product group (ID, I, THD, SBU, ...), mapped here to an app operator
-// and a category. The app's cost is Hrg Beli: the app's reseller account is set to
+// is the OtomaX product group (ID, I, THD, SBU, DANA's D, VML, ...), mapped here to an
+// app tile (an operator, or e.g. DANA / Token PLN / Mobile Legends) and a category. The app's cost is Hrg Beli: the app's reseller account is set to
 // pay Hrg Beli in OtomaX (harga jual = harga beli), so all margin is set in the app.
 // The market price collector (backend scripts/market-prices) writes the same layout,
 // with an operator name as Provider, its own Kategori column and a "Sumber Harga" column.
@@ -26,39 +27,74 @@ export interface OtomaxExportRow {
 export type OtomaxGroupKind = 'PULSA' | 'DATA' | 'OTHER';
 
 export interface OtomaxGroupMapping {
-  operator: Provider;
+  /** PRODUCT_TILES key: an operator for phone products */
+  tile: string;
   label: string;
   kind: OtomaxGroupKind;
   /** imported unless the admin turns it off */
   include: boolean;
   note?: string;
+  /** name pattern → category, first match wins (otherwise `label`) */
+  categories?: [RegExp, string][];
 }
 
-/** OtomaX product groups of our center → operator + category. Groups not listed are not operator products. */
+const op = (operator: Provider, label: string, kind: OtomaxGroupKind, include = true, note?: string): OtomaxGroupMapping => ({
+  tile: operator,
+  label,
+  kind,
+  include,
+  ...(note ? { note } : {}),
+});
+const other = (tile: string, label: string, categories?: [RegExp, string][]): OtomaxGroupMapping => ({
+  tile,
+  label,
+  kind: 'OTHER',
+  include: true,
+  ...(categories ? { categories } : {}),
+});
+
+/** OtomaX product groups of our center → tile + category. Groups not listed are not imported. */
 export const OTOMAX_GROUPS: Record<string, OtomaxGroupMapping> = {
-  I: { operator: 'INDOSAT', label: 'Pulsa', kind: 'PULSA', include: true },
-  ID: { operator: 'INDOSAT', label: 'Data', kind: 'DATA', include: true },
-  AV: { operator: 'INDOSAT', label: 'Aktivasi Voucher', kind: 'OTHER', include: false, note: 'cek dulu sebelum dijual' },
-  T: { operator: 'TRI', label: 'Pulsa', kind: 'PULSA', include: true },
-  THD: { operator: 'TRI', label: 'Data', kind: 'DATA', include: true },
-  TRD: { operator: 'TRI', label: 'Data', kind: 'DATA', include: true },
-  AON: { operator: 'TRI', label: 'AON', kind: 'OTHER', include: true },
-  TT: { operator: 'TRI', label: 'Telepon', kind: 'OTHER', include: true },
-  VT: { operator: 'TRI', label: 'Voucher', kind: 'OTHER', include: false, note: 'voucher isi beberapa, cek dulu' },
-  S: { operator: 'TELKOMSEL', label: 'Pulsa', kind: 'PULSA', include: true },
-  TM: { operator: 'TELKOMSEL', label: 'Pulsa Mix', kind: 'PULSA', include: false, note: 'nominal sama dengan pulsa S' },
-  SBU: { operator: 'TELKOMSEL', label: 'by.U', kind: 'PULSA', include: true },
-  TDF: { operator: 'TELKOMSEL', label: 'Data', kind: 'DATA', include: true },
-  TD: { operator: 'TELKOMSEL', label: 'Data', kind: 'DATA', include: true },
-  TS: { operator: 'TELKOMSEL', label: 'SMS', kind: 'OTHER', include: true },
-  TPT: { operator: 'TELKOMSEL', label: 'Telepon', kind: 'OTHER', include: true },
-  X: { operator: 'XL', label: 'Pulsa', kind: 'PULSA', include: true },
-  XD: { operator: 'XL', label: 'Data', kind: 'DATA', include: true },
-  XT: { operator: 'XL', label: 'Telepon', kind: 'OTHER', include: true },
-  AX: { operator: 'AXIS', label: 'Pulsa', kind: 'PULSA', include: true },
-  AXD: { operator: 'AXIS', label: 'Data', kind: 'DATA', include: true },
-  SM: { operator: 'SMARTFREN', label: 'Pulsa', kind: 'PULSA', include: true },
-  SMD: { operator: 'SMARTFREN', label: 'Data', kind: 'DATA', include: true },
+  I: op('INDOSAT', 'Pulsa', 'PULSA'),
+  ID: op('INDOSAT', 'Data', 'DATA'),
+  AV: op('INDOSAT', 'Aktivasi Voucher', 'OTHER', false, 'cek dulu sebelum dijual'),
+  T: op('TRI', 'Pulsa', 'PULSA'),
+  THD: op('TRI', 'Data', 'DATA'),
+  TRD: op('TRI', 'Data', 'DATA'),
+  AON: op('TRI', 'AON', 'OTHER'),
+  TT: op('TRI', 'Telepon', 'OTHER'),
+  VT: op('TRI', 'Voucher', 'OTHER', false, 'voucher isi beberapa, cek dulu'),
+  S: op('TELKOMSEL', 'Pulsa', 'PULSA'),
+  TM: op('TELKOMSEL', 'Pulsa Mix', 'PULSA', false, 'nominal sama dengan pulsa S'),
+  SBU: op('TELKOMSEL', 'by.U', 'PULSA'),
+  TDF: op('TELKOMSEL', 'Data', 'DATA'),
+  TD: op('TELKOMSEL', 'Data', 'DATA'),
+  TS: op('TELKOMSEL', 'SMS', 'OTHER'),
+  TPT: op('TELKOMSEL', 'Telepon', 'OTHER'),
+  X: op('XL', 'Pulsa', 'PULSA'),
+  XD: op('XL', 'Data', 'DATA'),
+  XT: op('XL', 'Telepon', 'OTHER'),
+  AX: op('AXIS', 'Pulsa', 'PULSA'),
+  AXD: op('AXIS', 'Data', 'DATA'),
+  SM: op('SMARTFREN', 'Pulsa', 'PULSA'),
+  SMD: op('SMARTFREN', 'Data', 'DATA'),
+  PLN: other('PLN', 'Token PLN'),
+  GOPAY: other('GOPAY', 'GoPay', [[/DRIVER/, 'GoPay Driver']]),
+  D: other('DANA', 'DANA'),
+  O: other('OVO', 'OVO'),
+  L: other('LINKAJA', 'LinkAja'),
+  SPE: other('SHOPEEPAY', 'ShopeePay'),
+  GRAB: other('GRAB', 'Grab / OVO', [[/DRIVER/, 'Grab Driver']]),
+  E: other('ETOLL', 'E-Toll', [[/TAPCASH|BNI/, 'Tapcash BNI'], [/MANDIRI|E-?MONEY/, 'E-Money Mandiri'], [/BRIZZI|BRI\b/, 'Brizzi BRI']]),
+  VML: other('ML', 'Diamond', [[/STARLIGHT/, 'Starlight']]),
+  VFF: other('FF', 'Diamond', [[/MEMBER/, 'Membership']]),
+  VPUBG: other('PUBG', 'UC'),
+  VCOD: other('COD', 'CP'),
+  VGR: other('GARENA', 'Shell'),
+  VGC: other('GAMESCOOL', 'G-Cash'),
+  VGPL: other('GPLAY', 'Gift Card'),
+  VSTID: other('STEAM', 'Wallet Code'),
+  MTIX: other('MTIX', 'Top Up'),
 };
 
 /** Category order inside an operator tile; unknown categories go last. */
@@ -76,7 +112,7 @@ const num = (s: string) => {
 /** Provider column → mapping: an OtomaX group, or an operator name (market files carry their own Kategori). */
 export function otomaxGroupMapping(group: string): OtomaxGroupMapping | null {
   if (OTOMAX_GROUPS[group]) return OTOMAX_GROUPS[group];
-  if ((PROVIDERS as readonly string[]).includes(group)) return { operator: group as Provider, label: 'Kategori dari file', kind: 'OTHER', include: true };
+  if ((PROVIDERS as readonly string[]).includes(group)) return { tile: group, label: 'Kategori dari file', kind: 'OTHER', include: true };
   return null;
 }
 
@@ -133,6 +169,7 @@ export function validityDays(name: string): number | null {
 export function otomaxCategory(group: OtomaxGroupMapping, name: string): string {
   const n = name.toUpperCase();
   const hasQuota = /\d\s*(GB|MB)\b|\bGB\b/.test(n);
+  if (group.categories) return group.categories.find(([re]) => re.test(n))?.[1] ?? group.label;
   if (/MASA AKTIF/.test(n)) return 'Masa Aktif';
   if (group.kind === 'OTHER') return group.label;
   if (!hasQuota && /\bSMS\b/.test(n)) return 'SMS';
@@ -149,7 +186,9 @@ export function otomaxCategory(group: OtomaxGroupMapping, name: string): string 
 export type SkipReason = 'INACTIVE' | 'UNAVAILABLE' | 'EXCLUDED' | 'UNSUPPORTED' | 'DUPLICATE' | 'NO_PRICE';
 
 export interface OtomaxImportRow {
-  provider: Provider;
+  /** operator tiles only */
+  provider: Provider | null;
+  tile: string;
   sku: string;
   name: string;
   category: string;
@@ -194,12 +233,13 @@ export function planOtomaxImport(rows: OtomaxExportRow[], include: Record<string
     if (r.unavailable) return skip('UNAVAILABLE');
     if (r.hargaBeli <= 0) return skip('NO_PRICE');
     const name = r.name || r.code;
-    const key = `${mapping.operator}|${name.toUpperCase()}|${r.hargaBeli}`;
+    const key = `${mapping.tile}|${name.toUpperCase()}|${r.hargaBeli}`;
     if (seen.has(key)) return skip('DUPLICATE');
     seen.add(key);
     g.imported++;
     picked.push({
-      provider: mapping.operator,
+      provider: PRODUCT_TILES[mapping.tile]?.operator ?? null,
+      tile: mapping.tile,
       sku: r.code,
       name,
       category: r.category ?? otomaxCategory(mapping, name),
@@ -213,7 +253,7 @@ export function planOtomaxImport(rows: OtomaxExportRow[], include: Record<string
   });
 
   // same name, different price in one category ("TSel", "TSel MIX Mochan") → add the nominal or code
-  const nameKey = (p: { provider: string; category: string; name: string }) => `${p.provider}|${p.category}|${p.name.toUpperCase()}`;
+  const nameKey = (p: { tile: string; category: string; name: string }) => `${p.tile}|${p.category}|${p.name.toUpperCase()}`;
   const nameCount = new Map<string, number>();
   for (const p of picked) nameCount.set(nameKey(p), (nameCount.get(nameKey(p)) ?? 0) + 1);
   for (const p of picked) {
@@ -230,11 +270,11 @@ export function planOtomaxImport(rows: OtomaxExportRow[], include: Record<string
   // inside a category: cheapest first, except categories given by the file (market files keep their order)
   picked.sort(
     (a, b) =>
-      a.provider.localeCompare(b.provider) ||
+      a.tile.localeCompare(b.tile) ||
       rank(a.category) - rank(b.category) ||
       (a.fromFile && b.fromFile ? 0 : a.cost - b.cost) ||
       a.order - b.order,
   );
-  const importRows: OtomaxImportRow[] = picked.map(({ provider, sku, name, category, description, cost }) => ({ provider, sku, name, category, description, cost }));
+  const importRows: OtomaxImportRow[] = picked.map(({ provider, tile, sku, name, category, description, cost }) => ({ provider, tile, sku, name, category, description, cost }));
   return { rows: importRows, groups: [...groups.values()] };
 }

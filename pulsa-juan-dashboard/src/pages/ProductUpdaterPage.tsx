@@ -1,6 +1,6 @@
 import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, InputAdornment, MenuItem, Paper, Select, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { isMarketExport, isOtomaxExport, OtomaxExportRow, planOtomaxImport, PROVIDERS, readOtomaxExport, SkipReason } from 'pulsa-juan-common';
+import { isMarketExport, isOtomaxExport, OtomaxExportRow, planOtomaxImport, PRODUCT_TILES, PROVIDERS, readOtomaxExport, SkipReason } from 'pulsa-juan-common';
 import { useMemo, useState } from 'react';
 
 import { api, errMsg, fmtDate, fmtRp } from '../api';
@@ -14,15 +14,15 @@ type Status = 'NEW' | 'PRICE_CHANGED' | 'DETAILS_CHANGED' | 'UNCHANGED' | 'REACT
 
 interface Rule { fixed: number; percent: number; roundTo: number }
 type CodeType = 'OTOMAX' | 'MARKET';
-interface SheetRow { provider: Provider; sku: string; name: string; category: string; description: string; cost: number }
+interface SheetRow { provider: Provider | null; tile?: string; sku: string; name: string; category: string; description: string; cost: number }
 interface ParsedSheet { name: string; provider: Provider | 'SKIP'; rows: Omit<SheetRow, 'provider'>[]; problem: string | null; market: boolean }
 interface PreviewRow {
-  sku: string; provider: Provider; name: string; category: string; categoryLabel: string; status: Status;
+  sku: string; tile: string; provider: Provider | null; name: string; category: string; categoryLabel: string; status: Status;
   cost: number | null; oldCost: number | null; agentPrice: number | null; oldAgentPrice: number | null; priceLocked: boolean; warnings: string[]; error: string | null;
 }
-interface TilePreview { provider: Provider; slug: string; categories: number; products: number; marketProducts: number; errors: string[] }
+interface TilePreview { tile: string; provider: Provider | null; label: string; slug: string; categories: number; products: number; marketProducts: number; errors: string[] }
 interface PreviewResult { rows: PreviewRow[]; summary: Record<Status, number>; tiles?: TilePreview[] }
-interface ApplyResult extends PreviewResult { segments: { provider: string; slug: string; published: boolean; version?: number; categories: number }[] }
+interface ApplyResult extends PreviewResult { segments: { tile: string; slug: string; published: boolean; version?: number; categories: number }[] }
 interface HistoryRow { id: string; fileName: string; createdAt: string; admin: { name: string; email: string } | null; summary: { counts: Record<Status, number>; rule: Rule; codeType?: CodeType } }
 
 const FILE_ACCEPT = {
@@ -177,7 +177,7 @@ export default function ProductUpdaterPage() {
   const changes = s ? s.NEW + s.PRICE_CHANGED + s.DETAILS_CHANGED + s.REACTIVATED + s.DEACTIVATED : 0;
   const tileErrors = (preview.data?.tiles ?? []).filter((t) => t.errors.length);
   // tiles that still mix in market products, plus the ones the admin chose to clean up
-  const marketTiles = (preview.data?.tiles ?? []).filter((t) => t.marketProducts > 0 || retire.includes(t.provider));
+  const marketTiles = (preview.data?.tiles ?? []).filter((t): t is TilePreview & { provider: Provider } => !!t.provider && (t.marketProducts > 0 || retire.includes(t.provider)));
   const ruleNum = (k: keyof Rule) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setRuleEdit({ ...rule, [k]: Number(e.target.value) || 0 });
     preview.reset();
@@ -187,7 +187,7 @@ export default function ProductUpdaterPage() {
     <Box>
       <PageHeader
         title="Product Updater"
-        subtitle="Unggah ekspor Produk dari OtomaX (.tsv: Kode, Nama, Provider, Hrg Beli = modal) atau daftar harga .xlsx (satu sheet per operator: KODE PRODUK, NAMA, KATEGORI, KET, harga = modal). Harga agen = modal + margin. Produk tampil di aplikasi sebagai tile Paket <Operator> dan diproses otomatis via OtomaX."
+        subtitle="Unggah ekspor Produk dari OtomaX (.tsv: Kode, Nama, Provider, Hrg Beli = modal) atau daftar harga .xlsx (satu sheet per operator: KODE PRODUK, NAMA, KATEGORI, KET, harga = modal). Harga agen = modal + margin. Produk tampil di aplikasi sebagai tile (Paket <Operator>, e-wallet, Token PLN, game, voucher) dan diproses otomatis via OtomaX."
       />
 
       <Paper sx={{ p: 2, mb: 2 }}>
@@ -220,7 +220,7 @@ export default function ProductUpdaterPage() {
               <Table size="small" sx={{ mt: 1 }}>
                 <TableHead>
                   <TableRow>
-                    <TableCell padding="checkbox">Impor</TableCell><TableCell>Grup OtomaX</TableCell><TableCell>Operator · kategori</TableCell><TableCell>Contoh</TableCell>
+                    <TableCell padding="checkbox">Impor</TableCell><TableCell>Grup OtomaX</TableCell><TableCell>Tile · kategori</TableCell><TableCell>Contoh</TableCell>
                     <TableCell align="right">Produk</TableCell><TableCell align="right">Diimpor</TableCell><TableCell>Dilewati</TableCell>
                   </TableRow>
                 </TableHead>
@@ -232,7 +232,7 @@ export default function ProductUpdaterPage() {
                       </TableCell>
                       <TableCell><code>{g.group}</code></TableCell>
                       <TableCell>
-                        {g.mapping ? `${g.mapping.operator} · ${g.mapping.label}` : 'Belum didukung'}
+                        {g.mapping ? `${PRODUCT_TILES[g.mapping.tile]?.label ?? g.mapping.tile} · ${g.mapping.label}` : 'Belum didukung'}
                         {g.mapping?.note && <Typography variant="caption" color="text.secondary" component="div">{g.mapping.note}</Typography>}
                       </TableCell>
                       <TableCell sx={{ maxWidth: 320 }}><Typography variant="caption">{g.examples.join(' · ')}</Typography></TableCell>
@@ -301,7 +301,7 @@ export default function ProductUpdaterPage() {
                 size="small"
                 color={t.errors.length ? 'error' : 'default'}
                 variant="outlined"
-                label={`Tile ${t.slug}: ${t.products} produk · ${t.categories} kategori${t.categories > 50 ? ' (dibagi ke beberapa halaman)' : ''}`}
+                label={`Tile ${t.label} (${t.slug}): ${t.products} produk · ${t.categories} kategori${t.categories > 50 ? ' (dibagi ke beberapa halaman)' : ''}`}
               />
             ))}
           </Box>
@@ -344,7 +344,7 @@ export default function ProductUpdaterPage() {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>Status</TableCell><TableCell>Operator</TableCell><TableCell>Kode</TableCell><TableCell>Nama</TableCell><TableCell>Kategori</TableCell>
+                  <TableCell>Status</TableCell><TableCell>Tile</TableCell><TableCell>Kode</TableCell><TableCell>Nama</TableCell><TableCell>Kategori</TableCell>
                   <TableCell align="right">Modal</TableCell><TableCell align="right">Harga agen</TableCell><TableCell align="right">Margin</TableCell><TableCell>Catatan</TableCell>
                 </TableRow>
               </TableHead>
@@ -352,7 +352,7 @@ export default function ProductUpdaterPage() {
                 {shown.map((r) => (
                   <TableRow key={`${r.status}-${r.sku}`} hover>
                     <TableCell><Chip size="small" label={STATUS[r.status].label} color={STATUS[r.status].color} variant={STATUS[r.status].color === 'default' ? 'outlined' : 'filled'} /></TableCell>
-                    <TableCell>{r.provider}</TableCell>
+                    <TableCell>{PRODUCT_TILES[r.tile]?.label ?? r.tile}</TableCell>
                     <TableCell><code>{r.sku}</code></TableCell>
                     <TableCell sx={{ maxWidth: 260 }}>{r.name}</TableCell>
                     <TableCell>{r.categoryLabel}</TableCell>

@@ -180,6 +180,20 @@ export function collectedCustomerId(steps: FlowStep[]): string | null {
   return null;
 }
 
+/**
+ * The destination a supplier gets: the last customer id with its second field
+ * appended (game user id + zone id, joined by `zoneSeparator`), else the phone.
+ */
+export function collectedDestination(steps: FlowStep[], zoneSeparator = ''): string | null {
+  for (let i = steps.length - 1; i >= 0; i--) {
+    const s = steps[i];
+    if (s.type !== 'CustomerIdInput') continue;
+    const zone = (s.values.secondaryId ?? '').trim();
+    return zone ? `${s.values.customerId.trim()}${zoneSeparator}${zone}` : s.values.customerId.trim();
+  }
+  return collectedCustomerId(steps);
+}
+
 export type WalkResult = { ok: true } | { ok: false; error: StepError };
 
 /**

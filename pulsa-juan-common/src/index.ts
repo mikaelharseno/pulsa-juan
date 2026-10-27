@@ -10,3 +10,4 @@ export * from './status';
 export * from './pin';
 export * from './bill';
 export * from './otomaxExport';
+export * from './productTiles';

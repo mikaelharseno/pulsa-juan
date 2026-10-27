@@ -211,7 +211,7 @@ describe('market reference mode', () => {
       ['1', 'XR10', 'XL REGULER 10K', 'X', '10', '10800.0000', '11000.0000', '0', '0'],
       ['1', 'GRB10', 'SALDO GRAB / OVO 10K', 'GRAB', '10', '10000.0000', '10900.0000', '0', '0'],
     ]);
-    const { rows } = planOtomaxImport(exported);
+    const { rows } = planOtomaxImport(exported, { GRAB: false });
     expect(rows.map((r) => r.sku)).toEqual(['XR5', 'XR10']);
 
     const keep = await request(app).post('/api/admin/product-updater/preview').set(auth(admin)).send({ ...body(rows), fileName: 'Produk.tsv' });
@@ -228,6 +228,75 @@ describe('market reference mode', () => {
     expect((await prisma.package.findUniqueOrThrow({ where: { code: 'PSR-X10' } })).isActive).toBe(false);
     // market products of other operators stay
     expect((await prisma.package.findUniqueOrThrow({ where: { code: 'PSR-DY3' } })).isActive).toBe(true);
+  });
+});
+
+describe('non-operator OtomaX groups', () => {
+  const exported = () =>
+    readOtomaxExport([
+      ['Aktif', 'Kode', 'Nama', 'Provider', 'Nominal', 'Hrg Beli', 'Hrg Jual', 'Kosong', 'Gangguan'],
+      ['1', 'PLN20', 'PLN', 'PLN', '20', '20644.0000', '21600.0000', '0', '0'],
+      ['1', 'PLN50', 'PLN', 'PLN', '50', '50644.0000', '51600.0000', '0', '0'],
+      ['1', 'DANA10', 'SALDO DANA 10K', 'D', '10', '10350.0000', '10400.0000', '0', '0'],
+      ['1', 'VML15', 'ML 15 Diamod', 'VML', '15', '4675.0000', '4700.0000', '0', '0'],
+      ['1', 'VMLS1', 'Starlight 30hr + 127 Diamond', 'VML', '1', '196550.0000', '197000.0000', '0', '0'],
+    ]);
+
+  it('get their own tiles with the input OtomaX needs as destination', async () => {
+    const admin = await adminToken();
+    const { rows } = planOtomaxImport(exported());
+    const res = await request(app).post('/api/admin/product-updater/apply').set(auth(admin)).send({ ...body(rows), fileName: 'Produk.tsv' });
+    expect(res.status).toBe(200);
+    expect(res.body.summary.NEW).toBe(5);
+    expect(res.body.segments.map((s: { slug: string; published: boolean }) => [s.slug, s.published])).toEqual([
+      ['dana', true],
+      ['mobile-legends', true],
+      ['token-pln', true],
+    ]);
+    expect(await prisma.package.findUniqueOrThrow({ where: { code: 'PLN20' } })).toMatchObject({
+      provider: null, supplierSku: 'PLN20', supplierName: 'OtomaX', category: 'PLN_TOKEN_PLN', name: 'PLN 20K', hargaAgen: 21200,
+    });
+
+    const { token } = await registerAgent('Tiles');
+    // one category: meter number → packages
+    const pln = await request(app).get('/api/agent/segments/token-pln/tree').set(auth(token));
+    const plnRoot = pln.body.tree.nodes[pln.body.tree.rootId];
+    expect(plnRoot).toMatchObject({ type: 'CustomerIdInput', fields: [expect.objectContaining({ regex: '^[0-9]{11,12}$' })] });
+    expect(pln.body.tree.nodes[plnRoot.nextId]).toMatchObject({ type: 'PackagesList', source: { kind: 'CATEGORY', category: 'PLN_TOKEN_PLN' } });
+    // e-wallets: any phone number
+    const dana = await request(app).get('/api/agent/segments/dana/tree').set(auth(token));
+    expect(dana.body.tree.nodes.phone).toMatchObject({ type: 'PhoneNumberInput', allowedProviders: null });
+    // a new tile is created on the fly
+    expect(await prisma.segment.findUniqueOrThrow({ where: { slug: 'dana' } })).toMatchObject({ label: 'DANA', iconUrl: 'builtin:dana', groupLabel: 'E-Wallet', isActive: true });
+
+    // re-import without Starlight: only that ML package goes, other tiles untouched
+    const fewer = planOtomaxImport(exported().filter((r) => r.code !== 'VMLS1')).rows;
+    const again = await request(app).post('/api/admin/product-updater/apply').set(auth(admin)).send({ ...body(fewer), fileName: 'Produk.tsv' });
+    expect(again.body.summary).toMatchObject({ DEACTIVATED: 1, UNCHANGED: 4 });
+    expect((await prisma.package.findUniqueOrThrow({ where: { code: 'VMLS1' } })).isActive).toBe(false);
+    // seed demo packages (no OtomaX code) are never touched
+    expect((await prisma.package.findUniqueOrThrow({ where: { code: 'ML_86' } })).isActive).toBe(true);
+  });
+
+  it('a game order sends user id + zone id as the destination', async () => {
+    const { token, agent } = await registerAgent('Gamer');
+    await giveSaldo(agent.id, 50000);
+    const tree = await request(app).get('/api/agent/segments/mobile-legends/tree').set(auth(token));
+    const nodes = tree.body.tree.nodes;
+    expect(nodes.idinput.fields.map((f: { key: string }) => f.key)).toEqual(['customerId', 'secondaryId']);
+    // Starlight was removed above: one category left, so the id input leads straight to the packages
+    expect(nodes[nodes.idinput.nextId]).toMatchObject({ type: 'PackagesList', title: 'Mobile Legends' });
+    const vml15 = (Object.values(tree.body.packages) as PackagePublic[]).find((p) => p.code === 'VML15')!;
+    const steps: FlowStep[] = [
+      { nodeId: 'idinput', type: 'CustomerIdInput', values: { customerId: '12345678', secondaryId: '1234' } },
+      { nodeId: nodes.idinput.nextId, type: 'PackagesList', packageId: vml15.id },
+    ];
+    const trx = await request(app)
+      .post('/api/agent/transactions')
+      .set(auth(token))
+      .send({ segmentId: tree.body.segment.id, treeVersion: tree.body.treeVersion, steps, clientTotal: vml15.hargaAgen, idempotencyKey: 'ml-' + Date.now() });
+    expect(trx.status).toBe(201);
+    expect(trx.body.transaction).toMatchObject({ customerId: '123456781234', total: 5200 });
   });
 });
 

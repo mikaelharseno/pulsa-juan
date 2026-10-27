@@ -23,6 +23,20 @@ const SAMPLE = [
   row('1', 'GRB10', 'SALDO GRAB / OVO 10K', 'GRAB', '10', '10000.0000', '10900.0000'),
 ];
 
+const OTHER_GROUPS = [
+  HEADER,
+  row('1', 'PLN20', 'PLN', 'PLN', '20', '20644.0000', '21600.0000'),
+  row('1', 'SG10', 'GOPAY KONSUMEN 10K', 'GOPAY', '10', '10650.0000', '10700.0000'),
+  row('1', 'TGD20', 'GOJEK DRIVER 20K', 'GOPAY', '20', '20500.0000', '20600.0000'),
+  row('1', 'ETBNI10', 'ETOLL TAPCASH BNI 10K', 'E', '10', '11650.0000', '11700.0000'),
+  row('1', 'ETOLL25', 'E-money mandiri 25K', 'E', '25', '25600.0000', '25700.0000'),
+  row('1', 'VML15', 'ML 15 Diamod', 'VML', '15', '4675.0000', '4700.0000'),
+  row('1', 'VMLS1', 'Starlight 30hr + 127 Diamond', 'VML', '1', '196550.0000', '197000.0000'),
+  row('1', 'VSTID12', 'Steam Wallet Code', 'VSTID', '12', '15500.0000', '15600.0000'),
+  row('1', 'VSTID45', 'Steam Wallet Code', 'VSTID', '45', '53000.0000', '53100.0000'),
+  row('1', 'CEKPLN', ' Tag PLN', 'PPOB', '0', '0.0000', '0.0000'),
+];
+
 describe('OtomaX product export', () => {
   const rows = readOtomaxExport(SAMPLE);
 
@@ -36,6 +50,7 @@ describe('OtomaX product export', () => {
   it('plans operator rows: dedupes, names, categories, skips', () => {
     const { rows: out, groups } = planOtomaxImport(rows);
     expect(out.map((r) => `${r.provider} ${r.sku} ${r.category} ${r.cost}`)).toEqual([
+      'null GRB10 Grab / OVO 10000',
       'INDOSAT I5 Pulsa 6750',
       'INDOSAT DY3 Data Harian 8000',
       'INDOSAT FI7 Data Bulanan 35000',
@@ -52,12 +67,30 @@ describe('OtomaX product export', () => {
     expect(g.THD.skipped).toEqual({ UNAVAILABLE: 1 });
     expect(g.VT.skipped).toEqual({ EXCLUDED: 1 });
     expect(g.PPOB.skipped).toEqual({ UNSUPPORTED: 1 });
-    expect(g.GRAB.mapping).toBeNull();
+    expect(g.GRAB.mapping).toMatchObject({ tile: 'GRAB' });
   });
 
   it('lets the admin switch groups on and off', () => {
     const { rows: out } = planOtomaxImport(rows, { VT: true, ID: false });
-    expect(out.map((r) => r.sku)).toEqual(['I5', 'S5', 'S10', 'TV1']);
+    expect(out.map((r) => r.sku)).toEqual(['GRB10', 'I5', 'S5', 'S10', 'TV1']);
+  });
+
+  it('puts e-wallet, PLN, e-toll, game and voucher groups in their own tiles', () => {
+    const { rows: out, groups } = planOtomaxImport(readOtomaxExport(OTHER_GROUPS));
+    expect(out.map((r) => `${r.tile} ${r.provider} ${r.sku} ${r.category} ${r.name}`)).toEqual([
+      'ETOLL null ETBNI10 Tapcash BNI ETOLL TAPCASH BNI 10K',
+      'ETOLL null ETOLL25 E-Money Mandiri E-money mandiri 25K',
+      'GOPAY null SG10 GoPay GOPAY KONSUMEN 10K',
+      'GOPAY null TGD20 GoPay Driver GOJEK DRIVER 20K',
+      'ML null VML15 Diamond ML 15 Diamod',
+      'ML null VMLS1 Starlight Starlight 30hr + 127 Diamond',
+      'PLN null PLN20 Token PLN PLN',
+      // same name at different prices → nominal appended
+      'STEAM null VSTID12 Wallet Code Steam Wallet Code 12K',
+      'STEAM null VSTID45 Wallet Code Steam Wallet Code 45K',
+    ]);
+    // bills are checked/paid through billers, not sold as packages
+    expect(groups.find((g) => g.group === 'PPOB')?.skipped).toEqual({ UNSUPPORTED: 1 });
   });
 
   it('derives categories from names', () => {
@@ -91,6 +124,6 @@ describe('market files in the export layout', () => {
       'XDH3 XL Data All jaringan 24 Jam 30 Hari 24450',
       'XDH1 XL Data All jaringan 24 Jam 30 Hari 14000',
     ]);
-    expect(groups[0]).toMatchObject({ group: 'XL', imported: 3, mapping: { operator: 'XL' } });
+    expect(groups[0]).toMatchObject({ group: 'XL', imported: 3, mapping: { tile: 'XL' } });
   });
 });

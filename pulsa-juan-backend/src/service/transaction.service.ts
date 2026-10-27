@@ -1,5 +1,5 @@
 import {
-  collectedCustomerId,
+  collectedDestination,
   computeTotal,
   describeSteps,
   FlowStep,
@@ -139,7 +139,8 @@ export async function createTransaction(agent: Agent, input: z.infer<typeof crea
   const summary = describeSteps(steps, tree, ctx, inquiry);
   const phoneStep = [...steps].reverse().find((s) => s.type === 'PhoneNumberInput');
   const phoneNumber = phoneStep && phoneStep.type === 'PhoneNumberInput' ? normalizeIndonesianMobile(phoneStep.phoneNumber) : null;
-  const customerId = collectedCustomerId(steps);
+  // stored as sent to the supplier (game id + zone joined)
+  const customerId = collectedDestination(steps, process.env.OTOMAX_ZONE_SEPARATOR ?? '');
   const pkg = price.packageId
     ? await prisma.package.findUnique({ where: { id: price.packageId }, select: { name: true, supplierSku: true } })
     : null;

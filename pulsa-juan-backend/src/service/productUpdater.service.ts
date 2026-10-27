@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { formatRp, PROVIDERS, SegmentTree, validateTreeStructure } from 'pulsa-juan-common';
+import { formatRp, PRODUCT_TILES, ProductTile, PROVIDERS, SegmentTree, TreeNode, validateTreeStructure } from 'pulsa-juan-common';
 import { z } from 'zod';
 
 import { Package, Prisma, Provider } from '../../prisma/generated';
@@ -10,11 +10,14 @@ import { createSegment, publishSegment, saveDraft } from './segment.service';
 
 // Product Updater: an OtomaX price sheet (one sheet per operator: KODE PRODUK,
 // NAMA, KATEGORI, KET, harga = our cost) becomes Packages priced at
-// cost + margin, plus one "Paket <Operator>" app tile per operator whose tree
-// is regenerated from the active categories. Packages it manages carry
-// supplierName = 'OtomaX'; only those are deactivated, plus the market (PSR-)
-// products of operators listed in retireMarketFor. The dashboard also turns
-// OtomaX's own product export into these rows (pulsa-juan-common otomaxExport).
+// cost + margin, plus one app tile per PRODUCT_TILES entry ("Paket <Operator>",
+// DANA, Token PLN, Mobile Legends, ...) whose tree is regenerated from the
+// active categories. A tile owns the packages of its operator, or (non-operator
+// tiles) the provider-less packages whose category starts with "<TILE>_".
+// Packages it manages carry supplierName = 'OtomaX'; only those are deactivated,
+// plus the market (PSR-) products of operators listed in retireMarketFor. The
+// dashboard also turns OtomaX's own product export into these rows
+// (pulsa-juan-common otomaxExport).
 
 export const MANAGED_SUPPLIER = 'OtomaX';
 /** Products imported from market reference price lists (other sellers' codes → manual fulfilment) */
@@ -29,7 +32,12 @@ const ruleSchema = z.object({
 });
 
 const rowSchema = z.object({
-  provider: z.enum(PROVIDERS),
+  /** operator rows; other rows name their tile */
+  provider: z.enum(PROVIDERS).nullable().optional(),
+  tile: z
+    .string()
+    .refine((t) => !!PRODUCT_TILES[t], 'Tile tidak dikenal')
+    .optional(),
   sku: z.string().trim().min(1).max(40),
   name: z.string().trim().min(1).max(200),
   // raw KATEGORI text; the stored category key is shortened to 60 by categoryKey()
@@ -50,7 +58,11 @@ export const updaterSchema = z.object({
   /** OTOMAX imports only: operators whose market (PSR-) products are hidden now that OtomaX sells them */
   retireMarketFor: z.array(z.enum(PROVIDERS)).max(PROVIDERS.length).default([]),
   rule: ruleSchema,
-  rows: z.array(rowSchema).min(1).max(3000),
+  rows: z
+    .array(rowSchema)
+    .min(1)
+    .max(3000)
+    .refine((rows) => rows.every((r) => r.tile || r.provider), 'Setiap baris butuh operator atau tile'),
 });
 
 export type UpdaterInput = z.infer<typeof updaterSchema>;
@@ -60,7 +72,8 @@ export type RowStatus = 'NEW' | 'PRICE_CHANGED' | 'DETAILS_CHANGED' | 'UNCHANGED
 
 export interface PreviewRow {
   sku: string;
-  provider: Provider;
+  tile: string;
+  provider: Provider | null;
   name: string;
   category: string;
   categoryLabel: string;
@@ -88,10 +101,25 @@ function fit(s: string, max: number) {
   return `${s.slice(0, max - 7).replace(/_+$/, '')}_${hash}`;
 }
 
-export function categoryKey(provider: Provider, kategori: string) {
+/** `tile` is a PRODUCT_TILES key (an operator for phone products). */
+export function categoryKey(tile: string, kategori: string) {
   const slug = kategori.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'LAINNYA';
   // Package.category is edited on the Paket page (max 60)
-  return fit(`${provider}_${slug}`, 60);
+  return fit(`${tile}_${slug}`, 60);
+}
+
+/** Row → its tile (rows from operator sheets only carry the provider). */
+function rowTile(r: { tile?: string | null; provider?: Provider | null }): ProductTile {
+  return PRODUCT_TILES[(r.tile ?? r.provider)!];
+}
+
+/** Packages a tile owns. */
+function tileScope(t: ProductTile): Prisma.PackageWhereInput {
+  return t.operator ? { provider: t.operator } : { provider: null, category: { startsWith: `${t.key}_` } };
+}
+
+function inTile(p: { provider: Provider | null; category: string }, t: ProductTile) {
+  return t.operator ? p.provider === t.operator : !p.provider && p.category.startsWith(`${t.key}_`);
 }
 
 /** Tree node ids are limited to 40 chars of [A-Za-z0-9_-]. */
@@ -111,9 +139,9 @@ export function categoryLabel(kategori: string) {
 
 interface Planned {
   rows: PreviewRow[];
-  upserts: { existing: Package | null; data: Prisma.PackageCreateInput }[];
+  upserts: { existing: Package | null; tile: string; data: Prisma.PackageCreateInput }[];
   deactivate: Package[];
-  providers: Provider[];
+  tiles: ProductTile[];
   categoryLabels: Record<string, string>;
 }
 
@@ -121,7 +149,8 @@ async function plan(input: UpdaterInput): Promise<Planned> {
   const market = input.codeType === 'MARKET';
   const supplier = market ? MARKET_SUPPLIER : MANAGED_SUPPLIER;
   const codeOf = (sku: string) => (market ? MARKET_CODE_PREFIX + sku : sku);
-  const providers = Array.from(new Set(input.rows.map((r) => r.provider)));
+  const tiles = Array.from(new Set(input.rows.map(rowTile)));
+  const providers = tiles.flatMap((t) => (t.operator ? [t.operator] : []));
   const codes = input.rows.map((r) => codeOf(r.sku));
   // each mode only manages (and deactivates) its own packages
   const retire = market ? [] : input.retireMarketFor.filter((p) => providers.includes(p));
@@ -129,7 +158,7 @@ async function plan(input: UpdaterInput): Promise<Planned> {
     where: {
       OR: [
         { code: { in: codes } },
-        { supplierName: supplier, provider: { in: providers } },
+        ...tiles.map((t) => ({ supplierName: supplier, ...tileScope(t) })),
         ...(retire.length ? [{ supplierName: MARKET_SUPPLIER, provider: { in: retire }, isActive: true }] : []),
       ],
     },
@@ -141,17 +170,20 @@ async function plan(input: UpdaterInput): Promise<Planned> {
   const seen = new Set<string>();
   const seenCodes = new Set<string>();
   const categoryLabels: Record<string, string> = {};
-  const sortByProvider: Record<string, number> = {};
+  const sortByTile: Record<string, number> = {};
 
   for (const r of input.rows) {
-    const category = categoryKey(r.provider, r.category);
+    const tile = rowTile(r);
+    const provider = tile.operator ?? null;
+    const category = categoryKey(tile.key, r.category);
     const label = categoryLabel(r.category);
     categoryLabels[category] = label;
     const code = codeOf(r.sku);
     const existing = byCode.get(code) ?? null;
     const base: PreviewRow = {
       sku: r.sku,
-      provider: r.provider,
+      tile: tile.key,
+      provider,
       name: r.name,
       category,
       categoryLabel: label,
@@ -185,13 +217,13 @@ async function plan(input: UpdaterInput): Promise<Planned> {
 
     const locked = r.agentPrice ? true : existing?.priceLocked ?? false;
     const agentPrice = r.agentPrice ?? (locked && existing ? existing.hargaAgen : agentPriceFor(r.cost, input.rule));
-    sortByProvider[r.provider] = (sortByProvider[r.provider] ?? 0) + 1;
+    sortByTile[tile.key] = (sortByTile[tile.key] ?? 0) + 1;
     const data: Prisma.PackageCreateInput = {
       code,
       name: r.name,
       description: r.description || null,
       category,
-      provider: r.provider,
+      provider,
       hargaAgen: agentPrice,
       hargaBeli: r.cost,
       supplierName: supplier,
@@ -199,7 +231,7 @@ async function plan(input: UpdaterInput): Promise<Planned> {
       supplierSku: market ? existing?.supplierSku ?? null : r.sku,
       priceLocked: locked,
       isActive: true,
-      sortOrder: sortByProvider[r.provider],
+      sortOrder: sortByTile[tile.key],
     };
 
     let status: RowStatus = 'NEW';
@@ -209,7 +241,7 @@ async function plan(input: UpdaterInput): Promise<Planned> {
         existing.name !== data.name ||
         (existing.description ?? null) !== data.description ||
         existing.category !== category ||
-        existing.provider !== r.provider ||
+        existing.provider !== provider ||
         existing.sortOrder !== data.sortOrder ||
         existing.priceLocked !== locked;
       status = !existing.isActive ? 'REACTIVATED' : priceChanged ? 'PRICE_CHANGED' : detailsChanged ? 'DETAILS_CHANGED' : 'UNCHANGED';
@@ -218,20 +250,20 @@ async function plan(input: UpdaterInput): Promise<Planned> {
     if (agentPrice <= r.cost) warnings.push(`Harga agen ${formatRp(agentPrice)} tidak di atas modal ${formatRp(r.cost)}`);
     if (locked && !r.agentPrice) warnings.push('Harga terkunci (diatur manual), tidak ikut margin');
     rows.push({ ...base, status, agentPrice, priceLocked: locked, warnings });
-    upserts.push({ existing, data });
+    upserts.push({ existing, tile: tile.key, data });
   }
 
   const deactivate = existingRows.filter(
     (p) =>
       p.isActive &&
-      p.provider &&
-      ((p.supplierName === supplier && providers.includes(p.provider) && !seenCodes.has(p.code)) ||
-        (p.supplierName === MARKET_SUPPLIER && retire.includes(p.provider))),
+      ((p.supplierName === supplier && tiles.some((t) => inTile(p, t)) && !seenCodes.has(p.code)) ||
+        (p.supplierName === MARKET_SUPPLIER && !!p.provider && retire.includes(p.provider))),
   );
   for (const p of deactivate) {
     rows.push({
       sku: p.code,
-      provider: p.provider!,
+      tile: (tiles.find((t) => inTile(p, t)) ?? PRODUCT_TILES[p.provider!]).key,
+      provider: p.provider,
       name: p.name,
       category: p.category,
       categoryLabel: p.category,
@@ -245,7 +277,7 @@ async function plan(input: UpdaterInput): Promise<Planned> {
       error: null,
     });
   }
-  return { rows, upserts, deactivate, providers, categoryLabels };
+  return { rows, upserts, deactivate, tiles, categoryLabels };
 }
 
 function summarize(rows: PreviewRow[]) {
@@ -261,19 +293,6 @@ export async function previewUpdate(input: UpdaterInput) {
 
 // ---- app tiles ----
 
-const PROVIDER_LABEL: Record<Provider, string> = {
-  TELKOMSEL: 'Telkomsel',
-  XL: 'XL',
-  AXIS: 'Axis',
-  INDOSAT: 'Indosat',
-  TRI: 'Tri',
-  SMARTFREN: 'Smartfren',
-};
-
-export function segmentSlugFor(provider: Provider) {
-  return `paket-${provider.toLowerCase()}`;
-}
-
 interface TileCategory {
   key: string;
   label: string;
@@ -286,25 +305,52 @@ const clip = (t: string, max = 80) => (t.length <= max ? t : `${t.slice(0, max -
 /** ListNode allows 50 rows: 49 categories + a "Kategori lainnya" row to the next page. */
 const ROWS_PER_PAGE = 49;
 
-/**
- * Tree: phone (provider-locked) → category list (paged when > 50) → packages of that category.
- */
-export function buildProviderTree(provider: Provider, categories: TileCategory[]): SegmentTree {
-  const label = PROVIDER_LABEL[provider];
-  const pages = Math.max(1, Math.ceil(categories.length / ROWS_PER_PAGE));
-  const pageId = (i: number) => (i === 0 ? 'cat' : `cat_${i + 1}`);
-  const nodes: SegmentTree['nodes'] = {
-    phone: {
+const ID_FIELDS: Record<Exclude<ProductTile['input'], 'OPERATOR_PHONE' | 'PHONE'>, { placeholder: string; regex: string; minLength: number; maxLength: number }> = {
+  METER: { placeholder: '11–12 digit', regex: '^[0-9]{11,12}$', minLength: 11, maxLength: 12 },
+  CARD: { placeholder: '16 digit', regex: '^[0-9]{16}$', minLength: 16, maxLength: 16 },
+  GAME_ID: { placeholder: 'contoh: 123456789', regex: '^[0-9]{4,20}$', minLength: 4, maxLength: 20 },
+  GAME_ID_ZONE: { placeholder: 'contoh: 123456789', regex: '^[0-9]{4,20}$', minLength: 4, maxLength: 20 },
+};
+
+/** The tile's first node: a phone (locked to the operator on operator tiles) or the id OtomaX needs as dest. */
+function inputNode(t: ProductTile, childId: string): TreeNode {
+  if (t.input === 'OPERATOR_PHONE' || t.input === 'PHONE') {
+    return {
       id: 'phone',
       type: 'PhoneNumberInput',
-      title: `Paket ${label}`,
-      label: `Nomor HP ${label}`,
-      allowedProviders: [provider],
+      title: t.label,
+      label: t.inputLabel,
+      allowedProviders: t.operator ? [t.operator] : null,
       branches: {},
-      defaultChildId: 'cat',
-    },
+      defaultChildId: childId,
+    };
+  }
+  const f = ID_FIELDS[t.input];
+  return {
+    id: 'idinput',
+    type: 'CustomerIdInput',
+    title: t.label,
+    fields: [
+      { key: 'customerId', label: t.inputLabel, placeholder: f.placeholder, regex: f.regex, minLength: f.minLength, maxLength: f.maxLength, keyboard: 'numeric', required: true },
+      ...(t.input === 'GAME_ID_ZONE'
+        ? [{ key: 'secondaryId' as const, label: 'Zone ID', placeholder: 'contoh: 1234', regex: '^[0-9]{2,6}$', minLength: 2, maxLength: 6, keyboard: 'numeric' as const, required: true }]
+        : []),
+    ],
+    nextId: childId,
   };
-  for (let i = 0; i < pages; i++) {
+}
+
+/**
+ * Tree: input → category list (paged when > 50; skipped on non-operator tiles with one category) → packages of that category.
+ */
+export function buildTileTree(t: ProductTile, categories: TileCategory[]): SegmentTree {
+  const pages = Math.max(1, Math.ceil(categories.length / ROWS_PER_PAGE));
+  const pageId = (i: number) => (i === 0 ? 'cat' : `cat_${i + 1}`);
+  // operator tiles always list their categories (their trees stay stable as categories come and go)
+  const single = !t.operator && categories.length === 1;
+  const input = inputNode(t, single ? nodeId('pk', categories[0].key) : 'cat');
+  const nodes: SegmentTree['nodes'] = { [input.id]: input };
+  for (let i = 0; !single && i < pages; i++) {
     const slice = categories.slice(i * ROWS_PER_PAGE, (i + 1) * ROWS_PER_PAGE);
     const rows = slice.map((c) => ({
       id: nodeId('r', c.key),
@@ -323,21 +369,21 @@ export function buildProviderTree(provider: Provider, categories: TileCategory[]
     nodes[nodeId('pk', c.key)] = {
       id: nodeId('pk', c.key),
       type: 'PackagesList',
-      title: clip(`${label} · ${c.label}`),
+      title: clip(single ? t.label : `${t.brand} · ${c.label}`),
       source: { kind: 'CATEGORY', category: c.key },
       nextId: null,
     };
   }
-  return { schemaVersion: 1, rootId: 'phone', nodes } as SegmentTree;
+  return { schemaVersion: 1, rootId: input.id, nodes } as SegmentTree;
 }
 
 /** Active packages (sorted) → tile categories in first-appearance order. */
-function groupCategories(provider: Provider, pkgs: { category: string; hargaAgen: number }[], labels: Record<string, string>): TileCategory[] {
+function groupCategories(t: ProductTile, pkgs: { category: string; hargaAgen: number }[], labels: Record<string, string>): TileCategory[] {
   const categories: TileCategory[] = [];
   for (const p of pkgs) {
     let c = categories.find((x) => x.key === p.category);
     if (!c) {
-      c = { key: p.category, label: labels[p.category] ?? categoryLabel(p.category.replace(`${provider}_`, '').replace(/_/g, ' ')), count: 0, minPrice: p.hargaAgen };
+      c = { key: p.category, label: labels[p.category] ?? categoryLabel(p.category.replace(`${t.key}_`, '').replace(/_/g, ' ')), count: 0, minPrice: p.hargaAgen };
       categories.push(c);
     }
     c.count++;
@@ -352,26 +398,26 @@ function groupCategories(provider: Provider, pkgs: { category: string; hargaAgen
  */
 async function projectTiles(p: Planned) {
   const tiles = [];
-  for (const provider of p.providers) {
+  for (const t of p.tiles) {
     const current = await prisma.package.findMany({
-      where: { provider, supplierName: { in: MANAGED_SUPPLIERS }, isActive: true },
+      where: { ...tileScope(t), supplierName: { in: MANAGED_SUPPLIERS }, isActive: true },
       select: { code: true, category: true, hargaAgen: true, sortOrder: true, supplierName: true },
     });
     const byCode = new Map(current.map((c) => [c.code, c]));
     for (const d of p.deactivate) byCode.delete(d.code);
     for (const u of p.upserts) {
-      if (u.data.provider !== provider) continue;
+      if (u.tile !== t.key) continue;
       byCode.set(u.data.code, { code: u.data.code, category: u.data.category, hargaAgen: u.data.hargaAgen, sortOrder: u.data.sortOrder ?? 0, supplierName: u.data.supplierName ?? null });
     }
     const pkgs = [...byCode.values()].sort((a, b) => a.sortOrder - b.sortOrder);
-    const categories = groupCategories(provider, pkgs, p.categoryLabels);
+    const categories = groupCategories(t, pkgs, p.categoryLabels);
     const errors = categories.length
-      ? validateTreeStructure(buildProviderTree(provider, categories), { strict: false })
+      ? validateTreeStructure(buildTileTree(t, categories), { strict: false })
           .filter((e) => e.severity === 'error')
           .map((e) => `${e.nodeId ?? ''} ${e.field ?? ''}: ${e.message}`.trim())
       : [];
     const marketProducts = pkgs.filter((x) => x.supplierName === MARKET_SUPPLIER).length;
-    tiles.push({ provider, slug: segmentSlugFor(provider), categories: categories.length, products: pkgs.length, marketProducts, errors });
+    tiles.push({ tile: t.key, provider: t.operator ?? null, label: t.label, slug: t.slug, categories: categories.length, products: pkgs.length, marketProducts, errors });
   }
   return tiles;
 }
@@ -388,37 +434,32 @@ function canonical(value: unknown): string {
   return JSON.stringify(value ?? null);
 }
 
-/** Ensures the "Paket <Operator>" tile exists and publishes a new tree version when it changed. */
-async function syncProviderSegment(adminId: string, provider: Provider, categoryLabels: Record<string, string>) {
+/** Ensures the tile's segment exists and publishes a new tree version when it changed. */
+async function syncTileSegment(adminId: string, t: ProductTile, categoryLabels: Record<string, string>) {
   const active = await prisma.package.findMany({
-    where: { provider, supplierName: { in: MANAGED_SUPPLIERS }, isActive: true },
+    where: { ...tileScope(t), supplierName: { in: MANAGED_SUPPLIERS }, isActive: true },
     orderBy: { sortOrder: 'asc' },
     select: { category: true, hargaAgen: true },
   });
-  const slug = segmentSlugFor(provider);
+  const slug = t.slug;
+  const tile = t.key;
   let segment = await prisma.segment.findUnique({ where: { slug }, include: { publishedVersion: true } });
   if (active.length === 0) {
     if (segment?.isActive) await prisma.segment.update({ where: { id: segment.id }, data: { isActive: false } });
-    return { provider, slug, published: false, categories: 0 };
+    return { tile, slug, published: false, categories: 0 };
   }
-  const categories = groupCategories(provider, active, categoryLabels);
-  const tree = buildProviderTree(provider, categories);
+  const categories = groupCategories(t, active, categoryLabels);
+  const tree = buildTileTree(t, categories);
   if (!segment) {
-    await createSegment({
-      slug,
-      label: `Paket ${PROVIDER_LABEL[provider]}`,
-      iconUrl: `builtin:${provider.toLowerCase()}`,
-      groupLabel: 'Pulsa & Data',
-      isActive: true,
-    });
+    await createSegment({ slug, label: t.label, iconUrl: t.icon, groupLabel: t.groupLabel, isActive: true });
     segment = await prisma.segment.findUniqueOrThrow({ where: { slug }, include: { publishedVersion: true } });
   }
   const unchanged = canonical(segment.publishedVersion?.tree ?? null) === canonical(tree);
   if (!segment.isActive) await prisma.segment.update({ where: { id: segment.id }, data: { isActive: true } });
-  if (unchanged) return { provider, slug, published: false, categories: categories.length };
+  if (unchanged) return { tile, slug, published: false, categories: categories.length };
   await saveDraft(adminId, segment.id, tree);
   const published = await publishSegment(adminId, segment.id);
-  return { provider, slug, published: true, version: published.publishedVersion?.version ?? null, categories: categories.length };
+  return { tile, slug, published: true, version: published.publishedVersion?.version ?? null, categories: categories.length };
 }
 
 export async function applyUpdate(adminId: string, input: UpdaterInput) {
@@ -444,10 +485,10 @@ export async function applyUpdate(adminId: string, input: UpdaterInput) {
   }, { timeout: 60_000 });
 
   const segments = [];
-  for (const provider of p.providers) segments.push(await syncProviderSegment(adminId, provider, p.categoryLabels));
+  for (const t of p.tiles) segments.push(await syncTileSegment(adminId, t, p.categoryLabels));
 
   const record = await prisma.productUpdate.create({
-    data: { adminId, fileName: input.fileName, summary: { counts: summary, rule: input.rule, codeType: input.codeType, providers: p.providers, retireMarketFor: input.retireMarketFor, segments } as Prisma.InputJsonValue },
+    data: { adminId, fileName: input.fileName, summary: { counts: summary, rule: input.rule, codeType: input.codeType, tiles: p.tiles.map((t) => t.key), retireMarketFor: input.retireMarketFor, segments } as Prisma.InputJsonValue },
   });
   await audit(adminId, 'PRODUCT_UPDATE', 'ProductUpdate', record.id, { fileName: input.fileName, counts: summary });
   return { id: record.id, rows: p.rows, summary, segments };

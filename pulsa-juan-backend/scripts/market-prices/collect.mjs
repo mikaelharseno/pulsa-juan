@@ -221,13 +221,13 @@ export function otomaxIndex(exportRows, operators) {
   const data = [];
   for (const r of exportRows) {
     const m = otomaxGroupMapping(r.group);
-    if (!m || !m.include || !r.active || r.unavailable || !operators.includes(m.operator)) continue;
+    if (!m || !m.include || !r.active || r.unavailable || !operators.includes(m.tile)) continue;
     if (m.kind === 'PULSA') {
       const nominal = r.nominal > 0 ? r.nominal : nominalOf(r.name);
-      if (nominal) pulsa.set(`${m.operator}|${r.group === 'SBU' ? 'BYU' : 'PULSA'}|${nominal}`, r);
+      if (nominal) pulsa.set(`${m.tile}|${r.group === 'SBU' ? 'BYU' : 'PULSA'}|${nominal}`, r);
     } else if (m.kind === 'DATA') {
       const family = words(r.name);
-      if (family.size) data.push({ operator: m.operator, quota: quotaKey(r.name), days: validityDays(r.name), family, row: r });
+      if (family.size) data.push({ operator: m.tile, quota: quotaKey(r.name), days: validityDays(r.name), family, row: r });
     }
   }
   return { pulsa, data };
