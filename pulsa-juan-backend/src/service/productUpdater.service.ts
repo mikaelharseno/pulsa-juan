@@ -130,6 +130,8 @@ const LABELS: Record<string, string> = { HIFI: 'HiFi Air', 'HIFI AIR': 'HiFi Air
 export function categoryLabel(kategori: string) {
   const key = kategori.trim().toUpperCase();
   if (LABELS[key]) return LABELS[key];
+  // already cased (OtomaX group labels like "Tapcash BNI", market files): keep it; ALL-CAPS sheet labels get title case
+  if (/[a-z]/.test(kategori)) return kategori.trim().replace(/\s+/g, ' ');
   return key
     .toLowerCase()
     .split(/\s+/)

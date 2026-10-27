@@ -33,6 +33,8 @@ describe('pricing helpers', () => {
     expect(categoryKey('INDOSAT', 'MASA AKTIF')).toBe('INDOSAT_MASA_AKTIF');
     expect(categoryLabel('MASA AKTIF')).toBe('Masa Aktif');
     expect(categoryLabel('HIFI')).toBe('HiFi Air');
+    expect(categoryLabel('Tapcash BNI')).toBe('Tapcash BNI');
+    expect(categoryLabel('Grab / OVO')).toBe('Grab / OVO');
   });
 });
 

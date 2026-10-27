@@ -212,9 +212,9 @@ export default function ProductUpdaterPage() {
               {codeType === 'MARKET' ? (
                 <>Daftar harga pasar (format ekspor OtomaX): {exportPlan.rows.length} produk akan diimpor sebagai produk manual PSR-, modal = harga pasar termurah. </>
               ) : (
-                <>Ekspor Produk OtomaX: {exportPlan.rows.length} produk operator akan diimpor. Modal = <b>Hrg Beli</b> (akun reseller aplikasi di OtomaX membayar harga beli). </>
+                <>Ekspor Produk OtomaX: {exportPlan.rows.length} produk akan diimpor. Modal = <b>Hrg Beli</b> (akun reseller aplikasi di OtomaX membayar harga beli). </>
               )}
-              Produk yang sama persis (nama &amp; harga) hanya diambil sekali. E-wallet, game, token PLN dan tagihan belum didukung di sini.
+              Produk yang sama persis (nama &amp; harga) hanya diambil sekali. Tagihan (cek/bayar) diatur di halaman Tagihan (Biller).
             </Alert>
             <Box sx={{ overflowX: 'auto' }}>
               <Table size="small" sx={{ mt: 1 }}>
