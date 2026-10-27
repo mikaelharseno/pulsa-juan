@@ -147,7 +147,10 @@ export let verifyGoogleIdToken = async (idToken: string): Promise<GoogleIdentity
   );
   if (audience.length === 0) throw badRequest('Login Google belum dikonfigurasi');
   if (!oauthClient) oauthClient = new OAuth2Client();
-  const ticket = await oauthClient.verifyIdToken({ idToken, audience });
+  // A malformed, expired or foreign token throws a plain Error; answer 400, not 500.
+  const ticket = await oauthClient.verifyIdToken({ idToken, audience }).catch(() => {
+    throw badRequest('Token Google tidak valid');
+  });
   const payload = ticket.getPayload();
   if (!payload?.sub || !payload.email) throw badRequest('Token Google tidak valid');
   return { sub: payload.sub, email: payload.email, name: payload.name ?? payload.email, picture: payload.picture };
