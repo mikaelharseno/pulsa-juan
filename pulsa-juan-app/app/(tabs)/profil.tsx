@@ -117,6 +117,7 @@ export default function ProfilScreen() {
         <Card style={{ padding: 0, overflow: 'hidden', marginBottom: 12 }}>
           <SectionBand>Akun</SectionBand>
           <MenuRow icon="people-outline" label="Mitra & kode referral" sub={`Bagikan kode ${a.commisionUniqueId}, markup ${formatRp(a.referralMarkup)}/trx`} onPress={() => router.push('/mitra')} />
+          <MenuRow icon="pricetag-outline" label="Harga jual & keuntungan" sub="Untung per transaksi untuk Rekap" onPress={() => router.push('/harga-jual')} />
           <MenuRow icon="swap-vertical-outline" label="Riwayat saldo" sub="Semua saldo masuk & keluar" onPress={() => router.push('/saldo')} />
           <MenuRow icon="wallet-outline" label="Riwayat top up saldo" onPress={() => router.push('/topup/history')} />
           <MenuRow icon="keypad-outline" label={a.hasPin ? 'Ubah PIN' : 'Buat PIN'} onPress={() => router.push('/pin')} />

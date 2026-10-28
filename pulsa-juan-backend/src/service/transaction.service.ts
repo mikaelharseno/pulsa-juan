@@ -20,6 +20,7 @@ import { packagesForTree } from './package.service';
 import { getPrefixEntries } from './prefix.service';
 import { resolveMarkup } from './referral.service';
 import { creditSaldo, debitSaldo } from './saldo.service';
+import { sellPriceFor } from './sellPrice.service';
 import { manualOrderAlert, queueAdminAlert, stuckOrderAlert, supplierFailedAlert, supplierUnreachableAlert } from './telegram.service';
 
 const stepSchema = z.object({ nodeId: z.string().min(1), type: z.string().min(1) }).passthrough();
@@ -163,6 +164,7 @@ export async function createTransaction(agent: Agent, input: z.infer<typeof crea
         adminFee: price.adminFee,
         markupTotal: price.markupTotal,
         total: price.total,
+        sellPrice: sellPriceFor(agent, segment.id, price.total),
         idempotencyKey: input.idempotencyKey,
         provider: provider.name,
         fulfillmentMode: provider.mode,
@@ -328,9 +330,11 @@ async function refundTransaction(id: string, refundReason: string | undefined, a
   return refunded;
 }
 
+/** YYYY-MM-DD bounds as Asia/Jakarta days (UTC+7), `to` inclusive. */
 function dayRange(from?: string, to?: string) {
-  const gte = from ? new Date(from) : undefined;
-  const lt = to ? new Date(new Date(to).getTime() + 24 * 3600 * 1000) : undefined;
+  const wib = (d: string) => new Date(`${d}T00:00:00+07:00`);
+  const gte = from ? wib(from) : undefined;
+  const lt = to ? new Date(wib(to).getTime() + 24 * 3600 * 1000) : undefined;
   return { gte, lt };
 }
 
@@ -357,30 +361,55 @@ export async function getForAgent(agentId: string, id: string) {
   return trx;
 }
 
-/** Spending recap: PENDING + SUCCESS count as spent (FAILED was refunded). */
-export async function rekap(agentId: string, from?: string, to?: string) {
+/**
+ * Spending recap: PENDING + SUCCESS count as spent (FAILED was refunded).
+ * Income counts SUCCESS only: omzet = what the agent charged (sellPrice),
+ * modal = what we charged, plus mitra commissions earned in the range.
+ */
+export async function rekap(agent: Pick<Agent, 'id' | 'commisionUniqueId'>, from?: string, to?: string) {
   const range = dayRange(from, to);
-  const rows = await prisma.transaction.findMany({
-    where: { agentId, status: { in: ['PENDING', 'SUCCESS'] }, createdAt: { gte: range.gte, lt: range.lt } },
-    select: { total: true, createdAt: true, segmentLabel: true, status: true },
-  });
-  const byDay: Record<string, { date: string; totalSpent: number; count: number }> = {};
-  const bySegment: Record<string, { segmentLabel: string; totalSpent: number; count: number }> = {};
+  const createdAt = { gte: range.gte, lt: range.lt };
+  const [rows, commissions] = await Promise.all([
+    prisma.transaction.findMany({
+      where: { agentId: agent.id, status: { in: ['PENDING', 'SUCCESS'] }, createdAt },
+      select: { total: true, sellPrice: true, createdAt: true, segmentLabel: true, status: true },
+    }),
+    prisma.agentMarkupCommision.aggregate({
+      where: { beneficiaryCommisionId: agent.commisionUniqueId, status: { not: 'VOIDED' }, transaction: { status: 'SUCCESS' }, createdAt },
+      _sum: { amount: true },
+      _count: true,
+    }),
+  ]);
+  type Bucket = { totalSpent: number; count: number; profit: number };
+  const byDay: Record<string, Bucket & { date: string }> = {};
+  const bySegment: Record<string, Bucket & { segmentLabel: string }> = {};
   let totalSpent = 0;
+  const income = { count: 0, omzet: 0, modal: 0, profit: 0, commission: commissions._sum.amount ?? 0, commissionCount: commissions._count, total: 0 };
   for (const r of rows) {
     // Asia/Jakarta day bucket (UTC+7)
     const date = new Date(r.createdAt.getTime() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+    const profit = r.status === 'SUCCESS' ? (r.sellPrice ?? r.total) - r.total : 0;
     totalSpent += r.total;
-    byDay[date] = byDay[date] ?? { date, totalSpent: 0, count: 0 };
+    byDay[date] = byDay[date] ?? { date, totalSpent: 0, count: 0, profit: 0 };
     byDay[date].totalSpent += r.total;
     byDay[date].count++;
-    bySegment[r.segmentLabel] = bySegment[r.segmentLabel] ?? { segmentLabel: r.segmentLabel, totalSpent: 0, count: 0 };
+    byDay[date].profit += profit;
+    bySegment[r.segmentLabel] = bySegment[r.segmentLabel] ?? { segmentLabel: r.segmentLabel, totalSpent: 0, count: 0, profit: 0 };
     bySegment[r.segmentLabel].totalSpent += r.total;
     bySegment[r.segmentLabel].count++;
+    bySegment[r.segmentLabel].profit += profit;
+    if (r.status === 'SUCCESS') {
+      income.count++;
+      income.omzet += r.sellPrice ?? r.total;
+      income.modal += r.total;
+      income.profit += profit;
+    }
   }
+  income.total = income.profit + income.commission;
   return {
     totalSpent,
     count: rows.length,
+    income,
     byDay: Object.values(byDay).sort((a, b) => (a.date < b.date ? 1 : -1)),
     bySegment: Object.values(bySegment).sort((a, b) => b.totalSpent - a.totalSpent),
   };

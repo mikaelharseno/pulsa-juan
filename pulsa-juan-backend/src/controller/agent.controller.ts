@@ -23,6 +23,7 @@ import {
   updateProfile,
 } from '../service/agentAuth.service';
 import { claimCommissions, commissionSummary } from '../service/commission.service';
+import * as sell from '../service/sellPrice.service';
 import { getConfig, publicConfig } from '../service/config.service';
 import { otpRequestSchema, otpVerifySchema, requestOtp, verifyOtp } from '../service/otp/otp.service';
 import { getPrefixEntries } from '../service/prefix.service';
@@ -167,7 +168,20 @@ export const getTransaction = asyncHandler(async (req: Request, res: Response) =
 
 export const getRekap = asyncHandler(async (req: Request, res: Response) => {
   const q = parse(z.object({ from: z.string().optional(), to: z.string().optional() }), req.query);
-  res.json(await trx.rekap(req.agent!.id, q.from, q.to));
+  res.json(await trx.rekap(req.agent!, q.from, q.to));
+});
+
+export const getSellMargins = asyncHandler(async (req: Request, res: Response) => {
+  res.json(sell.readSellMargins(req.agent!));
+});
+
+export const putSellMargins = asyncHandler(async (req: Request, res: Response) => {
+  res.json(await sell.saveSellMargins(req.agent!.id, parse(sell.sellMarginsSchema, req.body)));
+});
+
+export const putTransactionSellPrice = asyncHandler(async (req: Request, res: Response) => {
+  const { sellPrice } = parse(sell.sellPriceSchema, req.body);
+  res.json(await sell.setSellPrice(req.agent!, req.params.id, sellPrice));
 });
 
 export const getCommissions = asyncHandler(async (req: Request, res: Response) => {

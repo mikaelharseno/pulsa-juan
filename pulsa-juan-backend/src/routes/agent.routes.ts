@@ -34,7 +34,10 @@ router.post('/topups/:id/claim', c.postTopUpClaim);
 router.post('/transactions', c.postTransaction);
 router.get('/transactions', c.getTransactions);
 router.get('/transactions/:id', c.getTransaction);
+router.put('/transactions/:id/sell-price', c.putTransactionSellPrice);
 router.get('/rekap', c.getRekap);
+router.get('/sell-margins', c.getSellMargins);
+router.put('/sell-margins', c.putSellMargins);
 
 router.get('/commissions', c.getCommissions);
 router.post('/commissions/claim', c.postClaimCommissions);

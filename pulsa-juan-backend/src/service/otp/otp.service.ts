@@ -6,8 +6,8 @@ import { z } from 'zod';
 
 import { OtpPurpose } from '../../../prisma/generated';
 import { prisma } from '../../../prisma/client';
-import { badRequest, conflict, notFound, tooManyRequests } from '../../lib/errors';
-import { getOtpSender } from './sender';
+import { badRequest, conflict, HttpError, notFound, tooManyRequests } from '../../lib/errors';
+import { getOtpSender, OtpDeliveryError } from './sender';
 
 // OTP flow: request → verify → short-lived otpTicket (JWT) that register /
 // reset-PIN / change-phone accept as proof the caller owns the phone.
@@ -110,7 +110,15 @@ export async function requestOtp(input: z.infer<typeof otpRequestSchema>) {
       update: { codeHash, purpose, expiresAt, sentAt, attempts: 0 },
     });
   }
-  await getOtpSender().send(phone, code, purpose);
+  try {
+    await getOtpSender().send(phone, code, purpose);
+  } catch (error) {
+    if (!(error instanceof OtpDeliveryError)) throw error;
+    // nothing went out: lift the resend cooldown so the agent can retry now
+    if (purpose === 'RESET_PIN') await prisma.agent.update({ where: { phone }, data: { confirmationCodeSentAt: new Date(0) } });
+    else await prisma.phoneVerification.update({ where: { phone }, data: { sentAt: new Date(0) } });
+    throw new HttpError(502, 'Kode OTP gagal dikirim. Coba lagi sebentar lagi atau hubungi CS.', 'OTP_SEND_FAILED');
+  }
   return {
     phone,
     purpose,

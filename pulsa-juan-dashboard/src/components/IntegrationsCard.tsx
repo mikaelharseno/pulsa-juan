@@ -6,7 +6,10 @@ import { api, errMsg } from '../api';
 interface Integrations {
   telegram: { configured: boolean; chats: number; dashboardUrl: string | null; pendingAlertMinutes: number };
   otomax: { enabled: boolean; host: string | null; memberId: string | null; auth: string | null; reportKeySet: boolean; reportIpAllowlist: string[]; reportUrl: string };
+  otp: { provider: string | null; purposes: string[]; channels: string[] };
 }
+
+const OTP_PURPOSE_LABEL: Record<string, string> = { RESET_PIN: 'lupa PIN', VERIFY_PHONE: 'ganti nomor HP', REGISTER: 'daftar' };
 
 const On = ({ on, label }: { on: boolean; label: string }) => <Chip size="small" label={label} color={on ? 'success' : 'default'} variant={on ? 'filled' : 'outlined'} />;
 
@@ -46,6 +49,19 @@ export function IntegrationsCard({ canTest }: { canTest: boolean }) {
                 </Typography>
                 <code style={{ fontSize: 12, wordBreak: 'break-all' }}>{d.otomax.reportUrl}</code>
                 {d.otomax.reportIpAllowlist.length > 0 && <Typography variant="caption" component="div">IP diizinkan: {d.otomax.reportIpAllowlist.join(', ')}</Typography>}
+              </TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell sx={{ fontWeight: 600 }}>Kode OTP</TableCell>
+              <TableCell>
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <On on={!!d.otp.provider} label={d.otp.provider ? `Aktif · ${d.otp.provider}` : 'Belum diatur — kode hanya di log server'} />
+                  {d.otp.provider && (
+                    <Typography variant="caption">
+                      untuk {d.otp.purposes.map((p) => OTP_PURPOSE_LABEL[p] ?? p).join(', ')} · lewat {d.otp.channels.join(' → ')}
+                    </Typography>
+                  )}
+                </Box>
               </TableCell>
             </TableRow>
           </TableBody>

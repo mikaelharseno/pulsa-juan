@@ -137,6 +137,9 @@ const commissions = [
   { id: id('com'), amount: 300, level: 1, status: 'UNCLAIMED' as 'UNCLAIMED' | 'CLAIMED', claimedAt: null as string | null, createdAt: iso(6 * H), sourceAgentName: 'Budi Cell', transaction: { trxNumber: 2201, status: 'SUCCESS', segmentLabel: 'Paket Data', createdAt: iso(6 * H) } },
   { id: id('com'), amount: 200, level: 2, status: 'UNCLAIMED' as 'UNCLAIMED' | 'CLAIMED', claimedAt: null as string | null, createdAt: iso(7 * H), sourceAgentName: 'Sari Pulsa', transaction: { trxNumber: 2198, status: 'SUCCESS', segmentLabel: 'Token PLN', createdAt: iso(7 * H) } },
 ];
+let sellMargins: { default: number; bySegment: Record<string, number> } = { default: 0, bySegment: {} };
+const sellPriceFor = (segmentId: string | undefined, total: number) => total + ((segmentId ? sellMargins.bySegment[segmentId] : undefined) ?? sellMargins.default);
+
 const unclaimed = () => commissions.filter((c) => c.status === 'UNCLAIMED').reduce((a, c) => a + c.amount, 0);
 
 function withAccount(o: TopUpOrder): TopUpOrder {
@@ -290,7 +293,7 @@ export async function mockApi(path: string, method: string, json: any, query: Re
       steps, summary: describeSteps(steps, s.tree, ctx, inquiry),
       phoneNumber: phoneStep && phoneStep.type === 'PhoneNumberInput' ? normalizeIndonesianMobile(phoneStep.phoneNumber) : null,
       customerId: collectedCustomerId(steps),
-      amountBase: price.amountBase, adminFee: price.adminFee, markupTotal: 0, total: price.total,
+      amountBase: price.amountBase, adminFee: price.adminFee, markupTotal: 0, total: price.total, sellPrice: sellPriceFor(s.id, price.total),
       status: 'PENDING', serialNumber: null, failReason: null, createdAt: iso(), processedAt: null,
     };
     transactions.unshift(trx);
@@ -318,6 +321,17 @@ export async function mockApi(path: string, method: string, json: any, query: Re
     const pageSize = Number(q.pageSize ?? 25);
     return ok({ total: rows.length, page, pageSize, transactions: rows.slice((page - 1) * pageSize, page * pageSize) });
   }
+  if (route === 'sell-margins') {
+    if (m === 'PUT') sellMargins = { default: Number(json?.default) || 0, bySegment: (json?.bySegment ?? {}) as Record<string, number> };
+    return ok(sellMargins);
+  }
+  if (seg[1] === 'transactions' && seg[2] && seg[3] === 'sell-price') {
+    const t = transactions.find((x) => x.id === seg[2]);
+    if (!t) return fail(404, 'Transaksi tidak ditemukan');
+    const sid = segments.find((x) => x.slug === t.segment?.slug)?.id;
+    t.sellPrice = json?.sellPrice == null ? sellPriceFor(sid, t.total) : Number(json.sellPrice);
+    return ok(t);
+  }
   if (seg[1] === 'transactions' && seg[2]) {
     const t = transactions.find((x) => x.id === seg[2]);
     return t ? ok(t) : fail(404, 'Transaksi tidak ditemukan');
@@ -327,16 +341,33 @@ export async function mockApi(path: string, method: string, json: any, query: Re
     const from = q.from ? new Date(q.from).getTime() : 0;
     const to = q.to ? new Date(q.to).getTime() + 86400000 : Infinity;
     const rows = transactions.filter((t) => (t.status === 'PENDING' || t.status === 'SUCCESS') && new Date(t.createdAt).getTime() >= from - 7 * H && new Date(t.createdAt).getTime() < to);
-    const byDay: Record<string, { date: string; totalSpent: number; count: number }> = {};
-    const bySegment: Record<string, { segmentLabel: string; totalSpent: number; count: number }> = {};
+    const byDay: Record<string, { date: string; totalSpent: number; count: number; profit: number }> = {};
+    const bySegment: Record<string, { segmentLabel: string; totalSpent: number; count: number; profit: number }> = {};
+    const income = { count: 0, omzet: 0, modal: 0, profit: 0, commission: 0, commissionCount: 0, total: 0 };
     for (const t of rows) {
       const d = new Date(new Date(t.createdAt).getTime() + 7 * H).toISOString().slice(0, 10);
-      (byDay[d] ??= { date: d, totalSpent: 0, count: 0 }).totalSpent += t.total;
+      const profit = t.status === 'SUCCESS' ? (t.sellPrice ?? t.total) - t.total : 0;
+      (byDay[d] ??= { date: d, totalSpent: 0, count: 0, profit: 0 }).totalSpent += t.total;
       byDay[d].count++;
-      (bySegment[t.segmentLabel] ??= { segmentLabel: t.segmentLabel, totalSpent: 0, count: 0 }).totalSpent += t.total;
+      byDay[d].profit += profit;
+      (bySegment[t.segmentLabel] ??= { segmentLabel: t.segmentLabel, totalSpent: 0, count: 0, profit: 0 }).totalSpent += t.total;
       bySegment[t.segmentLabel].count++;
+      bySegment[t.segmentLabel].profit += profit;
+      if (t.status !== 'SUCCESS') continue;
+      income.count++;
+      income.omzet += t.sellPrice ?? t.total;
+      income.modal += t.total;
+      income.profit += profit;
     }
-    return ok({ totalSpent: rows.reduce((a, t) => a + t.total, 0), count: rows.length, byDay: Object.values(byDay).sort((a, b) => (a.date < b.date ? 1 : -1)), bySegment: Object.values(bySegment).sort((a, b) => b.totalSpent - a.totalSpent) });
+    for (const c of commissions) {
+      if (c.transaction.status !== 'SUCCESS') continue;
+      const at = new Date(c.createdAt).getTime();
+      if (at < from - 7 * H || at >= to) continue;
+      income.commission += c.amount;
+      income.commissionCount++;
+    }
+    income.total = income.profit + income.commission;
+    return ok({ totalSpent: rows.reduce((a, t) => a + t.total, 0), count: rows.length, income, byDay: Object.values(byDay).sort((a, b) => (a.date < b.date ? 1 : -1)), bySegment: Object.values(bySegment).sort((a, b) => b.totalSpent - a.totalSpent) });
   }
 
   // ---- commissions / mitra ----

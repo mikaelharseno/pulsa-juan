@@ -139,6 +139,8 @@ export interface Transaction {
   adminFee: number;
   markupTotal: number;
   total: number;
+  /** what the agent charges its customer (total + its margin); null on older orders */
+  sellPrice?: number | null;
   status: TransactionStatus;
   serialNumber: string | null;
   failReason: string | null;
@@ -160,8 +162,16 @@ export interface TransactionList {
 export interface Rekap {
   totalSpent: number;
   count: number;
-  byDay: { date: string; totalSpent: number; count: number }[];
-  bySegment: { segmentLabel: string; totalSpent: number; count: number }[];
+  /** successful orders only */
+  income: { count: number; omzet: number; modal: number; profit: number; commission: number; commissionCount: number; total: number };
+  byDay: { date: string; totalSpent: number; count: number; profit: number }[];
+  bySegment: { segmentLabel: string; totalSpent: number; count: number; profit: number }[];
+}
+
+/** the agent's profit per sale: a default plus overrides by segment id */
+export interface SellMargins {
+  default: number;
+  bySegment: Record<string, number>;
 }
 
 export interface CommissionSummary {

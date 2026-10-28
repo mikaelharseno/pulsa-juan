@@ -1,4 +1,5 @@
 import { otomaxConfig } from './fulfillment/otomax';
+import { otpDeliveryStatus } from './otp/sender';
 import { alertChatIds, escapeHtml, sendAdminAlert, telegramConfigured } from './telegram.service';
 
 /** Read-only integration status for the dashboard (never returns secrets). */
@@ -21,6 +22,7 @@ export function integrationStatus() {
       reportIpAllowlist: (process.env.OTOMAX_REPORT_IPS ?? '').split(',').map((s) => s.trim()).filter(Boolean),
       reportUrl: `${apiBase || 'https://<api>'}/api/fulfillment/otomax/report?key=<OTOMAX_REPORT_KEY>`,
     },
+    otp: otpDeliveryStatus(),
   };
 }
 

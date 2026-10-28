@@ -1,8 +1,9 @@
+import { useRouter } from 'expo-router';
 import { formatRp } from 'pulsa-juan-common';
 import React, { useMemo, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 
-import { useRekap } from '../../src/api/hooks';
+import { useRekap, useSellMargins } from '../../src/api/hooks';
 import { Button, Card, Chip, ErrorView, Field, KeyValue, Loading, Screen, SectionTitle } from '../../src/components/ui';
 import { colors, font } from '../../src/theme';
 
@@ -32,6 +33,9 @@ export default function RekapScreen() {
     return preset === 'custom' ? applied : { from: p.from(), to: p.to() };
   }, [preset, applied]);
   const q = useRekap(range.from, range.to);
+  const margins = useSellMargins();
+  const router = useRouter();
+  const noMargins = !!margins.data && margins.data.default === 0 && Object.values(margins.data.bySegment).every((v) => v === 0);
 
   return (
     <Screen title="Rekap" back={false}>
@@ -61,6 +65,20 @@ export default function RekapScreen() {
               <Text style={{ color: colors.muted, fontSize: font.body }}>Total pengeluaran saldo</Text>
               <Text style={{ color: colors.ink, fontSize: 26, fontWeight: '700', marginVertical: 4, letterSpacing: -0.7 }}>{formatRp(q.data!.totalSpent)}</Text>
               <Text style={{ color: colors.muted, fontSize: font.small }}>{q.data!.count} transaksi (diproses + sukses)</Text>
+            </Card>
+            <Card style={{ marginBottom: 12 }}>
+              <SectionTitle>Pendapatan</SectionTitle>
+              <KeyValue label={`Omzet (${q.data!.income.count} transaksi sukses)`} value={formatRp(q.data!.income.omzet)} />
+              <KeyValue label="Modal" value={formatRp(q.data!.income.modal)} />
+              <KeyValue label="Untung jualan" value={formatRp(q.data!.income.profit)} />
+              <KeyValue label={`Komisi mitra (${q.data!.income.commissionCount})`} value={formatRp(q.data!.income.commission)} />
+              <KeyValue label="Total pendapatan" value={formatRp(q.data!.income.total)} bold last />
+              {noMargins ? (
+                <Text style={{ color: colors.muted, fontSize: font.small, marginTop: 8 }}>
+                  Untung jualan dihitung dari harga jual Anda.{' '}
+                  <Text style={{ color: colors.teal, fontWeight: '700' }} onPress={() => router.push('/harga-jual')}>Atur harga jual</Text>
+                </Text>
+              ) : null}
             </Card>
             {q.data!.bySegment.length ? (
               <Card style={{ marginBottom: 12 }}>

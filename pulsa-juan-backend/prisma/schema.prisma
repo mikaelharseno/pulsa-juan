@@ -143,6 +143,8 @@ model Agent {
   referrals       Agent[]  @relation("referral")
   /// referrer's referralMarkup, frozen when this agent joined (= level-1 commission per transaction)
   referrerMarkup  Int      @default(0)
+  /// the agent's own profit per sale for the income recap: { default?: Rp, [segmentId]: Rp }
+  sellMargins     Json     @default("{}")
   joinedAt     DateTime    @default(now())
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
@@ -317,6 +319,8 @@ model Transaction {
   adminFee       Int               @default(0)
   markupTotal    Int               @default(0)
   total          Int
+  /// what the agent charges its customer (total + the agent's margin); editable by the agent
+  sellPrice      Int?
   status         TransactionStatus @default(PENDING)
   fulfillmentMode FulfillmentMode  @default(MANUAL)
   /// fulfilment provider name, e.g. "manual" / "otomax"

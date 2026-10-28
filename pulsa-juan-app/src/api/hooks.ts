@@ -11,6 +11,7 @@ import {
   LedgerList,
   MitraOverview,
   Rekap,
+  SellMargins,
   TopUpOrder,
   Transaction,
   TransactionList,
@@ -30,6 +31,7 @@ export const keys = {
   commissions: ['commissions'] as const,
   mitra: ['mitra'] as const,
   ledger: ['ledger'] as const,
+  sellMargins: ['sell-margins'] as const,
 };
 
 export function useHome() {
@@ -180,5 +182,30 @@ export function useChangePin() {
   return useMutation({
     mutationFn: (input: { oldPin?: string; newPin: string }) => put<{ ok: true }>('/agent/me/pin', input),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.me }),
+  });
+}
+
+export function useSellMargins() {
+  return useQuery({ queryKey: keys.sellMargins, queryFn: () => get<SellMargins>('/agent/sell-margins') });
+}
+
+export function useSaveSellMargins() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: SellMargins) => put<SellMargins>('/agent/sell-margins', input),
+    onSuccess: (data) => qc.setQueryData(keys.sellMargins, data),
+  });
+}
+
+/** null resets the order to the agent's margin rule. */
+export function useSetSellPrice(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (sellPrice: number | null) => put<Transaction>(`/agent/transactions/${id}/sell-price`, { sellPrice }),
+    onSuccess: (data) => {
+      qc.setQueryData(keys.transaction(id), data);
+      qc.invalidateQueries({ queryKey: ['rekap'] });
+      qc.invalidateQueries({ queryKey: ['transactions'] });
+    },
   });
 }

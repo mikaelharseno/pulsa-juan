@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { formatRp, toInternationalMobile } from 'pulsa-juan-common';
-import React from 'react';
+import React, { useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 
-import { useAgentConfig, useTransaction } from '../../../src/api/hooks';
+import { useAgentConfig, useSetSellPrice, useTransaction } from '../../../src/api/hooks';
+import { Transaction } from '../../../src/api/types';
 import { openExternal } from '../../../src/components/home';
-import { Button, Card, ErrorView, KeyValue, Loading, Screen } from '../../../src/components/ui';
+import { Button, Card, ErrorView, Field, KeyValue, Loading, Screen, SectionTitle } from '../../../src/components/ui';
 import { colors, font } from '../../../src/theme';
 import { fmtDate } from '../../(tabs)/transaksi';
 
@@ -51,6 +52,7 @@ export default function ResultScreen() {
           {t.serialNumber ? <KeyValue label={t.steps.some((x) => x.type === 'BillInquiry') ? 'No. Referensi' : 'SN / Token'} value={t.serialNumber} bold /> : null}
           <KeyValue label="Waktu" value={fmtDate(t.createdAt)} />
         </Card>
+        {t.status === 'SUCCESS' || t.status === 'PENDING' ? <SellPriceCard t={t} /> : null}
         <View style={{ flex: 1 }} />
         {t.status !== 'SUCCESS' ? (
           <Button title="Hubungi Customer Service" variant="outline" style={{ marginBottom: 10 }} disabled={!wa} onPress={() => openExternal(`https://wa.me/${wa}?text=${encodeURIComponent(csText)}`)} />
@@ -59,5 +61,45 @@ export default function ResultScreen() {
         <View style={{ height: 16 }} />
       </ScrollView>
     </Screen>
+  );
+}
+
+/** The agent's own price to its customer and the profit it makes (for Rekap). */
+function SellPriceCard({ t }: { t: Transaction }) {
+  const setPrice = useSetSellPrice(t.id);
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState('');
+  const sell = t.sellPrice ?? t.total;
+  const entered = Number(value);
+
+  return (
+    <Card style={{ marginBottom: 12 }}>
+      <SectionTitle
+        right={
+          !editing ? (
+            <Text style={{ color: colors.teal, fontWeight: '700', fontSize: font.body }} onPress={() => { setValue(String(sell)); setEditing(true); }}>
+              Ubah
+            </Text>
+          ) : undefined
+        }
+      >
+        Harga jual Anda
+      </SectionTitle>
+      {editing ? (
+        <>
+          <Field label="Harga jual ke pelanggan" value={value} onChangeText={(v) => setValue(v.replace(/\D/g, '').slice(0, 9))} keyboardType="number-pad" autoFocus hint={value ? `Untung ${formatRp(entered - t.total)}` : undefined} testID="sell-price" />
+          {setPrice.isError ? <Text style={{ color: colors.danger, marginBottom: 8 }}>{(setPrice.error as Error).message}</Text> : null}
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <Button title="Batal" variant="outline" style={{ flex: 1 }} onPress={() => setEditing(false)} />
+            <Button title="Simpan" style={{ flex: 1 }} loading={setPrice.isPending} disabled={!value} onPress={() => setPrice.mutate(entered, { onSuccess: () => setEditing(false) })} />
+          </View>
+        </>
+      ) : (
+        <>
+          <KeyValue label="Harga jual" value={formatRp(sell)} />
+          <KeyValue label="Untung" value={formatRp(sell - t.total)} bold last />
+        </>
+      )}
+    </Card>
   );
 }
