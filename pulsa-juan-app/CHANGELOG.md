@@ -5,6 +5,12 @@ isi berupa poin `- ` yang ditampilkan di landing page (Riwayat versi), jadi tuli
 Sebelum rilis: naikkan `expo.version` dan `expo.android.versionCode` di `app.json`, tambah bagian
 baru di sini, commit, lalu `npm run release:android`.
 
+## 1.0.3 (versionCode 4) — 2026-10-28
+- Harga jual & keuntungan: atur untung per transaksi, untuk semua layanan atau per layanan (Profil → Harga jual & keuntungan)
+- Setiap transaksi menampilkan harga jual dan untung Anda, dan harga jualnya bisa diubah
+- Rekap kini menampilkan pendapatan: omzet, modal, untung jualan dan komisi mitra
+- Lupa PIN: kode verifikasi dikirim lewat WhatsApp (atau SMS)
+
 ## 1.0.2 (versionCode 3) — 2026-10-27
 - Daftar dan masuk dengan akun Google
 - Daftar tanpa kode OTP: cukup isi nomor HP dan data diri, akun langsung aktif
