@@ -1,6 +1,22 @@
 {
-  "latest": "1.0.2",
+  "latest": "1.0.3",
   "releases": [
+    {
+      "version": "1.0.3",
+      "versionCode": 4,
+      "date": "2026-10-28",
+      "file": "/download/pulsa-juan-1.0.3.apk",
+      "sizeBytes": 90361032,
+      "sha256": "7b378868c57c9bee952fefb6f8210e6564162e729f224b577556311184cbbb93",
+      "gitCommit": "05624e198e34ecc1c8e7299a930023ca013c042f",
+      "easBuildId": "5cd08426-3f0d-447a-811c-1595647d26b3",
+      "notes": [
+        "Harga jual & keuntungan: atur untung per transaksi, untuk semua layanan atau per layanan (Profil → Harga jual & keuntungan)",
+        "Setiap transaksi menampilkan harga jual dan untung Anda, dan harga jualnya bisa diubah",
+        "Rekap kini menampilkan pendapatan: omzet, modal, untung jualan dan komisi mitra",
+        "Lupa PIN: kode verifikasi dikirim lewat WhatsApp (atau SMS)"
+      ]
+    },
     {
       "version": "1.0.2",
       "versionCode": 3,
