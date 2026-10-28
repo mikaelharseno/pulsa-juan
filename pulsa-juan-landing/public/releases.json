@@ -1,6 +1,21 @@
 {
-  "latest": "1.0.1",
+  "latest": "1.0.2",
   "releases": [
+    {
+      "version": "1.0.2",
+      "versionCode": 3,
+      "date": "2026-10-27",
+      "file": "/download/pulsa-juan-1.0.2.apk",
+      "sizeBytes": 90354124,
+      "sha256": "cba244643fdcc405a892b3857f72b8d24d094a8e8e1fe3a89356ffb570411f45",
+      "gitCommit": "b664420905d11b80fea713b2143ed2f3b001c601",
+      "easBuildId": "0cb9e67a-20a9-4e87-b4fc-8809651cc2c5",
+      "notes": [
+        "Daftar dan masuk dengan akun Google",
+        "Daftar tanpa kode OTP: cukup isi nomor HP dan data diri, akun langsung aktif",
+        "Tetap masuk selama 1 tahun tanpa perlu login ulang"
+      ]
+    },
     {
       "version": "1.0.1",
       "versionCode": 2,

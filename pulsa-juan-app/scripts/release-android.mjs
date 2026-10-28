@@ -79,7 +79,7 @@ if (!artifactUrl) fail(`EAS build ${build.id} has no artifact URL`);
 const dir = mkdtempSync(join(tmpdir(), 'pulsa-juan-release-'));
 const apk = join(dir, `pulsa-juan-${version}.apk`);
 console.log('Downloading the build…');
-run('curl', ['-fsSL', '-o', apk, artifactUrl], dir);
+run('curl', ['-fsSL', '--retry', '3', '--retry-all-errors', '-o', apk, artifactUrl], dir);
 const sizeBytes = statSync(apk).size;
 const sha256 = createHash('sha256').update(readFileSync(apk)).digest('hex');
 
