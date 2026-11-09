@@ -67,6 +67,7 @@ router.post('/billers/:id/check', requireRole('OWNER', 'ADMIN'), c.postBillerChe
 router.get('/bill-checks/:id', c.getBillCheck);
 
 router.get('/integrations', c.getIntegrations);
+router.get('/integrations/products', c.getProductIntegrations);
 router.post('/integrations/telegram/test', requireRole('OWNER', 'ADMIN'), c.postTelegramTest);
 
 export default router;

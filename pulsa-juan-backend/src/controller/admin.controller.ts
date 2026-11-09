@@ -16,6 +16,7 @@ import * as seg from '../service/segment.service';
 import * as topup from '../service/topup.service';
 import * as trx from '../service/transaction.service';
 import { integrationStatus, sendTelegramTest } from '../service/integrations.service';
+import { productIntegrationStatus } from '../service/productIntegration.service';
 import * as updater from '../service/productUpdater.service';
 import * as bills from '../service/bill.service';
 import { listLedger } from '../service/saldo.service';
@@ -228,6 +229,9 @@ export const postProductUpdaterApply = asyncHandler(async (req: Request, res: Re
 // ---- integrations ----
 export const getIntegrations = asyncHandler(async (_req: Request, res: Response) => {
   res.json(integrationStatus());
+});
+export const getProductIntegrations = asyncHandler(async (_req: Request, res: Response) => {
+  res.json(await productIntegrationStatus());
 });
 export const postTelegramTest = asyncHandler(async (req: Request, res: Response) => {
   res.json(await sendTelegramTest(req.admin!.email));

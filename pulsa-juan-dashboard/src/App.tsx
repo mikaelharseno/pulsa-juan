@@ -5,6 +5,7 @@ import LoginPage from './pages/LoginPage';
 import AgentDetailPage from './pages/AgentDetailPage';
 import AgentsPage from './pages/AgentsPage';
 import BillersPage from './pages/BillersPage';
+import IntegrationStatusPage from './pages/IntegrationStatusPage';
 import MitraPage from './pages/MitraPage';
 import PackagesPage from './pages/PackagesPage';
 import ProductUpdaterPage from './pages/ProductUpdaterPage';
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="/segments/:id/tree" element={<TreeEditorPage />} />
         <Route path="/packages" element={<PackagesPage />} />
         <Route path="/billers" element={<BillersPage />} />
+        <Route path="/integration-status" element={<IntegrationStatusPage />} />
         <Route path="/product-updater" element={<ProductUpdaterPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/topups" replace />} />

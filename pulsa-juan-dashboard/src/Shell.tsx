@@ -9,6 +9,7 @@ import {
   Menu as MenuIcon,
   ReceiptLong,
   Settings,
+  SyncAlt,
   UploadFile,
 } from '@mui/icons-material';
 import { AppBar, Box, Divider, Drawer, IconButton, List, ListItemButton, ListItemIcon, ListItemText, ListSubheader, Toolbar, Typography, useMediaQuery } from '@mui/material';
@@ -27,6 +28,7 @@ export const NAV_ITEMS = [
   { key: 'segments', label: 'Segmen & Alur', to: '/segments', group: 'Katalog', icon: <AccountTree fontSize="small" /> },
   { key: 'packages', label: 'Paket', to: '/packages', group: 'Katalog', icon: <Inventory2 fontSize="small" /> },
   { key: 'billers', label: 'Tagihan (Biller)', to: '/billers', group: 'Katalog', icon: <ElectricBolt fontSize="small" /> },
+  { key: 'integration-status', label: 'Status Integrasi', to: '/integration-status', group: 'Katalog', icon: <SyncAlt fontSize="small" /> },
   { key: 'product-updater', label: 'Product Updater', to: '/product-updater', group: 'Katalog', icon: <UploadFile fontSize="small" /> },
   { key: 'settings', label: 'Pengaturan', to: '/settings', group: 'Toko', icon: <Settings fontSize="small" /> },
 ];
