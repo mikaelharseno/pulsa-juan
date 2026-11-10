@@ -16,7 +16,7 @@ export function AuthShell({ title, subtitle, logo, children }: { title: string; 
             <View style={{ alignItems: 'center', marginBottom: 22 }}>
               {logo ? (
                 <View style={{ width: 56, height: 56, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.16)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
-                  <Text style={{ color: colors.white, fontSize: 26, fontWeight: '800' }}>PJ</Text>
+                  <Text style={{ color: colors.white, fontSize: 26, fontWeight: '800' }}>MK</Text>
                 </View>
               ) : null}
               <Text style={{ color: colors.white, fontSize: logo ? 30 : 28, fontWeight: '800', letterSpacing: -0.7 }}>{title}</Text>

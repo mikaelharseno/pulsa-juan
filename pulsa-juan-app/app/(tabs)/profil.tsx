@@ -80,7 +80,7 @@ export default function ProfilScreen() {
           <View style={{ padding: 12 }}>
             <View style={styles.panel}>
               <Stat label="Saldo" value={formatRp(a.saldo)} color={colors.tealDark} />
-              <Stat label="Hutang" value={formatRp(a.hutang)} color={a.hutang > 0 ? colors.danger : undefined} />
+              {a.hutang > 0 ? <Stat label="Hutang" value={formatRp(a.hutang)} color={colors.danger} /> : null}
               <Stat label="Poin" value={String(a.poin)} last />
             </View>
             <View style={styles.pillRow}>
@@ -125,7 +125,7 @@ export default function ProfilScreen() {
         </Card>
 
         <Button title="Keluar" variant="ghost" icon="log-out-outline" onPress={() => signOut()} style={{ borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.card }} />
-        <Text style={styles.version}>Pulsa Juan versi {APP_VERSION}</Text>
+        <Text style={styles.version}>Murah Kuota versi {APP_VERSION}</Text>
       </ScrollView>
     </Screen>
   );

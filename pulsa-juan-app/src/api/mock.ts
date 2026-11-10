@@ -217,7 +217,7 @@ export async function mockApi(path: string, method: string, json: any, query: Re
       agent, saldo: agent.saldo, hutang: agent.hutang, poin: agent.poin, markupTotal: 0,
       todayTransactions: todayCount(), commissionUnclaimed: unclaimed(),
       banners: BANNERS, groups: [], segments: list, cs: CS,
-      config: { topUpMin: 10000, topUpMax: 5000000, appName: 'Pulsa Juan', maxReferralMarkup: 2000 },
+      config: { topUpMin: 10000, topUpMax: 5000000, appName: 'Murah Kuota', maxReferralMarkup: 2000 },
     });
   }
 

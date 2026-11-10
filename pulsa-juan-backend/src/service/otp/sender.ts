@@ -48,7 +48,7 @@ export class OtpIdSender implements OtpSender {
         const res = await fetch(`${(this.opts.baseUrl ?? 'https://api.otp.id').replace(/\/$/, '')}/v3/send`, {
           method: 'POST',
           headers: { authorization: `Bearer ${this.opts.apiKey}`, 'content-type': 'application/json' },
-          body: JSON.stringify({ channel, destination, otp: code, brand: this.opts.brand ?? 'Pulsa Juan', ttl: this.opts.ttlSeconds ?? 300 }),
+          body: JSON.stringify({ channel, destination, otp: code, brand: this.opts.brand ?? 'Murah Kuota', ttl: this.opts.ttlSeconds ?? 300 }),
           signal: AbortSignal.timeout(TIMEOUT_MS),
         });
         const reply = (await res.json().catch(() => ({}))) as OtpIdReply;

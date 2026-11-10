@@ -37,7 +37,7 @@ export default function LoginScreen() {
   const loginPassword = () => run(() => post<Session>('/agent/auth/login', { identifier, password }));
 
   return (
-    <AuthShell logo title="Pulsa Juan" subtitle="Aplikasi mitra agen pulsa & pembayaran">
+    <AuthShell logo title="Murah Kuota" subtitle="Aplikasi mitra agen pulsa & pembayaran">
       {GOOGLE_CONFIGURED ? (
         <>
           <GoogleButton onError={setError} onNeedsPhone={() => router.push('/(auth)/register')} />

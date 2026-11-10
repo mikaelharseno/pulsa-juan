@@ -28,6 +28,6 @@ export function integrationStatus() {
 
 export async function sendTelegramTest(adminEmail: string) {
   if (!telegramConfigured()) return { sent: false, reason: 'TELEGRAM_BOT_TOKEN / TELEGRAM_ALERT_CHAT_IDS belum diisi di server' };
-  await sendAdminAlert(`✅ Tes notifikasi Pulsa Juan dari dashboard (${escapeHtml(adminEmail)})`);
+  await sendAdminAlert(`✅ Tes notifikasi Murah Kuota dari dashboard (${escapeHtml(adminEmail)})`);
   return { sent: true };
 }

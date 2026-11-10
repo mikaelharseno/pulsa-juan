@@ -53,7 +53,7 @@ if (releases.releases.some((r) => r.version === version)) fail(`releases.json al
 const prev = releases.releases[0];
 if (prev && versionCode <= prev.versionCode) fail(`versionCode ${versionCode} must be greater than the last release's (${prev.versionCode})`);
 
-console.log(`Releasing Pulsa Juan ${version} (versionCode ${versionCode})`);
+console.log(`Releasing Murah Kuota ${version} (versionCode ${versionCode})`);
 
 // ---- build ----
 let build;
@@ -117,7 +117,7 @@ console.log(`Recorded in ${RELEASES_JSON}`);
 const tag = `android-v${version}`;
 if (release.gitCommit) {
   try {
-    run('git', ['tag', '-a', tag, release.gitCommit, '-m', `Pulsa Juan Android ${version} (versionCode ${versionCode})\n\n${notes.map((n) => `- ${n}`).join('\n')}`], REPO_DIR);
+    run('git', ['tag', '-a', tag, release.gitCommit, '-m', `Murah Kuota Android ${version} (versionCode ${versionCode})\n\n${notes.map((n) => `- ${n}`).join('\n')}`], REPO_DIR);
     console.log(`Tagged ${tag} → ${release.gitCommit.slice(0, 7)}`);
   } catch {
     console.warn(`! could not create tag ${tag} (already exists?)`);
@@ -129,5 +129,5 @@ if (deploy) {
   run('npx', ['-y', 'wrangler@4', 'deploy'], LANDING_DIR, { inherit: true });
 }
 
-console.log(`\n✔ Pulsa Juan ${version} released (${(sizeBytes / 1024 / 1024).toFixed(1)} MB, sha256 ${sha256.slice(0, 12)}…)`);
+console.log(`\n✔ Murah Kuota ${version} released (${(sizeBytes / 1024 / 1024).toFixed(1)} MB, sha256 ${sha256.slice(0, 12)}…)`);
 console.log('Next: commit pulsa-juan-landing/public/releases.json, then `git push origin main --follow-tags`.');

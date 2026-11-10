@@ -75,7 +75,7 @@ export default function Shell() {
             </IconButton>
           )}
           <Typography variant="h6" sx={{ fontWeight: 800, flex: 1 }}>
-            Pulsa Juan · Dashboard
+            Murah Kuota · Dashboard
           </Typography>
           <Typography variant="body2" sx={{ mr: 1, opacity: 0.9 }}>
             {session.admin.email} · {session.admin.role}

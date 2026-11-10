@@ -356,7 +356,7 @@ model Transaction {
 
 model StoreConfig {
   id                String   @id @default("singleton")
-  appName           String   @default("Pulsa Juan")
+  appName           String   @default("Murah Kuota")
   csWhatsapp        String   @default("")
   csTelegram        String   @default("")
   topUpMin          Int      @default(10000)

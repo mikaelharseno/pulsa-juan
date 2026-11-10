@@ -87,7 +87,7 @@ function SellPriceCard({ t }: { t: Transaction }) {
       </SectionTitle>
       {editing ? (
         <>
-          <Field label="Harga jual ke pelanggan" value={value} onChangeText={(v) => setValue(v.replace(/\D/g, '').slice(0, 9))} keyboardType="number-pad" autoFocus hint={value ? `Untung ${formatRp(entered - t.total)}` : undefined} testID="sell-price" />
+          <Field label="Harga jual ke pelanggan" value={value} onChangeText={(v) => setValue(v.replace(/\D/g, '').slice(0, 9))} keyboardType="number-pad" autoFocus testID="sell-price" />
           {setPrice.isError ? <Text style={{ color: colors.danger, marginBottom: 8 }}>{(setPrice.error as Error).message}</Text> : null}
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <Button title="Batal" variant="outline" style={{ flex: 1 }} onPress={() => setEditing(false)} />
@@ -96,8 +96,7 @@ function SellPriceCard({ t }: { t: Transaction }) {
         </>
       ) : (
         <>
-          <KeyValue label="Harga jual" value={formatRp(sell)} />
-          <KeyValue label="Untung" value={formatRp(sell - t.total)} bold last />
+          <KeyValue label="Harga jual" value={formatRp(sell)} bold last />
         </>
       )}
     </Card>

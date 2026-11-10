@@ -29,7 +29,7 @@ export default function MitraScreen() {
   const a = me.data!;
   const m = mitra.data!;
   const cap = home.data?.config.maxReferralMarkup ?? 2000;
-  const shareText = `Gabung jadi agen Pulsa Juan pakai kode referral saya: ${a.commisionUniqueId}`;
+  const shareText = `Gabung jadi agen Murah Kuota pakai kode referral saya: ${a.commisionUniqueId}`;
   const share = async () => {
     if (Platform.OS === 'web') {
       if (typeof navigator !== 'undefined' && 'share' in navigator) await navigator.share({ text: shareText });
