@@ -20,7 +20,9 @@ import { packagesForTree } from './package.service';
 import { getPrefixEntries } from './prefix.service';
 import { resolveMarkup } from './referral.service';
 import { creditSaldo, debitSaldo } from './saldo.service';
-import { sellPriceFor } from './sellPrice.service';
+import { verifyAgentPin } from './agentAuth.service';
+import { getConfig } from './config.service';
+import { initialSellPrice } from './sellPrice.service';
 import { manualOrderAlert, queueAdminAlert, stuckOrderAlert, supplierFailedAlert, supplierUnreachableAlert } from './telegram.service';
 
 const stepSchema = z.object({ nodeId: z.string().min(1), type: z.string().min(1) }).passthrough();
@@ -31,6 +33,8 @@ export const createTransactionSchema = z.object({
   steps: z.array(stepSchema).min(1).max(20),
   clientTotal: z.number().int(),
   idempotencyKey: z.string().min(8).max(64),
+  /** the agent's 6-digit PIN; required when StoreConfig.requirePurchasePin is on, always checked when sent */
+  pin: z.string().trim().regex(/^\d{6}$/, 'PIN 6 angka').optional(),
 });
 
 export const inquirySchema = z.object({
@@ -104,6 +108,9 @@ export async function createTransaction(agent: Agent, input: z.infer<typeof crea
     return { transaction: existing, reused: true };
   }
 
+  const config = await getConfig();
+  if (config.requirePurchasePin || input.pin !== undefined) await verifyAgentPin(agent.id, input.pin);
+
   const { segment, version, tree } = await loadPublished(input.segmentId);
   if (version.version !== input.treeVersion) {
     throw conflict('Layanan sudah diperbarui, silakan ulangi', 'TREE_OUTDATED', { treeVersion: version.version });
@@ -147,6 +154,7 @@ export async function createTransaction(agent: Agent, input: z.infer<typeof crea
     : null;
   const productCode = bill ? bill.biller.payCode : pkg?.supplierSku ?? null;
   const provider = providerFor(productCode ? { supplierSku: productCode } : null);
+  const sellPrice = await initialSellPrice(agent, segment.id, price.packageId ?? null, price.total);
 
   const transaction = await prisma.$transaction(async (tx) => {
     const trx = await tx.transaction.create({
@@ -164,7 +172,7 @@ export async function createTransaction(agent: Agent, input: z.infer<typeof crea
         adminFee: price.adminFee,
         markupTotal: price.markupTotal,
         total: price.total,
-        sellPrice: sellPriceFor(agent, segment.id, price.total),
+        sellPrice,
         idempotencyKey: input.idempotencyKey,
         provider: provider.name,
         fulfillmentMode: provider.mode,

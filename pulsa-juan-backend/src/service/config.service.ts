@@ -20,6 +20,7 @@ export const configUpdateSchema = z.object({
   bcaAccountName: z.string().trim().max(80).optional(),
   banners: z.array(bannerSchema).max(10).optional(),
   maxReferralMarkup: z.number().int().min(0).max(100000).optional(),
+  requirePurchasePin: z.boolean().optional(),
 });
 
 export type Banner = z.infer<typeof bannerSchema>;

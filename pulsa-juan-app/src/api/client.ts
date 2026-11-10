@@ -75,3 +75,4 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown;
 export const get = <T>(path: string, query?: Record<string, unknown>) => api<T>(path, { method: 'GET', query });
 export const post = <T>(path: string, json?: unknown) => api<T>(path, { method: 'POST', json: json ?? {} });
 export const put = <T>(path: string, json?: unknown) => api<T>(path, { method: 'PUT', json: json ?? {} });
+export const del = <T>(path: string) => api<T>(path, { method: 'DELETE' });

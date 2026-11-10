@@ -325,6 +325,9 @@ export async function mockApi(path: string, method: string, json: any, query: Re
     if (m === 'PUT') sellMargins = { default: Number(json?.default) || 0, bySegment: (json?.bySegment ?? {}) as Record<string, number> };
     return ok(sellMargins);
   }
+  if (route === 'sell-prices') return ok([]);
+  if (seg[1] === 'sell-prices' && m === 'DELETE') return ok({ ok: true });
+  if (seg[1] === 'transactions' && seg[2] && seg[3] === 'bon') return ok({ token: 'demo-bon-' + seg[2] });
   if (seg[1] === 'transactions' && seg[2] && seg[3] === 'sell-price') {
     const t = transactions.find((x) => x.id === seg[2]);
     if (!t) return fail(404, 'Transaksi tidak ditemukan');

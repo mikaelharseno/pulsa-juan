@@ -2,7 +2,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { DEFAULT_PREFIXES } from 'pulsa-juan-common';
 
 import { useAuth } from '../auth/useAuth';
-import { get, post, put } from './client';
+import { API_BASE, del, get, post, put } from './client';
 import {
   AgentConfig,
   AgentProfile,
@@ -11,6 +11,7 @@ import {
   LedgerList,
   MitraOverview,
   Rekap,
+  SavedSellPrice,
   SellMargins,
   TopUpOrder,
   Transaction,
@@ -79,6 +80,7 @@ export function useTransaction(id: string, poll: boolean) {
   return useQuery({
     queryKey: keys.transaction(id),
     queryFn: () => get<Transaction>(`/agent/transactions/${id}`),
+    enabled: !!id,
     refetchInterval: (query) => (poll && query.state.data?.status === 'PENDING' ? 3000 : false),
     // keep polling while the app/tab is in the background so the result page updates on return
     refetchIntervalInBackground: true,
@@ -197,7 +199,29 @@ export function useSaveSellMargins() {
   });
 }
 
-/** null resets the order to the agent's margin rule. */
+export function useSavedSellPrices() {
+  return useQuery({ queryKey: ['sellPrices'], queryFn: () => get<SavedSellPrice[]>('/agent/sell-prices') });
+}
+
+export function useDeleteSellPrice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => del<{ ok: true }>(`/agent/sell-prices/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['sellPrices'] }),
+  });
+}
+
+/** The order's public bon link (made on first use). */
+export function useBonLink() {
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { token } = await post<{ token: string }>(`/agent/transactions/${id}/bon`);
+      return { token, url: `${API_BASE}/bon/${token}` };
+    },
+  });
+}
+
+/** null resets the order to the agent's margin rule (and forgets the saved product price). */
 export function useSetSellPrice(id: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -206,6 +230,7 @@ export function useSetSellPrice(id: string) {
       qc.setQueryData(keys.transaction(id), data);
       qc.invalidateQueries({ queryKey: ['rekap'] });
       qc.invalidateQueries({ queryKey: ['transactions'] });
+      qc.invalidateQueries({ queryKey: ['sellPrices'] });
     },
   });
 }

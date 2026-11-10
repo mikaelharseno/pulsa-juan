@@ -154,6 +154,21 @@ model Agent {
   transactions Transaction[]
   commissionsGenerated AgentMarkupCommision[] @relation("commissionSource")
   billChecks   BillCheck[]
+  sellPrices   AgentSellPrice[]
+}
+
+/// The agent's own price to its customer for one product, saved whenever the
+/// agent sets a sell price on an order of that product. Beats sellMargins.
+model AgentSellPrice {
+  id        String   @id @default(cuid())
+  agentId   String
+  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  packageId String
+  package   Package  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  sellPrice Int
+  updatedAt DateTime @updatedAt
+
+  @@unique([agentId, packageId])
 }
 
 /// OTP for a phone that has no Agent yet (registration). Existing agents keep
@@ -286,6 +301,7 @@ model Package {
   updatedAt    DateTime  @updatedAt
 
   transactions Transaction[]
+  agentSellPrices AgentSellPrice[]
 
   @@index([category, isActive, sortOrder])
 }
@@ -341,6 +357,8 @@ model Transaction {
   refundReason   String?
   refundedAt     DateTime?
   idempotencyKey String            @unique
+  /// public link key for the customer's PDF bon (/bon/:token); made on first use
+  invoiceToken   String?           @unique
   processedById  String?
   processedAt    DateTime?
   createdAt      DateTime          @default(now())
@@ -369,6 +387,8 @@ model StoreConfig {
   /// ordered [{imageUrl, linkUrl?}] — one carousel for the whole app
   banners           Json     @default("[]")
   maxReferralMarkup Int      @default(2000)
+  /// true = every purchase needs the agent's PIN (turn on once agents run an app that asks for it)
+  requirePurchasePin Boolean @default(false)
   /// Product Updater default margin: agent price = roundUp(cost + fixed + cost * percent / 100, roundTo)
   productMarginFixed   Int   @default(0)
   productMarginPercent Float @default(0)

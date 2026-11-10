@@ -8,6 +8,7 @@ import { ScrollView, Text, View } from 'react-native';
 import { ApiError, post } from '../../../src/api/client';
 import { useAgentConfig, useInvalidateMoney, useMe, useTree } from '../../../src/api/hooks';
 import { Transaction } from '../../../src/api/types';
+import { PinSheet } from '../../../src/components/PinSheet';
 import { Button, Card, ErrorView, KeyValue, Loading, Screen, SectionTitle } from '../../../src/components/ui';
 import { useFlowSession, useFlowStore } from '../../../src/flow/useFlowStore';
 import { colors, font } from '../../../src/theme';
@@ -23,22 +24,28 @@ export default function ConfirmScreen() {
   const invalidate = useInvalidateMoney();
   const [idempotencyKey] = useState(() => Crypto.randomUUID());
   const [serverTotal, setServerTotal] = useState<number | null>(null);
+  const [pinOpen, setPinOpen] = useState(false);
 
   const submit = useMutation({
-    mutationFn: (clientTotal: number) =>
+    mutationFn: ({ clientTotal, pin }: { clientTotal: number; pin: string }) =>
       post<{ transaction: Transaction }>('/agent/transactions', {
         segmentId,
         treeVersion: session!.treeVersion,
         steps: session!.steps,
         clientTotal,
         idempotencyKey,
+        pin,
       }),
     onSuccess: ({ transaction }) => {
+      setPinOpen(false);
       clear(segmentId);
       invalidate();
       router.replace(`/transaction/${transaction.id}/result`);
     },
     onError: (e) => {
+      // a wrong PIN stays in the sheet for another try; anything else is shown on the page
+      if (!(e instanceof ApiError && e.code === 'PIN_INVALID')) setPinOpen(false);
+      if (e instanceof ApiError && e.code === 'PIN_REQUIRED') me.refetch();
       if (e instanceof ApiError && e.code === 'PRICE_CHANGED') setServerTotal(e.extra.total as number);
       if (e instanceof ApiError && e.code === 'TREE_OUTDATED') {
         clear(segmentId);
@@ -67,7 +74,8 @@ export default function ConfirmScreen() {
   const total = serverTotal ?? view.price!.total;
   const saldo = me.data?.saldo ?? 0;
   const enough = saldo >= total;
-  const errorMsg = submit.error instanceof ApiError && submit.error.code !== 'PRICE_CHANGED' ? submit.error.message : null;
+  const pinError = submit.error instanceof ApiError && submit.error.code === 'PIN_INVALID' ? submit.error.message + (typeof submit.error.extra.attemptsLeft === 'number' ? ` (sisa ${submit.error.extra.attemptsLeft} kali)` : '') : null;
+  const errorMsg = submit.error instanceof ApiError && submit.error.code !== 'PRICE_CHANGED' && submit.error.code !== 'PIN_INVALID' ? submit.error.message : null;
 
   return (
     <Screen title="Konfirmasi">
@@ -90,9 +98,17 @@ export default function ConfirmScreen() {
         {errorMsg ? <Text style={{ color: colors.danger, marginBottom: 8 }}>{errorMsg}</Text> : null}
         <View style={{ flexDirection: 'row', gap: 10 }}>
           {!enough ? <Button title="Isi Saldo" variant="outline" style={{ flex: 1 }} onPress={() => router.push('/topup/amount')} /> : null}
-          <Button title="Bayar" style={{ flex: 1 }} disabled={!enough} loading={submit.isPending} onPress={() => submit.mutate(total)} />
+          <Button title="Bayar" style={{ flex: 1 }} disabled={!enough} loading={submit.isPending && !pinOpen} onPress={() => { submit.reset(); setPinOpen(true); }} />
         </View>
       </ScrollView>
+      <PinSheet
+        visible={pinOpen}
+        hasPin={!!me.data?.hasPin}
+        busy={submit.isPending}
+        error={pinError}
+        onClose={() => setPinOpen(false)}
+        onSubmit={(pin) => submit.mutate({ clientTotal: total, pin })}
+      />
     </Screen>
   );
 }

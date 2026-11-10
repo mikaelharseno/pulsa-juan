@@ -4,8 +4,10 @@ import { formatRp } from 'pulsa-juan-common';
 import React, { useMemo, useState } from 'react';
 import { Modal, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
 
-import { useTransactions } from '../../src/api/hooks';
+import { useTransaction, useTransactions } from '../../src/api/hooks';
 import { Transaction } from '../../src/api/types';
+import { BonActions, SellPriceCard } from '../../src/components/bon';
+import { Sheet } from '../../src/components/Sheet';
 import { Button, DarkTabs, Empty, ErrorView, Field, Loading, Screen, SectionBand, StatusPill } from '../../src/components/ui';
 import { ServiceTile } from '../../src/icons/ServiceIcon';
 import { colors, font, size } from '../../src/theme';
@@ -47,6 +49,7 @@ export default function TransaksiScreen() {
   const [filters, setFilters] = useState<Filters>({ sort: 'createdAt', dir: 'desc' });
   const [draft, setDraft] = useState<Filters>(filters);
   const [open, setOpen] = useState(false);
+  const [bonFor, setBonFor] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [rows, setRows] = useState<Transaction[]>([]);
   const q = useTransactions({ ...filters, page, pageSize: 25 });
@@ -116,9 +119,10 @@ export default function TransaksiScreen() {
           onRefresh={() => { setPage(1); q.refetch(); }}
           renderSectionHeader={({ section }) => <SectionBand>{section.title}</SectionBand>}
           renderItem={({ item, index, section }) => (
+            <View style={[index < section.data.length - 1 && styles.rowBorder, { backgroundColor: colors.card }]}>
             <Pressable
               onPress={() => router.push(`/transaction/${item.id}/result?from=list`)}
-              style={({ pressed }) => [styles.row, index < section.data.length - 1 && styles.rowBorder, pressed && { backgroundColor: colors.tealTint }]}
+              style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.tealTint }]}
             >
               <View style={{ marginRight: 12 }}>
                 <ServiceTile iconUrl={item.segment?.iconUrl} slug={item.segment?.slug} px={38} />
@@ -134,9 +138,23 @@ export default function TransaksiScreen() {
                 <View style={{ marginTop: 4 }}><StatusPill status={item.status} /></View>
               </View>
             </Pressable>
+            {item.status === 'SUCCESS' || item.status === 'PENDING' ? (
+              <View style={styles.actions}>
+                <Pressable onPress={() => setBonFor(item.id)} hitSlop={6} style={styles.action} testID={`row-sell-${item.trxNumber}`}>
+                  <Ionicons name="pricetag-outline" size={13} color={colors.teal} />
+                  <Text style={styles.actionText}>Harga jual {formatRp(item.sellPrice ?? item.total)}</Text>
+                </Pressable>
+                <Pressable onPress={() => setBonFor(item.id)} hitSlop={6} style={styles.action} testID={`row-bon-${item.trxNumber}`}>
+                  <Ionicons name="receipt-outline" size={13} color={colors.teal} />
+                  <Text style={styles.actionText}>Kirim bon</Text>
+                </Pressable>
+              </View>
+            ) : null}
+            </View>
           )}
         />
       )}
+      <BonSheet id={bonFor} onClose={() => setBonFor(null)} />
       <Modal visible={open} animationType="slide" transparent onRequestClose={() => setOpen(false)}>
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.4)' }} onPress={() => setOpen(false)} />
         <View style={styles.sheet}>
@@ -161,7 +179,30 @@ export default function TransaksiScreen() {
   );
 }
 
+/** Sell price + bon for one order, opened from its row ("nanti saat senggang"). */
+function BonSheet({ id, onClose }: { id: string | null; onClose: () => void }) {
+  const trx = useTransaction(id ?? '', false);
+  const t = id ? trx.data : undefined;
+  return (
+    <Sheet visible={!!id} onClose={onClose} title={t ? `#${t.trxNumber} · ${t.segmentLabel}` : 'Transaksi'}>
+      {!t ? (
+        <Loading />
+      ) : (
+        <>
+          <Text style={{ color: colors.muted, fontSize: font.small, marginBottom: 12 }}>{t.phoneNumber ?? t.customerId ?? '-'}</Text>
+          <SellPriceCard t={t} card={false} />
+          <Text style={[styles.sheetTitle, { fontSize: font.body, marginBottom: 8 }]}>Kirim bon</Text>
+          <BonActions t={t} />
+        </>
+      )}
+    </Sheet>
+  );
+}
+
 const styles = StyleSheet.create({
+  actions: { flexDirection: 'row', gap: 16, paddingLeft: size.gutter + 50, paddingRight: size.gutter, paddingBottom: 10, marginTop: -4 },
+  action: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  actionText: { fontSize: font.tiny, fontWeight: '600', color: colors.teal },
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, paddingHorizontal: size.gutter, paddingVertical: 12 },
   rowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.hairline },
   label: { fontSize: font.rowLabel, fontWeight: '600', color: colors.ink, letterSpacing: -0.1 },

@@ -1,5 +1,5 @@
 import { ArrowDownward, ArrowUpward, Delete } from '@mui/icons-material';
-import { Alert, Box, Button, Grid, IconButton, MenuItem, Paper, Select, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, FormControlLabel, Grid, IconButton, MenuItem, Paper, Select, Switch, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PROVIDERS } from 'pulsa-juan-common';
 import { useEffect, useState } from 'react';
@@ -12,7 +12,7 @@ import { MediaDropZone } from '../components/DropZone';
 
 interface Config {
   appName: string; csWhatsapp: string; csTelegram: string; topUpMin: number; topUpMax: number; topUpExpiryHours: number;
-  briAccountNumber: string; briAccountName: string; bcaAccountNumber: string; bcaAccountName: string; banners: { imageUrl: string; linkUrl?: string }[]; maxReferralMarkup: number;
+  briAccountNumber: string; briAccountName: string; bcaAccountNumber: string; bcaAccountName: string; banners: { imageUrl: string; linkUrl?: string }[]; maxReferralMarkup: number; requirePurchasePin: boolean;
 }
 interface Prefix { id: string; prefix: string; provider: string; isActive: boolean }
 
@@ -57,6 +57,14 @@ export default function SettingsPage() {
               <Grid item xs={4}><TextField label="Top up maks (Rp)" type="number" {...f('topUpMax')} /></Grid>
               <Grid item xs={4}><TextField label="Kedaluwarsa (jam)" type="number" {...f('topUpExpiryHours')} /></Grid>
             </Grid>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, mt: 3, mb: 0.5 }}>Keamanan transaksi</Typography>
+            <FormControlLabel
+              control={<Switch checked={!!form.requirePurchasePin} disabled={!canEdit} onChange={(e) => setForm({ ...form, requirePurchasePin: e.target.checked })} />}
+              label="Wajib PIN untuk setiap transaksi"
+            />
+            <Typography variant="body2" color="text.secondary">
+              Aplikasi Murah Kuota versi baru selalu meminta PIN sebelum membayar. Nyalakan ini setelah semua agen memakai versi baru: aplikasi lama tidak mengirim PIN, jadi transaksinya akan ditolak.
+            </Typography>
           </Paper>
         </Grid>
         <Grid item xs={12} md={6}>

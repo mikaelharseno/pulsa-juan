@@ -139,8 +139,9 @@ export interface Transaction {
   adminFee: number;
   markupTotal: number;
   total: number;
-  /** what the agent charges its customer (total + its margin); null on older orders */
+  /** what the agent charges its customer (saved product price, else total + its margin); null on older orders */
   sellPrice?: number | null;
+  packageId?: string | null;
   status: TransactionStatus;
   serialNumber: string | null;
   failReason: string | null;
@@ -205,4 +206,16 @@ export interface BillCheckResponse {
   result?: InquiryResult;
   /** agent-facing reason when not READY */
   message?: string;
+}
+
+/** A sell price the agent saved for one product (beats the margin on new orders of it). */
+export interface SavedSellPrice {
+  id: string;
+  packageId: string;
+  name: string;
+  category: string;
+  isActive: boolean;
+  hargaAgen: number;
+  sellPrice: number;
+  updatedAt: string;
 }

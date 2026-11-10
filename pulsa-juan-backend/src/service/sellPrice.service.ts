@@ -4,10 +4,11 @@ import { Agent, Prisma } from '../../prisma/generated';
 import { prisma } from '../../prisma/client';
 import { badRequest, notFound } from '../lib/errors';
 
-// The agent's own selling price, for the income recap only (the agent charges its
-// customer offline; we never collect it). Margins are set once per service, with
-// a default for the rest; each order freezes total + margin as sellPrice, and
-// the agent can correct it per order afterwards.
+// The agent's own selling price (the agent charges its customer offline; we never
+// collect it): used for the income recap and the customer's bon. Margins are set
+// once per service, with a default for the rest. Setting a price on an order of a
+// product also saves it for that product (AgentSellPrice), and a saved product
+// price beats the margin on the next order of that product.
 
 const rp = z.number().int().min(0).max(1_000_000);
 
@@ -38,11 +39,47 @@ export async function saveSellMargins(agentId: string, input: SellMargins) {
   return readSellMargins(agent);
 }
 
-/** null resets it to the agent's current margin for that service. */
+/** The sell price a new order starts with: the saved product price, else total + margin. */
+export async function initialSellPrice(agent: Pick<Agent, 'id' | 'sellMargins'>, segmentId: string, packageId: string | null, total: number) {
+  if (packageId) {
+    const saved = await prisma.agentSellPrice.findUnique({ where: { agentId_packageId: { agentId: agent.id, packageId } } });
+    if (saved) return saved.sellPrice;
+  }
+  return sellPriceFor(agent, segmentId, total);
+}
+
+/**
+ * Sets the order's sell price and saves it for that product, so the next order
+ * of it starts there. null resets the order to the margin and forgets the saved
+ * product price.
+ */
 export async function setSellPrice(agent: Agent, transactionId: string, sellPrice: number | null) {
-  const trx = await prisma.transaction.findFirst({ where: { id: transactionId, agentId: agent.id }, select: { id: true, total: true, segmentId: true, status: true } });
+  const trx = await prisma.transaction.findFirst({ where: { id: transactionId, agentId: agent.id }, select: { id: true, total: true, segmentId: true, status: true, packageId: true } });
   if (!trx) throw notFound('Transaksi tidak ditemukan');
   if (trx.status === 'FAILED' || trx.status === 'REFUNDED') throw badRequest('Transaksi gagal / direfund tidak punya harga jual');
   const value = sellPrice ?? sellPriceFor(agent, trx.segmentId, trx.total);
-  return prisma.transaction.update({ where: { id: trx.id }, data: { sellPrice: value }, include: { segment: { select: { slug: true, iconUrl: true } } } });
+  return prisma.$transaction(async (tx) => {
+    if (trx.packageId) {
+      const key = { agentId_packageId: { agentId: agent.id, packageId: trx.packageId } };
+      if (sellPrice === null) await tx.agentSellPrice.deleteMany({ where: { agentId: agent.id, packageId: trx.packageId } });
+      else await tx.agentSellPrice.upsert({ where: key, update: { sellPrice }, create: { agentId: agent.id, packageId: trx.packageId, sellPrice } });
+    }
+    return tx.transaction.update({ where: { id: trx.id }, data: { sellPrice: value }, include: { segment: { select: { slug: true, iconUrl: true } } } });
+  });
+}
+
+/** Saved product prices, newest first, with the product's current agent price. */
+export async function listSellPrices(agentId: string) {
+  const rows = await prisma.agentSellPrice.findMany({
+    where: { agentId },
+    orderBy: { updatedAt: 'desc' },
+    include: { package: { select: { name: true, hargaAgen: true, category: true, isActive: true } } },
+  });
+  return rows.map((r) => ({ id: r.id, packageId: r.packageId, name: r.package.name, category: r.package.category, isActive: r.package.isActive, hargaAgen: r.package.hargaAgen, sellPrice: r.sellPrice, updatedAt: r.updatedAt }));
+}
+
+export async function deleteSellPrice(agentId: string, id: string) {
+  const { count } = await prisma.agentSellPrice.deleteMany({ where: { id, agentId } });
+  if (!count) throw notFound('Harga jual tidak ditemukan');
+  return { ok: true };
 }

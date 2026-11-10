@@ -1,9 +1,9 @@
 import { formatRp } from 'pulsa-juan-common';
 import React, { useEffect, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 
-import { useHome, useSaveSellMargins, useSellMargins } from '../src/api/hooks';
-import { Button, Card, ErrorView, Field, Loading, Screen, SectionTitle } from '../src/components/ui';
+import { useDeleteSellPrice, useHome, useSavedSellPrices, useSaveSellMargins, useSellMargins } from '../src/api/hooks';
+import { Button, Card, ErrorView, Field, KeyValue, Loading, Screen, SectionTitle } from '../src/components/ui';
 import { colors, font } from '../src/theme';
 
 const digits = (v: string) => v.replace(/\D/g, '').slice(0, 7);
@@ -67,11 +67,39 @@ export default function HargaJualScreen() {
           ))}
         </Card>
 
+        <SavedPrices />
+
         {save.isError ? <Text style={{ color: colors.danger, marginBottom: 8 }}>{(save.error as Error).message}</Text> : null}
         {msg ? <Text style={{ color: colors.primary, marginBottom: 8 }}>{msg}. Berlaku untuk transaksi berikutnya.</Text> : null}
         <Button title="Simpan" loading={save.isPending} onPress={submit} />
         <View style={{ height: 24 }} />
       </ScrollView>
     </Screen>
+  );
+}
+
+/** Prices saved per product from an order's "Harga jual Anda" (they beat the margins above). */
+function SavedPrices() {
+  const list = useSavedSellPrices();
+  const remove = useDeleteSellPrice();
+  const rows = list.data ?? [];
+  return (
+    <Card style={{ marginBottom: 12 }}>
+      <SectionTitle>Harga jual per produk</SectionTitle>
+      <Text style={{ color: colors.muted, fontSize: font.small, marginBottom: 6 }}>
+        Tersimpan otomatis setiap kali Anda mengubah harga jual di sebuah transaksi. Harga ini dipakai untuk transaksi produk yang sama berikutnya, menggantikan untung di atas.
+      </Text>
+      {list.isLoading ? <Loading /> : rows.length === 0 ? <Text style={{ color: colors.subtle, fontSize: font.small, paddingVertical: 6 }}>Belum ada.</Text> : null}
+      {rows.map((r, i) => (
+        <View key={r.id} style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ flex: 1 }}>
+            <KeyValue label={r.name} value={formatRp(r.sellPrice)} last={i === rows.length - 1} />
+          </View>
+          <Pressable onPress={() => remove.mutate(r.id)} hitSlop={8} style={{ paddingLeft: 10 }} accessibilityLabel={`Hapus harga ${r.name}`}>
+            <Text style={{ color: colors.danger, fontSize: font.small, fontWeight: '600' }}>Hapus</Text>
+          </Pressable>
+        </View>
+      ))}
+    </Card>
   );
 }

@@ -23,6 +23,7 @@ import {
   updateProfile,
 } from '../service/agentAuth.service';
 import { claimCommissions, commissionSummary } from '../service/commission.service';
+import * as bon from '../service/bon.service';
 import * as sell from '../service/sellPrice.service';
 import { getConfig, publicConfig } from '../service/config.service';
 import { otpRequestSchema, otpVerifySchema, requestOtp, verifyOtp } from '../service/otp/otp.service';
@@ -182,6 +183,18 @@ export const putSellMargins = asyncHandler(async (req: Request, res: Response) =
 export const putTransactionSellPrice = asyncHandler(async (req: Request, res: Response) => {
   const { sellPrice } = parse(sell.sellPriceSchema, req.body);
   res.json(await sell.setSellPrice(req.agent!, req.params.id, sellPrice));
+});
+
+export const getSellPrices = asyncHandler(async (req: Request, res: Response) => {
+  res.json(await sell.listSellPrices(req.agent!.id));
+});
+
+export const deleteSellPrice = asyncHandler(async (req: Request, res: Response) => {
+  res.json(await sell.deleteSellPrice(req.agent!.id, req.params.id));
+});
+
+export const postTransactionBon = asyncHandler(async (req: Request, res: Response) => {
+  res.json(await bon.bonTokenFor(req.agent!.id, req.params.id));
 });
 
 export const getCommissions = asyncHandler(async (req: Request, res: Response) => {

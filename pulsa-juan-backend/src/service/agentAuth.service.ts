@@ -240,28 +240,51 @@ export async function loginAgent(identifier: string, password: string) {
   return session(agent);
 }
 
-/** Phone + 6-digit PIN; PIN_MAX_ATTEMPTS wrong tries lock it for PIN_LOCK_MS. */
-export async function loginWithPin(input: z.infer<typeof pinLoginSchema>) {
-  const phone = normalizeIndonesianMobile(input.phone);
-  const agent = await prisma.agent.findUnique({ where: { phone } });
-  if (!agent || !agent.pinHash) throw unauthorized('Nomor HP atau PIN salah', 'PIN_INVALID');
+type ErrorFactory = typeof unauthorized;
+
+/**
+ * Checks a PIN with the shared lockout: PIN_MAX_ATTEMPTS wrong tries lock it
+ * for PIN_LOCK_MS. `fail` picks the HTTP status (login 401, in-app checks 400
+ * so the app does not treat a typo as a signed-out session).
+ */
+async function checkPin(agent: Agent, pin: string, fail: ErrorFactory, wrongMessage: string): Promise<void> {
+  if (!agent.pinHash) throw fail(wrongMessage, 'PIN_INVALID');
   if (agent.pinLockedUntil && agent.pinLockedUntil.getTime() > Date.now()) {
     const minutes = Math.ceil((agent.pinLockedUntil.getTime() - Date.now()) / 60000);
-    throw unauthorized(`PIN terkunci. Coba lagi dalam ${minutes} menit atau reset PIN.`, 'PIN_LOCKED', { lockedUntil: agent.pinLockedUntil });
+    throw fail(`PIN terkunci. Coba lagi dalam ${minutes} menit atau reset PIN.`, 'PIN_LOCKED', { lockedUntil: agent.pinLockedUntil });
   }
-  if (!(await bcrypt.compare(input.pin, agent.pinHash))) {
+  if (!(await bcrypt.compare(pin, agent.pinHash))) {
     const attempts = agent.pinFailedAttempts + 1;
     const lock = attempts >= PIN_MAX_ATTEMPTS;
     await prisma.agent.update({
       where: { id: agent.id },
       data: lock ? { pinFailedAttempts: 0, pinLockedUntil: new Date(Date.now() + PIN_LOCK_MS) } : { pinFailedAttempts: attempts },
     });
-    if (lock) throw unauthorized('PIN salah 5 kali. PIN terkunci 15 menit.', 'PIN_LOCKED');
-    throw unauthorized('Nomor HP atau PIN salah', 'PIN_INVALID', { attemptsLeft: PIN_MAX_ATTEMPTS - attempts });
+    if (lock) throw fail('PIN salah 5 kali. PIN terkunci 15 menit.', 'PIN_LOCKED');
+    throw fail(wrongMessage, 'PIN_INVALID', { attemptsLeft: PIN_MAX_ATTEMPTS - attempts });
   }
+  if (agent.pinFailedAttempts > 0 || agent.pinLockedUntil) {
+    await prisma.agent.update({ where: { id: agent.id }, data: { pinFailedAttempts: 0, pinLockedUntil: null } });
+  }
+}
+
+/** Phone + 6-digit PIN login. */
+export async function loginWithPin(input: z.infer<typeof pinLoginSchema>) {
+  const phone = normalizeIndonesianMobile(input.phone);
+  const agent = await prisma.agent.findUnique({ where: { phone } });
+  if (!agent || !agent.pinHash) throw unauthorized('Nomor HP atau PIN salah', 'PIN_INVALID');
+  await checkPin(agent, input.pin, unauthorized, 'Nomor HP atau PIN salah');
   assertActive(agent);
-  const fresh = await prisma.agent.update({ where: { id: agent.id }, data: { pinFailedAttempts: 0, pinLockedUntil: null } });
+  const fresh = await prisma.agent.findUniqueOrThrow({ where: { id: agent.id } });
   return session(fresh);
+}
+
+/** PIN check inside the app (purchase, PIN change); a missing PIN is PIN_REQUIRED. */
+export async function verifyAgentPin(agentId: string, pin: string | undefined) {
+  const agent = await prisma.agent.findUniqueOrThrow({ where: { id: agentId } });
+  if (!agent.pinHash) throw badRequest('Buat PIN dulu untuk melanjutkan transaksi', 'PIN_REQUIRED');
+  if (!pin) throw badRequest('Masukkan PIN', 'PIN_REQUIRED');
+  await checkPin(agent, pin, badRequest, 'PIN salah');
 }
 
 /** Forgot PIN: OTP (RESET_PIN) proves the phone; sets the new PIN and logs in. */
@@ -277,7 +300,8 @@ export async function resetPin(input: z.infer<typeof pinResetSchema>) {
 
 export async function changePin(agent: Agent, input: z.infer<typeof pinChangeSchema>) {
   if (agent.pinHash) {
-    if (!input.oldPin || !(await bcrypt.compare(input.oldPin, agent.pinHash))) throw badRequest('PIN lama salah', 'PIN_INVALID');
+    if (!input.oldPin) throw badRequest('PIN lama salah', 'PIN_INVALID');
+    await checkPin(agent, input.oldPin, badRequest, 'PIN lama salah');
   }
   await prisma.agent.update({ where: { id: agent.id }, data: { pinHash: await bcrypt.hash(input.newPin, 10) } });
   return { ok: true };
