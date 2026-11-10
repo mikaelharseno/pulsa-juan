@@ -73,6 +73,7 @@ enum BillCheckStatus {
 enum BankCode {
   BRI
   BCA
+  QRIS
 }
 
 enum Provider {
@@ -229,6 +230,10 @@ model TopUpOrder {
   confirmedById String?
   /// bank-mutation screenshot uploaded by the admin on confirmation (required unless isCredit)
   proofImageUrl String?
+  /// QRIS: the static QRIS this order pays to, and its admin fee (inside totalTransfer, not credited)
+  qrisCodeId    String?
+  qrisCode      QrisCode?   @relation(fields: [qrisCodeId], references: [id])
+  adminFee      Int         @default(0)
   /// confirmed on line of credit by an OWNER — no proof, Agent.hutang grows instead
   isCredit      Boolean     @default(false)
   rejectReason  String?
@@ -238,6 +243,7 @@ model TopUpOrder {
 
   @@index([status, createdAt])
   @@index([agentId, createdAt])
+  @@index([qrisCodeId, status])
 }
 
 model Segment {
@@ -394,6 +400,21 @@ model StoreConfig {
   productMarginPercent Float @default(0)
   productPriceRoundTo  Int   @default(100)
   updatedAt         DateTime @updatedAt
+}
+
+/// A static QRIS image admins upload; top-ups paid by QRIS go to the one with
+/// the least paid this month that still has room under monthlyLimit.
+model QrisCode {
+  id           String   @id @default(cuid())
+  label        String
+  imageUrl     String
+  monthlyLimit Int      @default(20000000)
+  isActive     Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  topUps TopUpOrder[]
 }
 
 /// One Product Updater apply (price sheet upload) — history shown in the dashboard

@@ -10,7 +10,7 @@ export { app, prisma, request };
 export async function resetDb() {
   await prisma.$executeRawUnsafe(`
     TRUNCATE TABLE "AdminAuditLog","AgentMarkupCommision","SaldoLedger","Transaction","TopUpOrder","PhoneVerification","ProductUpdate","BillCheck","Biller",
-    "Agent","AdminUser","SegmentTreeVersion","Segment","Package","ProviderPrefix","StoreConfig" RESTART IDENTITY CASCADE
+    "Agent","AdminUser","SegmentTreeVersion","Segment","Package","ProviderPrefix","StoreConfig","QrisCode" RESTART IDENTITY CASCADE
   `);
   await seed();
 }

@@ -1,4 +1,4 @@
-import { formatRp, kodeUnikBase, nextKodeUnik, toInternationalMobile } from 'pulsa-juan-common';
+import { formatRp, kodeUnikBase, nextKodeUnik, qrisFee, toInternationalMobile } from 'pulsa-juan-common';
 import { z } from 'zod';
 
 import { Agent, AdminRole, BankCode, Prisma, TopUpStatus } from '../../prisma/generated';
@@ -6,11 +6,12 @@ import { prisma } from '../../prisma/client';
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import { audit } from './audit.service';
 import { bankAccounts, getConfig } from './config.service';
+import { pickQrisCode } from './qris.service';
 import { creditSaldo } from './saldo.service';
 import { queueAdminAlert, topUpClaimedAlert } from './telegram.service';
 
 export const createTopUpSchema = z.object({ amount: z.number().int() });
-export const selectBankSchema = z.object({ bank: z.enum(['BRI', 'BCA']) });
+export const selectBankSchema = z.object({ bank: z.enum(['BRI', 'BCA', 'QRIS']) });
 export const adminTopUpUpdateSchema = z.object({
   status: z.enum(['PAID', 'REJECTED']),
   reason: z.string().trim().max(200).optional(),
@@ -54,19 +55,48 @@ async function ownTopUp(agentId: string, id: string) {
   return order;
 }
 
-export async function withBankDetails<T extends { bank: BankCode | null }>(order: T) {
+export async function withBankDetails<T extends { bank: BankCode | null; qrisCodeId?: string | null }>(order: T) {
   const config = await getConfig();
   const account = bankAccounts(config).find((a) => a.bank === order.bank) ?? null;
-  return { ...order, account };
+  const qris =
+    order.bank === 'QRIS' && order.qrisCodeId
+      ? await prisma.qrisCode.findUnique({ where: { id: order.qrisCodeId }, select: { id: true, label: true, imageUrl: true } })
+      : null;
+  return { ...order, account, qris };
 }
 
+// QRIS assignments are serialised so two agents paying at once cannot both
+// take the last room under one code's monthly limit.
+const QRIS_LOCK = 7_042_026;
+
+/**
+ * Picks how the agent pays. QRIS adds the admin fee (above Rp 500.000) to the
+ * transfer and reserves room on the least-used static QRIS; switching back to
+ * a bank drops both.
+ */
 export async function selectBank(agentId: string, id: string, bank: BankCode) {
   const order = await ownTopUp(agentId, id);
   if (!OPEN.includes(order.status)) throw badRequest('Top up sudah tidak bisa diubah');
-  const config = await getConfig();
-  if (!bankAccounts(config).some((a) => a.bank === bank)) throw badRequest('Rekening bank belum tersedia');
-  const updated = await prisma.topUpOrder.update({ where: { id }, data: { bank } });
+  const base = Number(order.amount) + order.kodeUnik;
+  if (bank !== 'QRIS') {
+    const config = await getConfig();
+    if (!bankAccounts(config).some((a) => a.bank === bank)) throw badRequest('Rekening bank belum tersedia');
+    const updated = await prisma.topUpOrder.update({ where: { id }, data: { bank, qrisCodeId: null, adminFee: 0, totalTransfer: base } });
+    return withBankDetails(updated);
+  }
+  const fee = qrisFee(Number(order.amount));
+  const updated = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${QRIS_LOCK})`;
+    const code = await pickQrisCode(tx, base + fee, order.id);
+    if (!code) throw badRequest('QRIS sedang tidak tersedia. Silakan pilih transfer bank.', 'QRIS_UNAVAILABLE');
+    return tx.topUpOrder.update({ where: { id }, data: { bank, qrisCodeId: code.id, adminFee: fee, totalTransfer: base + fee } });
+  });
   return withBankDetails(updated);
+}
+
+/** "via Bank BRI" / "via QRIS" for messages. */
+function payVia(bank: BankCode | null) {
+  return bank === 'QRIS' ? 'QRIS' : `Bank ${bank ?? '-'}`;
 }
 
 /** "Saya sudah bayar": marks CLAIMED and returns the wa.me hand-off. */
@@ -80,12 +110,14 @@ export async function claimTopUp(agent: Agent, id: string) {
   });
   // re-sending the WhatsApp confirmation must not re-alert the admins
   if (!order.claimedAt) {
-    queueAdminAlert(topUpClaimedAlert({ orderNumber: updated.orderNumber, totalTransfer: Number(updated.totalTransfer), bank: updated.bank }, agent));
+    const details = await withBankDetails(updated);
+    const via = updated.bank === 'QRIS' ? `QRIS${details.qris ? ` (${details.qris.label})` : ''}` : updated.bank;
+    queueAdminAlert(topUpClaimedAlert({ orderNumber: updated.orderNumber, totalTransfer: Number(updated.totalTransfer), bank: via }, agent));
   }
   const config = await getConfig();
   const waNumber = toInternationalMobile(config.csWhatsapp);
   const waText =
-    `Permisi kak, saya baru transfer sebesar ${formatRp(Number(updated.totalTransfer))} via Bank ${updated.bank}` +
+    `Permisi kak, saya baru transfer sebesar ${formatRp(Number(updated.totalTransfer))} via ${payVia(updated.bank)}` +
     ` untuk top up saldo #${updated.orderNumber} a.n. ${agent.name}`;
   const waUrl = waNumber ? `https://wa.me/${waNumber}?text=${encodeURIComponent(waText)}` : null;
   return { ...(await withBankDetails(updated)), waText, waUrl };
@@ -117,7 +149,7 @@ export async function adminListTopUps(q: { status?: string; search?: string; age
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * pageSize,
       take: pageSize,
-      include: { agent: { select: { id: true, name: true, phone: true, email: true } } },
+      include: { agent: { select: { id: true, name: true, phone: true, email: true } }, qrisCode: { select: { id: true, label: true } } },
     }),
   ]);
   return { total, page, pageSize, topUps };
@@ -148,8 +180,9 @@ export async function adminUpdateTopUp(admin: { adminId: string; role: AdminRole
   if (credit && admin.role !== 'OWNER') throw forbidden('Konfirmasi kredit (hutang) hanya untuk OWNER');
   if (!credit && !input.proofImageUrl) throw badRequest('Bukti mutasi bank wajib diunggah', 'PROOF_REQUIRED');
 
-  // the agent is credited the full transfer, kode unik included (100.000 + 123 → 100.123)
-  const amount = Number(order.totalTransfer);
+  // the agent is credited the full transfer, kode unik included (100.000 + 123 → 100.123),
+  // minus the QRIS admin fee when there is one
+  const amount = Number(order.totalTransfer) - order.adminFee;
   const updated = await prisma.$transaction(async (tx) => {
     const res = await tx.topUpOrder.updateMany({
       where: { id, status: { in: OPEN } },

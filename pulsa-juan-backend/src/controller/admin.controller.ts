@@ -6,6 +6,7 @@ import { asyncHandler, badRequest } from '../lib/errors';
 import { toPlain } from '../lib/serialize';
 import { parse } from '../lib/validate';
 import { loginAdmin } from '../service/adminAuth.service';
+import * as qris from '../service/qris.service';
 import * as agents from '../service/agentAdmin.service';
 import { adminListCommissions } from '../service/commission.service';
 import { configUpdateSchema, getConfig, updateConfig } from '../service/config.service';
@@ -256,4 +257,20 @@ export const postBillerCheck = asyncHandler(async (req: Request, res: Response) 
 
 export const getBillCheck = asyncHandler(async (req: Request, res: Response) => {
   res.json(await bills.adminGetCheck(req.params.id));
+});
+
+export const getQris = asyncHandler(async (_req: Request, res: Response) => {
+  res.json(await qris.adminListQris());
+});
+
+export const postQris = asyncHandler(async (req: Request, res: Response) => {
+  res.status(201).json(await qris.adminCreateQris(req.admin!.adminId, parse(qris.qrisSchema, req.body)));
+});
+
+export const putQris = asyncHandler(async (req: Request, res: Response) => {
+  res.json(await qris.adminUpdateQris(req.admin!.adminId, req.params.id, parse(qris.qrisUpdateSchema, req.body)));
+});
+
+export const deleteQris = asyncHandler(async (req: Request, res: Response) => {
+  res.json(await qris.adminDeleteQris(req.admin!.adminId, req.params.id));
 });

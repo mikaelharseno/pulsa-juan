@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { formatRp } from 'pulsa-juan-common';
+import { formatRp, qrisFee } from 'pulsa-juan-common';
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useAgentConfig, useSelectBank, useTopUp } from '../../../src/api/hooks';
+import { PayMethod } from '../../../src/api/types';
 import { Button, Card, ErrorView, Loading, Screen, SectionBand } from '../../../src/components/ui';
 import { colors, font } from '../../../src/theme';
 
@@ -19,8 +20,9 @@ export default function TopUpBankScreen() {
   const order = useTopUp(id);
   const config = useAgentConfig();
   const select = useSelectBank(id);
-  const [bank, setBank] = useState<'BRI' | 'BCA' | null>(order.data?.bank ?? null);
+  const [bank, setBank] = useState<PayMethod | null>(order.data?.bank ?? null);
   const accounts = config.data?.bankAccounts ?? [];
+  const qris = config.data?.qris;
 
   if (order.isLoading) return <Screen title="Pilih Pembayaran"><Loading /></Screen>;
   if (order.isError) return <Screen title="Pilih Pembayaran"><ErrorView message={(order.error as Error).message} onRetry={() => order.refetch()} /></Screen>;
@@ -52,6 +54,26 @@ export default function TopUpBankScreen() {
             );
           })}
         </Card>
+        {qris?.enabled ? (
+          <Card style={{ padding: 0, overflow: 'hidden', marginTop: 12 }}>
+            <SectionBand>QRIS</SectionBand>
+            <Pressable testID="pay-qris" onPress={() => setBank('QRIS')} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 15, backgroundColor: bank === 'QRIS' ? colors.tealTint : colors.card }}>
+              <View style={{ width: 64, height: 30, borderRadius: 6, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
+                <Text style={{ color: '#D7262E', fontWeight: '800', fontSize: 12, letterSpacing: 0.5 }}>QRIS</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: font.rowLabel, color: colors.ink, fontWeight: '500' }}>QRIS</Text>
+                <Text style={{ fontSize: font.tiny, color: colors.muted, marginTop: 1 }}>Bayar dari e-wallet atau m-banking</Text>
+                <Text style={{ fontSize: font.tiny, color: colors.muted, marginTop: 2 }}>
+                  {qrisFee(order.data!.amount) > 0
+                    ? `Biaya admin ${qris.feePercent}%: ${formatRp(qrisFee(order.data!.amount))}`
+                    : `Biaya admin ${qris.feePercent}% untuk di atas ${formatRp(qris.feeAbove)}`}
+                </Text>
+              </View>
+              <Ionicons name={bank === 'QRIS' ? 'radio-button-on' : 'radio-button-off'} size={20} color={bank === 'QRIS' ? colors.teal : colors.chevron} />
+            </Pressable>
+          </Card>
+        ) : null}
         {select.isError ? <Text style={{ color: colors.danger, marginTop: 8 }}>{(select.error as Error).message}</Text> : null}
         <View style={{ height: 16 }} />
         <Button title="Lanjut" disabled={!bank} loading={select.isPending} onPress={() => bank && select.mutate(bank, { onSuccess: () => router.replace(`/topup/${id}/pay`) })} />

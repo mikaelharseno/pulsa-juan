@@ -210,7 +210,7 @@ export async function mockApi(path: string, method: string, json: any, query: Re
     }
     return ok(agent);
   }
-  if (route === 'config') return ok({ prefixes: DEFAULT_PREFIXES, bankAccounts: BANKS, cs: CS, topUpMin: 10000, topUpMax: 5000000 });
+  if (route === 'config') return ok({ prefixes: DEFAULT_PREFIXES, bankAccounts: BANKS, qris: { enabled: false, feePercent: 1, feeAbove: 500000 }, cs: CS, topUpMin: 10000, topUpMax: 5000000 });
   if (route === 'home') {
     const list = segments.map(({ tree: _t, ...s }) => s);
     return ok({

@@ -3,6 +3,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { formatRp } from 'pulsa-juan-common';
 import React, { useState } from 'react';
+import { Image } from 'expo-image';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { useClaimTopUp, useTopUp } from '../../../src/api/hooks';
@@ -39,14 +40,17 @@ export default function TopUpPayScreen() {
   const order = useTopUp(id);
   const claim = useClaimTopUp(id);
 
-  if (order.isLoading) return <Screen title="Transfer Bank"><Loading /></Screen>;
-  if (order.isError) return <Screen title="Transfer Bank"><ErrorView message={(order.error as Error).message} onRetry={() => order.refetch()} /></Screen>;
+  const title = order.data?.bank === 'QRIS' ? 'Bayar QRIS' : 'Transfer Bank';
+  if (order.isLoading) return <Screen title={title}><Loading /></Screen>;
+  if (order.isError) return <Screen title={title}><ErrorView message={(order.error as Error).message} onRetry={() => order.refetch()} /></Screen>;
   const o = order.data!;
+  const isQris = o.bank === 'QRIS';
+  const fee = o.adminFee ?? 0;
   const claimed = o.status === 'CLAIMED';
   const done = o.status === 'PAID' || o.status === 'REJECTED' || o.status === 'EXPIRED';
 
   return (
-    <Screen title="Transfer Bank">
+    <Screen title={title}>
       <ScrollView>
         <Card style={{ marginBottom: 12 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -54,8 +58,16 @@ export default function TopUpPayScreen() {
             <StatusPill status={o.status} />
           </View>
           <Text style={{ color: colors.muted, fontSize: font.small, marginTop: 6 }}>
-            Transfer ke rekening berikut, lalu tekan "Saya Sudah Bayar". Saldo bertambah setelah pembayaran kami verifikasi.
+            {isQris
+              ? 'Scan QRIS di bawah dari aplikasi e-wallet atau m-banking, ketik nominal persis seperti di bawah, lalu tekan "Saya Sudah Bayar".'
+              : 'Transfer ke rekening berikut, lalu tekan "Saya Sudah Bayar". Saldo bertambah setelah pembayaran kami verifikasi.'}
           </Text>
+          {isQris && o.qris ? (
+            <View style={{ alignItems: 'center', marginTop: 12 }}>
+              <Image source={{ uri: o.qris.imageUrl }} style={{ width: 260, height: 260, borderRadius: 8, backgroundColor: colors.white }} contentFit="contain" accessibilityLabel={`QRIS ${o.qris.label}`} />
+              <Text style={{ color: colors.ink, fontSize: font.small, fontWeight: '600', marginTop: 6 }}>{o.qris.label}</Text>
+            </View>
+          ) : null}
           {o.account ? (
             <>
               <Text style={{ color: colors.ink, fontSize: font.body, marginTop: 12, fontWeight: '600' }}>
@@ -64,16 +76,19 @@ export default function TopUpPayScreen() {
               <CopyRow label="Nomor rekening" value={o.account.accountNumber} />
             </>
           ) : null}
-          <CopyRow label="Jumlah yang harus ditransfer" value={formatRp(o.totalTransfer)} />
+          <CopyRow label={isQris ? 'Nominal yang harus dibayar' : 'Jumlah yang harus ditransfer'} value={formatRp(o.totalTransfer)} />
           <Text style={{ color: colors.accent, fontSize: font.small, marginTop: 8, fontWeight: '600' }}>
-            Sudah termasuk kode unik {o.kodeUnik} — transfer tepat sampai 3 digit terakhir agar pembayaran cepat kami kenali.
+            {isQris
+              ? `Bayar persis termasuk kode unik ${o.kodeUnik}${fee ? ' dan biaya admin' : ''} — QRIS ini tidak mengisi nominal otomatis.`
+              : `Sudah termasuk kode unik ${o.kodeUnik} — transfer tepat sampai 3 digit terakhir agar pembayaran cepat kami kenali.`}
           </Text>
         </Card>
         <Card style={{ marginBottom: 12 }}>
           <KeyValue label="Nominal deposit" value={formatRp(o.amount)} />
           <KeyValue label="Kode unik" value={String(o.kodeUnik)} />
-          <KeyValue label="Total transfer" value={formatRp(o.totalTransfer)} />
-          <KeyValue label="Saldo yang masuk" value={formatRp(o.totalTransfer)} bold last />
+          {fee ? <KeyValue label="Biaya admin QRIS" value={formatRp(fee)} /> : null}
+          <KeyValue label={isQris ? 'Total bayar' : 'Total transfer'} value={formatRp(o.totalTransfer)} />
+          <KeyValue label="Saldo yang masuk" value={formatRp(o.totalTransfer - fee)} bold last />
           <Text style={{ color: colors.muted, fontSize: font.small, marginTop: 6 }}>Kode unik ikut masuk ke saldo Anda.</Text>
         </Card>
         {claim.isError ? <Text style={{ color: colors.danger, marginBottom: 8 }}>{(claim.error as Error).message}</Text> : null}

@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { QRIS_FEE_ABOVE, QRIS_FEE_PERCENT } from 'pulsa-juan-common';
 import { z } from 'zod';
 
 import { prisma } from '../../prisma/client';
@@ -24,6 +25,7 @@ import {
 } from '../service/agentAuth.service';
 import { claimCommissions, commissionSummary } from '../service/commission.service';
 import * as bon from '../service/bon.service';
+import { qrisEnabled } from '../service/qris.service';
 import * as sell from '../service/sellPrice.service';
 import { getConfig, publicConfig } from '../service/config.service';
 import { otpRequestSchema, otpVerifySchema, requestOtp, verifyOtp } from '../service/otp/otp.service';
@@ -114,8 +116,13 @@ export const getHome = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const getAgentConfig = asyncHandler(async (_req: Request, res: Response) => {
-  const [config, prefixes] = await Promise.all([getConfig(), getPrefixEntries()]);
-  res.json({ ...publicConfig(config), prefixes, configVersion: config.updatedAt.getTime() });
+  const [config, prefixes, qrisOn] = await Promise.all([getConfig(), getPrefixEntries(), qrisEnabled()]);
+  res.json({
+    ...publicConfig(config),
+    qris: { enabled: qrisOn, feePercent: QRIS_FEE_PERCENT, feeAbove: QRIS_FEE_ABOVE },
+    prefixes,
+    configVersion: config.updatedAt.getTime(),
+  });
 });
 
 export const getSegmentTree = asyncHandler(async (req: Request, res: Response) => {

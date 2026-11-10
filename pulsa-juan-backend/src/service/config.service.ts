@@ -37,7 +37,7 @@ export async function updateConfig(data: z.infer<typeof configUpdateSchema>) {
   return prisma.storeConfig.update({ where: { id: 'singleton' }, data });
 }
 
-export type BankCode = 'BRI' | 'BCA';
+export type BankCode = 'BRI' | 'BCA' | 'QRIS';
 
 export function bankAccounts(config: Awaited<ReturnType<typeof getConfig>>) {
   const list: { bank: BankCode; accountNumber: string; accountName: string }[] = [];

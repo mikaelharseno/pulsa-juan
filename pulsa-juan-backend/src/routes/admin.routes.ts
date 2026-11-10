@@ -54,6 +54,10 @@ router.delete('/provider-prefixes/:id', requireRole('OWNER', 'ADMIN'), c.deleteP
 
 router.get('/config', c.getConfigHandler);
 router.put('/config', requireRole('OWNER', 'ADMIN'), c.putConfigHandler);
+router.get('/qris', c.getQris);
+router.post('/qris', requireRole('OWNER', 'ADMIN'), c.postQris);
+router.put('/qris/:id', requireRole('OWNER', 'ADMIN'), c.putQris);
+router.delete('/qris/:id', requireRole('OWNER', 'ADMIN'), c.deleteQris);
 router.post('/uploads', c.postUpload);
 
 router.get('/product-updater', requireRole('OWNER', 'ADMIN'), c.getProductUpdaterInfo);

@@ -9,6 +9,7 @@ import { useRole } from '../auth/useSession';
 import { PageHeader } from '../components/common';
 import { IntegrationsCard } from '../components/IntegrationsCard';
 import { MediaDropZone } from '../components/DropZone';
+import { QrisCard } from '../components/QrisCard';
 
 interface Config {
   appName: string; csWhatsapp: string; csTelegram: string; topUpMin: number; topUpMax: number; topUpExpiryHours: number;
@@ -82,6 +83,9 @@ export default function SettingsPage() {
             {canEdit && <MediaDropZone folder="banners" multiple onUploaded={(urls) => setForm({ ...form, banners: [...form.banners, ...urls.map((imageUrl) => ({ imageUrl }))] })} />}
             <Typography variant="caption" color="text.secondary">Rasio 16:9 disarankan. Jangan lupa tekan "Simpan pengaturan".</Typography>
           </Paper>
+        </Grid>
+        <Grid item xs={12}>
+          <QrisCard canEdit={canEdit} />
         </Grid>
         <Grid item xs={12}>
           <Paper sx={{ p: 2 }}>

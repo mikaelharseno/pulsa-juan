@@ -10,3 +10,15 @@ export function kodeUnikBase(orderNumber: number): number {
 export function nextKodeUnik(code: number): number {
   return code >= 999 ? 0 : code + 1;
 }
+
+// QRIS: the top-up is paid to a static QRIS (no amount inside the code), so the
+// agent still types the exact total with the kode unik. Amounts above
+// QRIS_FEE_ABOVE pay a QRIS_FEE_PERCENT admin fee on top; the fee is not
+// credited to saldo. Each static QRIS takes at most QRIS_MONTHLY_LIMIT a month.
+export const QRIS_FEE_PERCENT = 1;
+export const QRIS_FEE_ABOVE = 500_000;
+export const QRIS_MONTHLY_LIMIT = 20_000_000;
+
+export function qrisFee(amount: number): number {
+  return amount > QRIS_FEE_ABOVE ? Math.ceil((amount * QRIS_FEE_PERCENT) / 100) : 0;
+}

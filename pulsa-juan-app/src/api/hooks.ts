@@ -8,6 +8,7 @@ import {
   AgentProfile,
   CommissionSummary,
   HomeData,
+  PayMethod,
   LedgerList,
   MitraOverview,
   Rekap,
@@ -142,7 +143,7 @@ export function useCreateTopUp() {
 export function useSelectBank(id: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (bank: 'BRI' | 'BCA') => put<TopUpOrder>(`/agent/topups/${id}/bank`, { bank }),
+    mutationFn: (bank: PayMethod) => put<TopUpOrder>(`/agent/topups/${id}/bank`, { bank }),
     onSuccess: (data) => qc.setQueryData(keys.topup(id), data),
   });
 }

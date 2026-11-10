@@ -215,7 +215,7 @@ function untilLabel(iso: string) {
 export function PendingTopUpCard({ topUp }: { topUp: TopUpOrder }) {
   const router = useRouter();
   const what = topUp.bank
-    ? `#${topUp.orderNumber} · Transfer ${formatRp(topUp.totalTransfer)} ke ${topUp.bank}`
+    ? `#${topUp.orderNumber} · ${topUp.bank === 'QRIS' ? `Bayar ${formatRp(topUp.totalTransfer)} via QRIS` : `Transfer ${formatRp(topUp.totalTransfer)} ke ${topUp.bank}`}`
     : `#${topUp.orderNumber} · ${formatRp(topUp.amount)} · Pilih bank`;
   const sub = `${what}\nBerlaku sampai ${untilLabel(topUp.expiresAt)}`;
   return (

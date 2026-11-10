@@ -15,6 +15,8 @@ interface TopUp {
   kodeUnik: number;
   totalTransfer: number;
   bank: string | null;
+  adminFee?: number;
+  qrisCode?: { id: string; label: string } | null;
   status: string;
   claimedAt: string | null;
   paidAt: string | null;
@@ -37,7 +39,7 @@ const PAGE_SIZE = 50;
 
 /**
  * Saldo top-up requests with manual confirmation. The agent is credited the
- * whole transfer (nominal + kode unik). With `agentId` it is scoped to one agent.
+ * whole transfer (nominal + kode unik), minus the QRIS admin fee when paid by QRIS. With `agentId` it is scoped to one agent.
  */
 export function TopUpsTable({ agentId, showAgent = true, defaultStatus = 'OPEN' }: { agentId?: string; showAgent?: boolean; defaultStatus?: string }) {
   const [status, setStatus] = useState(defaultStatus);
@@ -153,7 +155,20 @@ export function TopUpsTable({ agentId, showAgent = true, defaultStatus = 'OPEN' 
                 <TableCell align="right">
                   <b>{fmtRp(t.totalTransfer)}</b>
                 </TableCell>
-                <TableCell>{t.bank ?? '-'}</TableCell>
+                <TableCell>
+                  {t.bank === 'QRIS' ? (
+                    <>
+                      QRIS
+                      <br />
+                      <Typography variant="caption" color="text.secondary">
+                        {t.qrisCode?.label ?? '-'}
+                        {t.adminFee ? ` · biaya ${fmtRp(t.adminFee)}` : ''}
+                      </Typography>
+                    </>
+                  ) : (
+                    t.bank ?? '-'
+                  )}
+                </TableCell>
                 <TableCell>
                   <StatusChip status={t.status} />
                 </TableCell>
@@ -217,13 +232,13 @@ export function TopUpsTable({ agentId, showAgent = true, defaultStatus = 'OPEN' 
         {confirm && (
           <>
             <Typography variant="body2" sx={{ mb: 1 }}>
-              <b>{confirm.agent.name}</b> · Bank {confirm.bank ?? '-'} · total transfer <b>{fmtRp(confirm.totalTransfer)}</b> ({fmtRp(confirm.amount)} + kode unik {confirm.kodeUnik})
+              <b>{confirm.agent.name}</b> · {confirm.bank === 'QRIS' ? `QRIS ${confirm.qrisCode?.label ?? ''}` : `Bank ${confirm.bank ?? '-'}`} · total transfer <b>{fmtRp(confirm.totalTransfer)}</b> ({fmtRp(confirm.amount)} + kode unik {confirm.kodeUnik}{confirm.adminFee ? ` + biaya admin ${fmtRp(confirm.adminFee)}` : ''})
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-              Saldo agen bertambah {fmtRp(confirm.totalTransfer)} (kode unik ikut masuk). Unggah screenshot mutasi rekening yang menunjukkan dana masuk sebesar {fmtRp(confirm.totalTransfer)} (JPG/PNG).
+              Saldo agen bertambah {fmtRp(confirm.totalTransfer - (confirm.adminFee ?? 0))} (kode unik ikut masuk{confirm.adminFee ? ', biaya admin QRIS tidak' : ''}). Unggah screenshot mutasi {confirm.bank === 'QRIS' ? 'QRIS' : 'rekening'} yang menunjukkan dana masuk sebesar {fmtRp(confirm.totalTransfer)} (JPG/PNG).
             </Typography>
             {credit ? (
-              <Alert severity="warning">Konfirmasi kredit: saldo ditambah tanpa bukti transfer dan hutang agen bertambah {fmtRp(confirm.totalTransfer)}.</Alert>
+              <Alert severity="warning">Konfirmasi kredit: saldo ditambah tanpa bukti transfer dan hutang agen bertambah {fmtRp(confirm.totalTransfer - (confirm.adminFee ?? 0))}.</Alert>
             ) : file ? (
               <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
                 <img src={URL.createObjectURL(file)} alt="preview" style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 6, border: '1px solid #ddd' }} />

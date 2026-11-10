@@ -90,9 +90,13 @@ export interface HomeData {
   config: { topUpMin: number; topUpMax: number; appName: string; maxReferralMarkup: number };
 }
 
+export type PayMethod = 'BRI' | 'BCA' | 'QRIS';
+
 export interface AgentConfig {
   prefixes: PrefixEntry[];
   bankAccounts: { bank: 'BRI' | 'BCA'; accountNumber: string; accountName: string }[];
+  /** static QRIS top-ups; absent on older servers */
+  qris?: { enabled: boolean; feePercent: number; feeAbove: number };
   cs: { whatsapp: string; telegram: string };
   topUpMin: number;
   topUpMax: number;
@@ -113,7 +117,9 @@ export interface TopUpOrder {
   amount: number;
   kodeUnik: number;
   totalTransfer: number;
-  bank: 'BRI' | 'BCA' | null;
+  bank: PayMethod | null;
+  /** QRIS admin fee inside totalTransfer (not credited to saldo) */
+  adminFee?: number;
   status: TopUpStatus;
   claimedAt: string | null;
   paidAt: string | null;
@@ -122,6 +128,7 @@ export interface TopUpOrder {
   rejectReason: string | null;
   isCredit: boolean;
   account?: { bank: 'BRI' | 'BCA'; accountNumber: string; accountName: string } | null;
+  qris?: { id: string; label: string; imageUrl: string } | null;
   waUrl?: string | null;
   waText?: string;
 }
