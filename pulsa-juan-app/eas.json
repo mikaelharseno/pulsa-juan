@@ -31,6 +31,17 @@
         "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "144176093530-reihblaum8rfrfmf0cs7vc226gmllmsi.apps.googleusercontent.com"
       },
       "node": "20.19.4"
+    },
+    "local-test": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "LOCAL_TEST_BUILD": "1",
+        "EXPO_PUBLIC_API_BASE": "http://10.0.2.2:3030/api"
+      },
+      "node": "20.19.4"
     }
   }
 }

@@ -59,7 +59,8 @@
         {
           "locationWhenInUsePermission": "Murah Kuota memakai lokasi untuk mengisi daerah domisili saat mendaftar."
         }
-      ]
+      ],
+      "expo-build-properties"
     ],
     "experiments": {
       "typedRoutes": true
