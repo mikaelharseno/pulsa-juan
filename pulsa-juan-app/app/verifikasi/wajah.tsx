@@ -8,6 +8,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { useCheckLiveness, useStartLiveness, useSubmitKyc } from '../../src/api/hooks';
 import { Button, Card, Screen } from '../../src/components/ui';
+import { choosePictureSize } from '../../src/kyc/pictureSize';
 import { useKycDraft } from '../../src/kyc/useKycDraft';
 import { colors, font } from '../../src/theme';
 
@@ -51,6 +52,8 @@ export default function WajahScreen() {
   const [livenessId, setLivenessId] = useState<string | null>(null);
   const [selfieUri, setSelfieUri] = useState<string | null>(null);
   const savedBrightness = useRef<number | null>(null);
+  const [ready, setReady] = useState(false);
+  const [pictureSize, setPictureSize] = useState<string | undefined>(undefined);
 
   // put the screen brightness back however the screen is left
   useEffect(
@@ -183,7 +186,17 @@ export default function WajahScreen() {
   return (
     <Screen title="Cek Wajah" padded={false}>
       <View style={{ flex: 1, backgroundColor: '#000' }}>
-        <CameraView ref={camera} style={StyleSheet.absoluteFill} facing="front" />
+        <CameraView
+          ref={camera}
+          style={StyleSheet.absoluteFill}
+          facing="front"
+          pictureSize={pictureSize}
+          onCameraReady={async () => {
+            // one size for the check frames (shrunk to 360 px after) and the selfie
+            if (!pictureSize) setPictureSize(await choosePictureSize(camera.current, 1280));
+            setReady(true);
+          }}
+        />
         {flash ? <View style={[StyleSheet.absoluteFill, { backgroundColor: SCREEN_COLOR[flash] }]} pointerEvents="none" /> : null}
         {!flash ? (
           <View style={styles.overlay} pointerEvents="none">
@@ -201,9 +214,9 @@ export default function WajahScreen() {
           <View style={styles.bottom}>
             {error ? <Text style={styles.error}>{error}</Text> : null}
             {phase === 'passed' ? (
-              <Button title="Ambil selfie" onPress={takeSelfie} />
+              <Button title="Ambil selfie" disabled={!ready} onPress={takeSelfie} />
             ) : (
-              <Button title={phase === 'checking' ? 'Memeriksa...' : error ? 'Ulangi cek wajah' : 'Mulai cek wajah'} loading={busy} onPress={runCheck} />
+              <Button title={phase === 'checking' ? 'Memeriksa...' : error ? 'Ulangi cek wajah' : 'Mulai cek wajah'} loading={busy} disabled={!ready} onPress={runCheck} />
             )}
             {phase !== 'passed' ? <Text style={styles.small}>Tombol selfie terbuka setelah cek wajah lolos.</Text> : null}
           </View>

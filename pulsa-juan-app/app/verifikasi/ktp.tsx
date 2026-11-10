@@ -6,6 +6,7 @@ import React, { useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Button, Card, Field, Screen } from '../../src/components/ui';
+import { choosePictureSize } from '../../src/kyc/pictureSize';
 import { useKycDraft } from '../../src/kyc/useKycDraft';
 import { colors, font } from '../../src/theme';
 
@@ -28,6 +29,8 @@ export default function KtpScreen() {
   const draft = useKycDraft();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+  const [pictureSize, setPictureSize] = useState<string | undefined>(undefined);
 
   const shoot = async () => {
     setError(null);
@@ -92,14 +95,24 @@ export default function KtpScreen() {
   return (
     <Screen title="Foto KTP" padded={false}>
       <View style={{ flex: 1, backgroundColor: '#000' }}>
-        <CameraView ref={camera} style={StyleSheet.absoluteFill} facing="back" autofocus="on" />
+        <CameraView
+          ref={camera}
+          style={StyleSheet.absoluteFill}
+          facing="back"
+          autofocus="on"
+          pictureSize={pictureSize}
+          onCameraReady={async () => {
+            if (!pictureSize) setPictureSize(await choosePictureSize(camera.current, 1920));
+            setReady(true);
+          }}
+        />
         <View style={styles.overlay} pointerEvents="none">
           <View style={styles.cardFrame} />
           <Text style={styles.hint}>Letakkan KTP di dalam bingkai, pastikan tulisan terbaca dan tidak silau.</Text>
         </View>
         <View style={styles.bottom}>
           {error ? <Text style={{ color: '#FCA5A5', marginBottom: 8, textAlign: 'center' }}>{error}</Text> : null}
-          <Button title={busy ? 'Membaca KTP...' : 'Ambil foto KTP'} loading={busy} onPress={shoot} />
+          <Button title={busy ? 'Membaca KTP...' : 'Ambil foto KTP'} loading={busy} disabled={!ready} onPress={shoot} />
         </View>
       </View>
     </Screen>
