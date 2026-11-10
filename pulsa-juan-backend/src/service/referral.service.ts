@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 import { Agent, Prisma } from '../../prisma/generated';
 import { prisma } from '../../prisma/client';
 import { badRequest, notFound } from '../lib/errors';
@@ -35,6 +37,32 @@ export async function findReferrer(referralCode: string) {
   const parent = await prisma.agent.findUnique({ where: { commisionUniqueId: referralCode.trim().toUpperCase() } });
   if (!parent) throw badRequest('Kode referral tidak ditemukan');
   return parent;
+}
+
+export const setReferrerSchema = z.object({ code: z.string().trim().min(4).max(20) });
+
+/**
+ * "Siapa yang mengajak kamu?" after sign-up: links an agent that has no upline
+ * yet to the owner of `code`, freezing that upline's current markup exactly as
+ * sign-up does. Never twice, never to yourself or to anyone below you.
+ */
+export async function setReferrer(agent: Agent, code: string) {
+  if (agent.referrerAgentId) throw badRequest('Kode pengajak sudah terisi', 'REFERRER_SET');
+  const upline = await findReferrer(code);
+  if (upline.id === agent.id) throw badRequest('Tidak bisa memakai kode sendiri', 'REFERRER_SELF');
+  // walk up from the new upline: reaching me means it sits in my downline
+  let cursor: string | null = upline.referrerAgentId;
+  for (let depth = 0; cursor && depth < 1000; depth++) {
+    if (cursor === agent.id) throw badRequest('Agen ini ada di bawah jaringan Anda', 'REFERRER_CYCLE');
+    const next: { referrerAgentId: string | null } | null = await prisma.agent.findUnique({ where: { id: cursor }, select: { referrerAgentId: true } });
+    cursor = next?.referrerAgentId ?? null;
+  }
+  const res = await prisma.agent.updateMany({
+    where: { id: agent.id, referrerAgentId: null },
+    data: { referrerAgentId: upline.id, referrerMarkup: upline.referralMarkup, referrerSetAt: new Date() },
+  });
+  if (res.count === 0) throw badRequest('Kode pengajak sudah terisi', 'REFERRER_SET');
+  return mitraOverview(await prisma.agent.findUniqueOrThrow({ where: { id: agent.id } }));
 }
 
 export async function mitraOverview(agent: Agent) {

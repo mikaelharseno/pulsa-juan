@@ -16,6 +16,9 @@ interface AuthState {
   token: string | null;
   agent: AgentProfile | null;
   pendingGoogle: PendingGoogle | null;
+  /** just signed up without an inviter code: home opens "Siapa yang mengajak kamu?" once */
+  askReferrer: boolean;
+  setAskReferrer: (v: boolean) => void;
   setPendingGoogle: (p: PendingGoogle | null) => void;
   hydrate: () => Promise<void>;
   signIn: (session: Session) => Promise<void>;
@@ -28,6 +31,8 @@ export const useAuth = create<AuthState>((set) => ({
   token: null,
   agent: null,
   pendingGoogle: null,
+  askReferrer: false,
+  setAskReferrer: (askReferrer) => set({ askReferrer }),
   setPendingGoogle: (pendingGoogle) => set({ pendingGoogle }),
   hydrate: async () => {
     const token = await getToken();

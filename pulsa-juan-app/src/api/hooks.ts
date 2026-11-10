@@ -7,8 +7,10 @@ import {
   AgentConfig,
   AgentProfile,
   CommissionSummary,
+  DomicileInput,
   HomeData,
   PayMethod,
+  Region,
   LedgerList,
   MitraOverview,
   Rekap,
@@ -163,7 +165,7 @@ export function useUpdateProfile() {
   const setAgent = useAuth((s) => s.setAgent);
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { name?: string; nik?: string; phoneOtpTicket?: string; referralMarkup?: number }) => put<AgentProfile>('/agent/me', input),
+    mutationFn: (input: { name?: string; nik?: string; phoneOtpTicket?: string; referralMarkup?: number; domicile?: DomicileInput }) => put<AgentProfile>('/agent/me', input),
     onSuccess: (agent) => {
       setAgent(agent);
       qc.setQueryData(keys.me, agent);
@@ -232,6 +234,28 @@ export function useSetSellPrice(id: string) {
       qc.invalidateQueries({ queryKey: ['rekap'] });
       qc.invalidateQueries({ queryKey: ['transactions'] });
       qc.invalidateQueries({ queryKey: ['sellPrices'] });
+    },
+  });
+}
+
+/** Provinces (code '') or the children of a province / regency; cached for the session. */
+export function useRegions(parentCode: string | null) {
+  return useQuery({
+    queryKey: ['regions', parentCode ?? ''],
+    queryFn: () => get<Region[]>(parentCode ? `/agent/regions/${parentCode}/children` : '/agent/regions/provinces'),
+    enabled: parentCode !== undefined,
+    staleTime: Infinity,
+  });
+}
+
+export function useSetReferrer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (code: string) => post<MitraOverview>('/agent/mitra/referrer', { code }),
+    onSuccess: (data) => {
+      qc.setQueryData(keys.mitra, data);
+      qc.invalidateQueries({ queryKey: keys.me });
+      qc.invalidateQueries({ queryKey: keys.home });
     },
   });
 }

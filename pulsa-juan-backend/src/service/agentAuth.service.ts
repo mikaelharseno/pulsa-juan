@@ -11,6 +11,7 @@ import { randomCode } from '../lib/ids';
 import { AgentClaims } from '../interfaces/http';
 import { normalizePhoneOrThrow, readOtpTicket } from './otp/otp.service';
 import { findReferrer, resolveMarkup } from './referral.service';
+import { districtLabel, domicileData, domicileSchema } from './region.service';
 
 export type AgentRow = Agent;
 
@@ -35,6 +36,8 @@ export const registerSchema = z
     email: z.string().trim().email('Email tidak valid').max(120).optional(),
     password: z.string().min(6, 'Password minimal 6 karakter').max(100).optional(),
     referralCode: z.string().trim().max(20).optional(),
+    /** Daerah domisili; the app asks for it, older apps do not send it */
+    domicile: domicileSchema.optional(),
   })
   .refine((v) => v.otpTicket || v.phone, { message: 'Nomor HP wajib diisi', path: ['phone'] });
 
@@ -63,6 +66,7 @@ export const profileUpdateSchema = z.object({
   /// otpTicket (VERIFY_PHONE) for the new number
   phoneOtpTicket: z.string().min(10).optional(),
   referralMarkup: z.number().int().min(0).optional(),
+  domicile: domicileSchema.optional(),
 });
 
 function signAgentToken(agentId: string) {
@@ -102,6 +106,10 @@ export async function agentProfile(agent: Agent) {
     hasPassword: !!agent.passwordHash,
     googleLinked: !!agent.googleSub,
     phoneVerified: !!agent.phoneVerifiedAt,
+    domicile: agent.domicileDistrictCode
+      ? { districtCode: agent.domicileDistrictCode, label: districtLabel(agent.domicileDistrictCode), source: agent.domicileSource }
+      : null,
+    hasReferrer: !!agent.referrerAgentId,
     joinedAt: agent.joinedAt,
     createdAt: agent.createdAt,
   };
@@ -223,6 +231,7 @@ export async function registerAgent(input: z.infer<typeof registerSchema>) {
       commisionUniqueId: await uniqueCommissionId(),
       referrerAgentId: referrer?.id ?? null,
       referrerMarkup: referrer?.referralMarkup ?? 0,
+      ...(input.domicile ? domicileData(input.domicile) : {}),
     },
   });
   return session(agent);
@@ -328,6 +337,7 @@ export async function updateProfile(agent: Agent, input: z.infer<typeof profileU
     if (input.referralMarkup > cap) throw badRequest(`Markup referral maksimal Rp ${cap}`);
     data.referralMarkup = input.referralMarkup;
   }
+  if (input.domicile !== undefined) Object.assign(data, domicileData(input.domicile));
   const updated = await prisma.agent.update({ where: { id: agent.id }, data });
   return agentProfile(updated);
 }

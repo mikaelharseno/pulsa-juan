@@ -13,6 +13,9 @@ router.post('/auth/otp/verify', c.postOtpVerify);
 router.post('/auth/login/pin', c.postPinLogin);
 router.post('/auth/pin/reset', c.postPinReset);
 router.get('/config', c.getAgentConfig);
+router.get('/regions/provinces', c.getRegionProvinces);
+router.get('/regions/:code/children', c.getRegionChildren);
+router.post('/regions/match', c.postRegionMatch);
 
 router.use(authenticateAgent);
 
@@ -45,5 +48,6 @@ router.put('/sell-margins', c.putSellMargins);
 router.get('/commissions', c.getCommissions);
 router.post('/commissions/claim', c.postClaimCommissions);
 router.get('/mitra', c.getMitra);
+router.post('/mitra/referrer', c.postMitraReferrer);
 
 export default router;

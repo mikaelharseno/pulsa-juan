@@ -325,6 +325,16 @@ export async function mockApi(path: string, method: string, json: any, query: Re
     if (m === 'PUT') sellMargins = { default: Number(json?.default) || 0, bySegment: (json?.bySegment ?? {}) as Record<string, number> };
     return ok(sellMargins);
   }
+  if (route === 'regions/provinces') return ok([{ code: '32', name: 'Jawa Barat', parentCode: null }, { code: '31', name: 'Daerah Khusus Ibukota Jakarta', parentCode: null }]);
+  if (seg[1] === 'regions' && seg[3] === 'children') {
+    const kids: Record<string, { code: string; name: string; parentCode: string }[]> = {
+      '32': [{ code: '32.73', name: 'Kota Bandung', parentCode: '32' }],
+      '32.73': [{ code: '32.73.02', name: 'Coblong', parentCode: '32.73' }],
+    };
+    return ok(kids[seg[2]] ?? []);
+  }
+  if (route === 'regions/match') return ok({ province: null, regency: null, district: null });
+  if (route === 'mitra/referrer') return fail(400, 'Kode referral tidak ditemukan (data demo)');
   if (route === 'sell-prices') return ok([]);
   if (seg[1] === 'sell-prices' && m === 'DELETE') return ok({ ok: true });
   if (seg[1] === 'transactions' && seg[2] && seg[3] === 'bon') return ok({ token: 'demo-bon-' + seg[2] });

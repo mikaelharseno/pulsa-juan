@@ -20,8 +20,24 @@ export interface AgentProfile {
   hasPassword: boolean;
   googleLinked: boolean;
   phoneVerified: boolean;
+  /** Daerah domisili; null for agents who signed up before it was asked */
+  domicile?: { districtCode: string; label: string | null; source: 'GPS' | 'MANUAL' | null } | null;
+  hasReferrer?: boolean;
   joinedAt: string;
   createdAt: string;
+}
+
+export interface Region {
+  code: string;
+  name: string;
+  parentCode: string | null;
+}
+
+export interface DomicileInput {
+  districtCode: string;
+  lat?: number;
+  lng?: number;
+  source: 'GPS' | 'MANUAL';
 }
 
 export interface Session {

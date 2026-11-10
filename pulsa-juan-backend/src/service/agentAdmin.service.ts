@@ -6,6 +6,7 @@ import { prisma } from '../../prisma/client';
 import { badRequest, conflict, notFound } from '../lib/errors';
 import { audit } from './audit.service';
 import { creditSaldo, debitSaldo } from './saldo.service';
+import { districtLabel } from './region.service';
 
 export const agentUpdateSchema = z.object({
   name: z.string().trim().min(2).max(80).optional(),
@@ -76,6 +77,7 @@ export async function getAgentDetail(id: string) {
     hasPin: !!agent.pinHash,
     otpPending: !!agent.confirmationCode && !!agent.confirmationCodeExpiresAt && agent.confirmationCodeExpiresAt > new Date(),
     upline: referrer ? { commisionAmount: agent.referrerMarkup, agent: referrer } : null,
+    domicileLabel: districtLabel(agent.domicileDistrictCode),
     downline: children.map((c) => ({
       id: c.id,
       commisionAmount: c.referrerMarkup,

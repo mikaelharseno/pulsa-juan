@@ -1,9 +1,10 @@
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { RefreshControl, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useHome, useTopUps } from '../../src/api/hooks';
+import { useAuth } from '../../src/auth/useAuth';
 import { AccountCard, BannerCarousel, CsRow, HomeHeader, PendingTopUpCard, ServicesGrid, waitingTopUp } from '../../src/components/home';
 import { ErrorView, Loading } from '../../src/components/ui';
 import { colors, size } from '../../src/theme';
@@ -12,6 +13,13 @@ export default function HomeScreen() {
   const home = useHome();
   const topUps = useTopUps();
   const router = useRouter();
+  const askReferrer = useAuth((s) => s.askReferrer);
+  const setAskReferrer = useAuth((s) => s.setAskReferrer);
+  useEffect(() => {
+    if (!askReferrer) return;
+    setAskReferrer(false);
+    router.push('/pengajak');
+  }, [askReferrer, setAskReferrer, router]);
   if (home.isLoading) return <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}><Loading /></SafeAreaView>;
   if (home.isError) return <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}><ErrorView message={(home.error as Error).message} onRetry={() => home.refetch()} /></SafeAreaView>;
   const d = home.data!;

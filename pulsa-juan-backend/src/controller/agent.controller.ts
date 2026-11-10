@@ -26,11 +26,12 @@ import {
 import { claimCommissions, commissionSummary } from '../service/commission.service';
 import * as bon from '../service/bon.service';
 import { qrisEnabled } from '../service/qris.service';
+import * as referral from '../service/referral.service';
+import * as regions from '../service/region.service';
 import * as sell from '../service/sellPrice.service';
 import { getConfig, publicConfig } from '../service/config.service';
 import { otpRequestSchema, otpVerifySchema, requestOtp, verifyOtp } from '../service/otp/otp.service';
 import { getPrefixEntries } from '../service/prefix.service';
-import { mitraOverview } from '../service/referral.service';
 import { listLedger } from '../service/saldo.service';
 import { listSegmentsForAgent, treeForAgent } from '../service/segment.service';
 import * as topup from '../service/topup.service';
@@ -213,5 +214,24 @@ export const postClaimCommissions = asyncHandler(async (req: Request, res: Respo
 });
 
 export const getMitra = asyncHandler(async (req: Request, res: Response) => {
-  res.json(await mitraOverview(req.agent!));
+  res.json(await referral.mitraOverview(req.agent!));
+});
+
+export const postMitraReferrer = asyncHandler(async (req: Request, res: Response) => {
+  const { code } = parse(referral.setReferrerSchema, req.body);
+  res.json(await referral.setReferrer(req.agent!, code));
+});
+
+export const getRegionProvinces = asyncHandler(async (_req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.json(regions.listProvinces());
+});
+
+export const getRegionChildren = asyncHandler(async (req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.json(regions.listChildren(req.params.code));
+});
+
+export const postRegionMatch = asyncHandler(async (req: Request, res: Response) => {
+  res.json(regions.matchRegion(parse(regions.regionMatchSchema, req.body)));
 });

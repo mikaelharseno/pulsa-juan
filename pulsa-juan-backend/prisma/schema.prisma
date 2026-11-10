@@ -144,8 +144,17 @@ model Agent {
   referrals       Agent[]  @relation("referral")
   /// referrer's referralMarkup, frozen when this agent joined (= level-1 commission per transaction)
   referrerMarkup  Int      @default(0)
+  /// set when the agent entered its inviter's code after sign-up (null = at sign-up or never)
+  referrerSetAt   DateTime?
   /// the agent's own profit per sale for the income recap: { default?: Rp, [segmentId]: Rp }
   sellMargins     Json     @default("{}")
+  /// Daerah domisili (official codes from data/regions.json); GPS = picked from the phone's location
+  domicileProvinceCode String?
+  domicileRegencyCode  String?
+  domicileDistrictCode String?
+  domicileLat          Float?
+  domicileLng          Float?
+  domicileSource       String?
   joinedAt     DateTime    @default(now())
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt

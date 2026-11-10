@@ -1,5 +1,5 @@
 import { Link, useLocalSearchParams } from 'expo-router';
-import { isValidIndoMobile, isValidNik, isValidPin, normalizeIndonesianMobile } from 'pulsa-juan-common';
+import { isValidIndoMobile, isValidPin, normalizeIndonesianMobile } from 'pulsa-juan-common';
 import React, { useState } from 'react';
 import { Text, View } from 'react-native';
 
@@ -8,23 +8,26 @@ import { Session } from '../../src/api/types';
 import { AuthShell, OrDivider } from '../../src/auth/AuthShell';
 import { GOOGLE_CONFIGURED, GoogleButton } from '../../src/auth/GoogleButton';
 import { useAuth } from '../../src/auth/useAuth';
+import { DomicilePicker, domicileInput, EMPTY_DOMICILE } from '../../src/components/DomicilePicker';
 import { Button, CodeInput, Field } from '../../src/components/ui';
 import { colors, font } from '../../src/theme';
 
 /**
- * Phone + profile + PIN in one form, no OTP (no SMS/WhatsApp cost; the phone is
- * stored unverified). Google sits on top; a Google sign-up arrives with
- * pendingGoogle set and fills the same form minus email.
+ * Phone + profile + domicile + PIN in one form, no OTP (no SMS/WhatsApp cost;
+ * the phone is stored unverified). Google sits on top; a Google sign-up arrives
+ * with pendingGoogle set and fills the same form minus email. NIK is not asked
+ * here: it comes from the KTP in the identity check ("Plus").
  */
 export default function RegisterScreen() {
   const { ref } = useLocalSearchParams<{ ref?: string }>();
   const signIn = useAuth((s) => s.signIn);
   const pendingGoogle = useAuth((s) => s.pendingGoogle);
   const setPendingGoogle = useAuth((s) => s.setPendingGoogle);
+  const setAskReferrer = useAuth((s) => s.setAskReferrer);
+  const [domicile, setDomicile] = useState(EMPTY_DOMICILE);
   const [form, setForm] = useState({
     phone: '',
     name: pendingGoogle?.name ?? '',
-    nik: '',
     email: '',
     password: '',
     referralCode: (ref ?? '').toUpperCase(),
@@ -37,11 +40,10 @@ export default function RegisterScreen() {
 
   const phoneValid = isValidIndoMobile(normalizeIndonesianMobile(form.phone));
   const phoneError = form.phone.length >= 10 && !phoneValid ? 'Nomor HP tidak valid' : null;
-  const nikError = form.nik && !isValidNik(form.nik) ? 'NIK harus 16 angka' : null;
   const pinError = pin.length === 6 && !isValidPin(pin) ? 'PIN tidak boleh sama semua / berurutan' : null;
   const pin2Error = pin2.length === 6 && pin2 !== pin ? 'PIN tidak sama' : null;
   const passwordError = form.password && form.password.length < 6 ? 'Minimal 6 karakter' : null;
-  const valid = phoneValid && form.name.trim().length >= 2 && !nikError && !passwordError && isValidPin(pin) && pin === pin2;
+  const valid = phoneValid && form.name.trim().length >= 2 && !!domicile.district && !passwordError && isValidPin(pin) && pin === pin2;
 
   const submit = async () => {
     setBusy(true);
@@ -52,12 +54,13 @@ export default function RegisterScreen() {
         googleTicket: pendingGoogle?.googleTicket,
         name: form.name.trim(),
         pin,
-        nik: form.nik || undefined,
+        domicile: domicileInput(domicile) ?? undefined,
         email: pendingGoogle ? undefined : form.email.trim() || undefined,
         password: form.password || undefined,
         referralCode: form.referralCode || undefined,
       });
       setPendingGoogle(null);
+      setAskReferrer(!form.referralCode);
       await signIn(session);
     } catch (e) {
       setError((e as Error).message);
@@ -83,7 +86,7 @@ export default function RegisterScreen() {
       ) : null}
       <Field label="Nomor HP" value={form.phone} onChangeText={set('phone')} keyboardType="phone-pad" placeholder="08xxxxxxxxxx" error={phoneError} testID="reg-phone" />
       <Field label="Nama" value={form.name} onChangeText={set('name')} placeholder="Nama lengkap" testID="reg-name" />
-      <Field label="NIK (opsional)" value={form.nik} onChangeText={(v) => set('nik')(v.replace(/\D/g, '').slice(0, 16))} keyboardType="number-pad" placeholder="16 angka sesuai KTP" error={nikError} testID="reg-nik" />
+      <DomicilePicker value={domicile} onChange={setDomicile} />
       {!pendingGoogle ? (
         <Field label="Email (opsional)" value={form.email} onChangeText={set('email')} autoCapitalize="none" keyboardType="email-address" placeholder="nama@email.com" />
       ) : null}

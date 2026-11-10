@@ -7,6 +7,8 @@ import { Platform, ScrollView, Share, Text, View } from 'react-native';
 import { API_BASE } from '../src/api/client';
 import { useHome, useMe, useMitra, useUpdateProfile } from '../src/api/hooks';
 import { OtpStep } from '../src/auth/OtpStep';
+import { DomicilePicker, domicileInput, DomicileValue, EMPTY_DOMICILE } from '../src/components/DomicilePicker';
+import { ReferrerForm } from '../src/components/ReferrerForm';
 import { Button, Card, ErrorView, Field, KeyValue, Loading, Screen, SectionTitle } from '../src/components/ui';
 import { colors, font } from '../src/theme';
 import { fmtDate } from './(tabs)/transaksi';
@@ -19,6 +21,8 @@ export default function MitraScreen() {
   const update = useUpdateProfile();
   const [form, setForm] = useState({ name: '', nik: '', referralMarkup: '' });
   const [changingPhone, setChangingPhone] = useState(false);
+  const [editingDomicile, setEditingDomicile] = useState(false);
+  const [domicile, setDomicile] = useState<DomicileValue>(EMPTY_DOMICILE);
   const [msg, setMsg] = useState<string | null>(null);
   useEffect(() => {
     if (me.data) setForm({ name: me.data.name, nik: me.data.nik ?? '', referralMarkup: String(me.data.referralMarkup) });
@@ -42,6 +46,11 @@ export default function MitraScreen() {
       { name: form.name, nik: form.nik && form.nik !== a.nik ? form.nik : undefined, referralMarkup: Number(form.referralMarkup) || 0 },
       { onSuccess: () => setMsg('Tersimpan'), onError: (e) => setMsg((e as Error).message) },
     );
+  const saveDomicile = () => {
+    const input = domicileInput(domicile);
+    if (!input) return;
+    update.mutate({ domicile: input }, { onSuccess: () => { setEditingDomicile(false); setMsg('Tersimpan'); }, onError: (e) => setMsg((e as Error).message) });
+  };
   const changePhone = (phoneOtpTicket: string) =>
     update.mutate(
       { phoneOtpTicket },
@@ -79,6 +88,24 @@ export default function MitraScreen() {
         </Card>
 
         <Card style={{ marginBottom: 12 }}>
+          <SectionTitle>Daerah domisili</SectionTitle>
+          {editingDomicile ? (
+            <>
+              <DomicilePicker value={domicile} onChange={setDomicile} />
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <Button title="Batal" variant="outline" style={{ flex: 1 }} onPress={() => setEditingDomicile(false)} />
+                <Button title="Simpan" style={{ flex: 1 }} disabled={!domicile.district} loading={update.isPending} onPress={saveDomicile} />
+              </View>
+            </>
+          ) : (
+            <>
+              <Text style={{ color: a.domicile?.label ? colors.ink : colors.muted, fontSize: font.body, marginBottom: 8 }}>{a.domicile?.label ?? 'Belum diisi'}</Text>
+              <Button title={a.domicile ? 'Ubah domisili' : 'Isi domisili'} variant="outline" onPress={() => { setMsg(null); setDomicile(EMPTY_DOMICILE); setEditingDomicile(true); }} />
+            </>
+          )}
+        </Card>
+
+        <Card style={{ marginBottom: 12 }}>
           <SectionTitle>Nomor HP</SectionTitle>
           {changingPhone ? (
             <>
@@ -98,7 +125,13 @@ export default function MitraScreen() {
             <SectionTitle>Mitra pengundang</SectionTitle>
             <KeyValue label={m.parent.name} value={`+${formatRp(m.parent.commisionAmount)} / transaksi`} />
           </Card>
-        ) : null}
+        ) : (
+          <Card style={{ marginBottom: 12 }}>
+            <SectionTitle>Masukkan kode pengajak</SectionTitle>
+            <Text style={{ color: colors.muted, fontSize: font.small, marginBottom: 10 }}>Diajak agen lain? Masukkan kode referral mereka. Hanya bisa diisi sekali.</Text>
+            <ReferrerForm />
+          </Card>
+        )}
         <Card>
           <SectionTitle>{`Mitra saya (${m.children.length})`}</SectionTitle>
           {m.children.length === 0 ? <Text style={{ color: colors.muted }}>Belum ada mitra. Bagikan kode referral Anda.</Text> : null}

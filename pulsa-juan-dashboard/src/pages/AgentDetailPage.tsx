@@ -20,6 +20,7 @@ interface AgentDetail {
   googleSub: string | null; hasPassword: boolean; hasPin: boolean; otpPending: boolean; pinFailedAttempts: number; pinLockedUntil: string | null;
   confirmationCodeExpiresAt: string | null; confirmationCodePurpose: string | null; confirmationCodeSentAt: string | null; phoneVerifiedAt: string | null;
   joinedAt: string; createdAt: string; updatedAt: string;
+  domicileLabel: string | null; domicileSource: string | null; domicileLat: number | null; domicileLng: number | null; referrerSetAt: string | null;
   upline: { commisionAmount: number; agent: { id: string; name: string; commisionUniqueId: string } } | null;
   downline: { id: string; commisionAmount: number; createdAt: string; agent: { id: string; name: string; commisionUniqueId: string } }[];
   unclaimedCommission: number;
@@ -165,6 +166,13 @@ export default function AgentDetailPage() {
                 <Button size="small" sx={{ ml: 1 }} onClick={() => { setNik(a.nik ?? ''); setEditNik(true); }}>Ubah</Button>
               </Field>
               <Field label="Email">{a.email ?? '-'}</Field>
+              <Field label="Domisili">
+                {a.domicileLabel ?? '-'}
+                {a.domicileSource === 'GPS' && <Chip size="small" label="dari lokasi HP" sx={{ ml: 1 }} />}
+                {a.domicileLat != null && a.domicileLng != null && (
+                  <a href={`https://www.google.com/maps?q=${a.domicileLat},${a.domicileLng}`} target="_blank" rel="noreferrer" style={{ marginLeft: 8, fontSize: 12 }}>peta</a>
+                )}
+              </Field>
               <Field label="Tanggal bergabung">{fmtDate(a.joinedAt)}</Field>
               <Field label="Metode masuk">{authMethods}</Field>
               <Field label="PIN">
@@ -183,7 +191,7 @@ export default function AgentDetailPage() {
               <Field label="Kode referral (crown)"><code>{a.commisionUniqueId}</code> · markup untuk mitra {fmtRp(a.referralMarkup)}/trx</Field>
               <Field label="Pengundang (referrer)">
                 {a.upline ? (
-                  <><RouterLink to={`/agents/${a.upline.agent.id}`}>{a.upline.agent.name}</RouterLink> · referrer markup {fmtRp(a.referrerMarkup)}/trx</>
+                  <><RouterLink to={`/agents/${a.upline.agent.id}`}>{a.upline.agent.name}</RouterLink> · referrer markup {fmtRp(a.referrerMarkup)}/trx{a.referrerSetAt ? ` · diisi setelah daftar (${fmtDate(a.referrerSetAt)})` : ''}</>
                 ) : '-'}
               </Field>
               <Field label="Diperbarui">{fmtDate(a.updatedAt)}</Field>
