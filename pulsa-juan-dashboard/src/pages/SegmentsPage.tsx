@@ -1,5 +1,5 @@
 import { ArrowDownward, ArrowUpward } from '@mui/icons-material';
-import { Box, Button, Chip, IconButton, Paper, Switch, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
+import { Box, Button, Checkbox, Chip, FormControlLabel, IconButton, Paper, Switch, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -13,7 +13,7 @@ import { BUILTIN_PREFIX, ICON_KEYS, ICONS } from 'pulsa-juan-common';
 
 export interface SegmentRow {
   id: string; slug: string; label: string; iconUrl: string | null; groupLabel: string | null; badge: string | null; sortOrder: number; isActive: boolean;
-  maintenanceMessage: string | null; draftUpdatedAt: string | null; publishedVersionId: string | null; publishedVersion: { id: string; version: number; publishedAt: string } | null;
+  maintenanceMessage: string | null; requiresVerification?: boolean; draftUpdatedAt: string | null; publishedVersionId: string | null; publishedVersion: { id: string; version: number; publishedAt: string } | null;
 }
 const EMPTY: Partial<SegmentRow> = { slug: '', label: '', iconUrl: null, groupLabel: 'Pulsa & Data', badge: null, isActive: false, maintenanceMessage: null };
 
@@ -32,7 +32,7 @@ export default function SegmentsPage() {
   const [edit, setEdit] = useState<Partial<SegmentRow> | null>(null);
   const save = useMutation({
     mutationFn: async (s: Partial<SegmentRow>) => {
-      const body = { slug: s.slug, label: s.label, iconUrl: s.iconUrl || null, groupLabel: s.groupLabel || null, badge: s.badge || null, isActive: s.isActive, maintenanceMessage: s.maintenanceMessage || null };
+      const body = { slug: s.slug, label: s.label, iconUrl: s.iconUrl || null, groupLabel: s.groupLabel || null, badge: s.badge || null, isActive: s.isActive, maintenanceMessage: s.maintenanceMessage || null, requiresVerification: !!s.requiresVerification };
       return s.id ? (await api.put(`/admin/segments/${s.id}`, body)).data : (await api.post('/admin/segments', body)).data;
     },
     onSuccess: (data: SegmentRow, vars) => { refresh(); setEdit(null); if (!vars.id) nav(`/segments/${data.id}/tree`); },
@@ -61,7 +61,7 @@ export default function SegmentsPage() {
                   <IconButton size="small" disabled={!canEdit || i === rows.length - 1} onClick={() => move(i, 1)}><ArrowDownward fontSize="inherit" /></IconButton>
                 </TableCell>
                 <TableCell><ServiceTile iconUrl={s.iconUrl} slug={s.slug} px={40} /></TableCell>
-                <TableCell><b>{s.label}</b>{s.maintenanceMessage && <Chip size="small" color="warning" label="maintenance" sx={{ ml: 1 }} />}</TableCell>
+                <TableCell><b>{s.label}</b>{s.maintenanceMessage && <Chip size="small" color="warning" label="maintenance" sx={{ ml: 1 }} />}{s.requiresVerification && <Chip size="small" color="secondary" label="PLUS" sx={{ ml: 1 }} />}</TableCell>
                 <TableCell><code>{s.slug}</code></TableCell>
                 <TableCell>{s.groupLabel ?? '-'}</TableCell>
                 <TableCell>{s.badge ?? '-'}</TableCell>
@@ -88,6 +88,9 @@ export default function SegmentsPage() {
             <TextField label="Grup (judul bagian di beranda)" size="small" value={edit.groupLabel ?? ''} onChange={(e) => setEdit({ ...edit, groupLabel: e.target.value })} />
             <TextField label="Badge (mis. BARU / PROMO)" size="small" value={edit.badge ?? ''} onChange={(e) => setEdit({ ...edit, badge: e.target.value.toUpperCase() })} />
             <TextField label="Pesan maintenance (kosongkan bila normal)" size="small" value={edit.maintenanceMessage ?? ''} onChange={(e) => setEdit({ ...edit, maintenanceMessage: e.target.value })} sx={{ gridColumn: '1 / -1' }} />
+            <Box sx={{ gridColumn: '1 / -1' }}>
+              <FormControlLabel control={<Checkbox checked={!!edit.requiresVerification} onChange={(e) => setEdit({ ...edit, requiresVerification: e.target.checked })} />} label="Layanan Plus: hanya agen dengan identitas terverifikasi (untuk produk seperti uang tunai, mis. top up e-wallet)" />
+            </Box>
             <Box sx={{ gridColumn: '1 / -1' }}>
               <Typography variant="subtitle2" sx={{ mb: 1 }}>Ikon</Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 1.5 }}>

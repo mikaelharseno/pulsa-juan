@@ -110,6 +110,7 @@ export async function agentProfile(agent: Agent) {
       ? { districtCode: agent.domicileDistrictCode, label: districtLabel(agent.domicileDistrictCode), source: agent.domicileSource }
       : null,
     hasReferrer: !!agent.referrerAgentId,
+    kycStatus: agent.kycStatus,
     joinedAt: agent.joinedAt,
     createdAt: agent.createdAt,
   };
@@ -319,7 +320,8 @@ export async function changePin(agent: Agent, input: z.infer<typeof pinChangeSch
 export async function updateProfile(agent: Agent, input: z.infer<typeof profileUpdateSchema>) {
   const data: Prisma.AgentUpdateInput = {};
   if (input.name !== undefined) data.name = input.name;
-  if (input.nik !== undefined) {
+  if (input.nik !== undefined && input.nik !== agent.nik) {
+    if (agent.kycStatus === 'VERIFIED') throw badRequest('NIK sudah terverifikasi dan tidak bisa diubah. Hubungi CS.', 'NIK_LOCKED');
     const taken = await prisma.agent.findUnique({ where: { nik: input.nik }, select: { id: true } });
     if (taken && taken.id !== agent.id) throw conflict('NIK sudah terdaftar');
     data.nik = input.nik;

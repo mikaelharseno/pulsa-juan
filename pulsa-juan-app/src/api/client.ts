@@ -76,3 +76,5 @@ export const get = <T>(path: string, query?: Record<string, unknown>) => api<T>(
 export const post = <T>(path: string, json?: unknown) => api<T>(path, { method: 'POST', json: json ?? {} });
 export const put = <T>(path: string, json?: unknown) => api<T>(path, { method: 'PUT', json: json ?? {} });
 export const del = <T>(path: string) => api<T>(path, { method: 'DELETE' });
+/** multipart POST (fetch sets the boundary) */
+export const upload = <T>(path: string, form: FormData) => api<T>(path, { method: 'POST', body: form });

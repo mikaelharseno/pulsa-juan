@@ -1,17 +1,4 @@
-import {
-  AccountTree,
-  CreditCard,
-  Group,
-  Hub,
-  Inventory2,
-  Logout,
-  ElectricBolt,
-  Menu as MenuIcon,
-  ReceiptLong,
-  Settings,
-  SyncAlt,
-  UploadFile,
-} from '@mui/icons-material';
+import { AccountTree, CreditCard, ElectricBolt, Group, Hub, Inventory2, Logout, Menu as MenuIcon, ReceiptLong, Settings, SyncAlt, UploadFile, VerifiedUser } from '@mui/icons-material';
 import { AppBar, Box, Divider, Drawer, IconButton, List, ListItemButton, ListItemIcon, ListItemText, ListSubheader, Toolbar, Typography, useMediaQuery } from '@mui/material';
 import { useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
@@ -25,6 +12,7 @@ export const NAV_ITEMS = [
   { key: 'transactions', label: 'Order Isi Pulsa', to: '/transactions', group: 'Operasional', icon: <ReceiptLong fontSize="small" /> },
   { key: 'agents', label: 'Daftar Agen', to: '/agents', group: 'Mitra', icon: <Group fontSize="small" /> },
   { key: 'mitra', label: 'Referral & Komisi', to: '/mitra', group: 'Mitra', icon: <Hub fontSize="small" /> },
+  { key: 'verifikasi', label: 'Verifikasi Identitas', to: '/verifikasi', group: 'Mitra', icon: <VerifiedUser fontSize="small" /> },
   { key: 'segments', label: 'Segmen & Alur', to: '/segments', group: 'Katalog', icon: <AccountTree fontSize="small" /> },
   { key: 'packages', label: 'Paket', to: '/packages', group: 'Katalog', icon: <Inventory2 fontSize="small" /> },
   { key: 'billers', label: 'Tagihan (Biller)', to: '/billers', group: 'Katalog', icon: <ElectricBolt fontSize="small" /> },

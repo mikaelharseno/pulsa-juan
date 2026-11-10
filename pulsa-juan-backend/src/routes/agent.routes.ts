@@ -50,4 +50,9 @@ router.post('/commissions/claim', c.postClaimCommissions);
 router.get('/mitra', c.getMitra);
 router.post('/mitra/referrer', c.postMitraReferrer);
 
+router.get('/kyc', c.getKyc);
+router.post('/kyc', c.postKyc);
+router.post('/kyc/liveness', c.postLivenessStart);
+router.post('/kyc/liveness/:id', c.postLivenessCheck);
+
 export default router;

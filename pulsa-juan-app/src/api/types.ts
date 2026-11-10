@@ -23,8 +23,26 @@ export interface AgentProfile {
   /** Daerah domisili; null for agents who signed up before it was asked */
   domicile?: { districtCode: string; label: string | null; source: 'GPS' | 'MANUAL' | null } | null;
   hasReferrer?: boolean;
+  /** identity check for "Plus" services */
+  kycStatus?: KycStatus;
   joinedAt: string;
   createdAt: string;
+}
+
+export type KycStatus = 'NONE' | 'PENDING' | 'VERIFIED' | 'REJECTED';
+
+export interface KycState {
+  status: KycStatus;
+  rejectReason: string | null;
+  submittedAt: string | null;
+  reviewedAt: string | null;
+}
+
+export interface LivenessChallenge {
+  id: string;
+  colors: ('red' | 'blue' | 'yellow')[];
+  expiresAt: string;
+  flashMs: number;
 }
 
 export interface Region {
@@ -89,6 +107,8 @@ export interface SegmentSummary {
   groupLabel: string | null;
   badge: string | null;
   maintenanceMessage: string | null;
+  /** "Plus": needs a verified identity */
+  requiresVerification?: boolean;
 }
 
 export interface HomeData {
@@ -119,7 +139,7 @@ export interface AgentConfig {
 }
 
 export interface TreeResponse {
-  segment: { id: string; slug: string; label: string; iconUrl: string | null; maintenanceMessage: string | null };
+  segment: { id: string; slug: string; label: string; iconUrl: string | null; maintenanceMessage: string | null; requiresVerification?: boolean };
   treeVersion: number;
   treeVersionId: string;
   tree: SegmentTree;

@@ -70,7 +70,7 @@ export default function ProfilScreen() {
             <View style={{ flex: 1, marginLeft: 12 }}>
               <Text style={styles.idName} numberOfLines={1}>{a.name}</Text>
               <Text style={styles.idMeta} numberOfLines={1}>{a.phone}{a.email ? ` · ${a.email}` : ''}</Text>
-              <Text style={styles.idMeta} numberOfLines={1}>{a.nik ? `NIK ${a.nik}` : 'NIK belum diisi'}</Text>
+              <Text style={styles.idMeta} numberOfLines={1}>{a.nik ? `NIK ${a.nik}${a.kycStatus === 'VERIFIED' ? ' · terverifikasi' : ''}` : 'NIK belum diisi'}</Text>
             </View>
             <View style={styles.codePill}>
               <Text style={styles.codePillLabel}>KODE</Text>
@@ -121,6 +121,12 @@ export default function ProfilScreen() {
           <MenuRow icon="swap-vertical-outline" label="Riwayat saldo" sub="Semua saldo masuk & keluar" onPress={() => router.push('/saldo')} />
           <MenuRow icon="wallet-outline" label="Riwayat top up saldo" onPress={() => router.push('/topup/history')} />
           <MenuRow icon="keypad-outline" label={a.hasPin ? 'Ubah PIN' : 'Buat PIN'} onPress={() => router.push('/pin')} />
+          <MenuRow
+            icon="shield-checkmark-outline"
+            label="Verifikasi identitas (Plus)"
+            sub={{ VERIFIED: 'Terverifikasi', PENDING: 'Sedang diperiksa admin', REJECTED: 'Ditolak, silakan ulangi', NONE: 'Wajib untuk top up e-wallet' }[a.kycStatus ?? 'NONE']}
+            onPress={() => router.push('/verifikasi')}
+          />
           <MenuRow icon="create-outline" label="Ubah profil" sub="Nama, NIK, nomor HP" onPress={() => router.push('/mitra?edit=1')} last />
         </Card>
 

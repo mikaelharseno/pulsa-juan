@@ -6,6 +6,7 @@ import { asyncHandler, badRequest } from '../lib/errors';
 import { toPlain } from '../lib/serialize';
 import { parse } from '../lib/validate';
 import { loginAdmin } from '../service/adminAuth.service';
+import * as kyc from '../service/kyc.service';
 import * as qris from '../service/qris.service';
 import * as agents from '../service/agentAdmin.service';
 import { adminListCommissions } from '../service/commission.service';
@@ -273,4 +274,19 @@ export const putQris = asyncHandler(async (req: Request, res: Response) => {
 
 export const deleteQris = asyncHandler(async (req: Request, res: Response) => {
   res.json(await qris.adminDeleteQris(req.admin!.adminId, req.params.id));
+});
+
+export const getKycList = asyncHandler(async (req: Request, res: Response) => {
+  res.json(await kyc.adminListKyc(parse(kyc.kycListSchema, req.query)));
+});
+
+export const getKycFile = asyncHandler(async (req: Request, res: Response) => {
+  const file = await kyc.adminKycFile(req.params.id, req.params.kind);
+  res.setHeader('Content-Type', file.contentType);
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.send(file.data);
+});
+
+export const putKyc = asyncHandler(async (req: Request, res: Response) => {
+  res.json(await kyc.adminReviewKyc(req.admin!.adminId, req.params.id, parse(kyc.kycReviewSchema, req.body)));
 });

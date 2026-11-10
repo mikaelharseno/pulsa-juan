@@ -178,7 +178,7 @@ export function ServiceCell({ label, iconUrl, slug, badge, onPress }: { label: s
 }
 
 /** Every service in one section, orderkuota-style. */
-export function ServicesGrid({ segments }: { segments: SegmentSummary[] }) {
+export function ServicesGrid({ segments, verified = false }: { segments: SegmentSummary[]; verified?: boolean }) {
   const router = useRouter();
   return (
     <View style={styles.section}>
@@ -190,7 +190,14 @@ export function ServicesGrid({ segments }: { segments: SegmentSummary[] }) {
       </View>
       <View style={styles.grid}>
         {segments.map((s) => (
-          <ServiceCell key={s.id} label={s.label} iconUrl={s.iconUrl} slug={s.slug} badge={s.badge} onPress={() => router.push(`/segment/${s.id}`)} />
+          <ServiceCell
+            key={s.id}
+            label={s.label}
+            iconUrl={s.iconUrl}
+            slug={s.slug}
+            badge={s.requiresVerification ? 'PLUS' : s.badge}
+            onPress={() => router.push(s.requiresVerification && !verified ? '/verifikasi' : `/segment/${s.id}`)}
+          />
         ))}
       </View>
     </View>

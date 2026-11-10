@@ -2,13 +2,15 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { DEFAULT_PREFIXES } from 'pulsa-juan-common';
 
 import { useAuth } from '../auth/useAuth';
-import { API_BASE, del, get, post, put } from './client';
+import { API_BASE, del, get, post, put, upload } from './client';
 import {
   AgentConfig,
   AgentProfile,
   CommissionSummary,
   DomicileInput,
   HomeData,
+  KycState,
+  LivenessChallenge,
   PayMethod,
   Region,
   LedgerList,
@@ -254,6 +256,56 @@ export function useSetReferrer() {
     mutationFn: (code: string) => post<MitraOverview>('/agent/mitra/referrer', { code }),
     onSuccess: (data) => {
       qc.setQueryData(keys.mitra, data);
+      qc.invalidateQueries({ queryKey: keys.me });
+      qc.invalidateQueries({ queryKey: keys.home });
+    },
+  });
+}
+
+export function useKyc() {
+  return useQuery({ queryKey: ['kyc'], queryFn: () => get<KycState>('/agent/kyc') });
+}
+
+export function useStartLiveness() {
+  return useMutation({ mutationFn: () => post<LivenessChallenge>('/agent/kyc/liveness') });
+}
+
+export type UploadFile = { uri: string; name: string; type: string } | Blob;
+
+function appendFile(form: FormData, field: string, file: UploadFile, name: string) {
+  // native FormData takes {uri, name, type}; web needs a Blob
+  if (typeof Blob !== 'undefined' && file instanceof Blob) form.append(field, file, name);
+  else form.append(field, file as unknown as Blob);
+}
+
+/** frames[0] = white baseline, then one per challenge colour */
+export function useCheckLiveness() {
+  return useMutation({
+    mutationFn: ({ id, frames }: { id: string; frames: UploadFile[] }) => {
+      const form = new FormData();
+      frames.forEach((f, i) => appendFile(form, `frame${i}`, f, `frame${i}.jpg`));
+      return upload<{ id: string; passed: boolean; reason: string | null }>(`/agent/kyc/liveness/${id}`, form);
+    },
+  });
+}
+
+export function useSubmitKyc() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { livenessId: string; nik: string; name: string; ocrNik?: string; ocrName?: string; ocrText?: string; ktp: UploadFile; selfie: UploadFile }) => {
+      const form = new FormData();
+      form.append('livenessId', input.livenessId);
+      form.append('nik', input.nik);
+      form.append('name', input.name);
+      if (input.ocrNik) form.append('ocrNik', input.ocrNik);
+      if (input.ocrName) form.append('ocrName', input.ocrName);
+      if (input.ocrText) form.append('ocrText', input.ocrText.slice(0, 4000));
+      appendFile(form, 'ktp', input.ktp, 'ktp.jpg');
+      appendFile(form, 'selfie', input.selfie, 'selfie.jpg');
+      return upload<KycState & { id: string }>('/agent/kyc', form);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['kyc'] });
       qc.invalidateQueries({ queryKey: keys.me });
       qc.invalidateQueries({ queryKey: keys.home });
     },

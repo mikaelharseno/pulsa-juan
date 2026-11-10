@@ -26,6 +26,8 @@ import {
 import { claimCommissions, commissionSummary } from '../service/commission.service';
 import * as bon from '../service/bon.service';
 import { qrisEnabled } from '../service/qris.service';
+import * as kyc from '../service/kyc.service';
+import * as liveness from '../service/liveness.service';
 import * as referral from '../service/referral.service';
 import * as regions from '../service/region.service';
 import * as sell from '../service/sellPrice.service';
@@ -234,4 +236,35 @@ export const getRegionChildren = asyncHandler(async (req: Request, res: Response
 
 export const postRegionMatch = asyncHandler(async (req: Request, res: Response) => {
   res.json(regions.matchRegion(parse(regions.regionMatchSchema, req.body)));
+});
+
+function uploaded(req: Request, field: string) {
+  const f = req.files?.[field];
+  const one = Array.isArray(f) ? f[0] : f;
+  return one ? { data: one.data, mimetype: one.mimetype, size: one.size } : null;
+}
+
+export const getKyc = asyncHandler(async (req: Request, res: Response) => {
+  res.json(await kyc.kycState(req.agent!));
+});
+
+export const postLivenessStart = asyncHandler(async (req: Request, res: Response) => {
+  res.status(201).json(await liveness.startChallenge(req.agent!));
+});
+
+/** multipart: frame0 (white baseline), frame1..frameN (one per colour, in order) */
+export const postLivenessCheck = asyncHandler(async (req: Request, res: Response) => {
+  const frames: { data: Buffer; mimetype: string }[] = [];
+  for (let i = 0; i < 10; i++) {
+    const f = uploaded(req, `frame${i}`);
+    if (!f) break;
+    frames.push(f);
+  }
+  res.json(await liveness.checkChallenge(req.agent!, req.params.id, frames));
+});
+
+/** multipart: ktp, selfie + fields livenessId, nik, name, ocrNik?, ocrName?, ocrText? */
+export const postKyc = asyncHandler(async (req: Request, res: Response) => {
+  const input = parse(kyc.kycSubmitSchema, req.body ?? {});
+  res.status(201).json(await kyc.submitKyc(req.agent!, input, uploaded(req, 'ktp'), uploaded(req, 'selfie')));
 });

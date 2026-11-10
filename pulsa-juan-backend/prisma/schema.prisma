@@ -70,6 +70,13 @@ enum BillCheckStatus {
   EXPIRED
 }
 
+enum KycStatus {
+  NONE
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
 enum BankCode {
   BRI
   BCA
@@ -148,6 +155,8 @@ model Agent {
   referrerSetAt   DateTime?
   /// the agent's own profit per sale for the income recap: { default?: Rp, [segmentId]: Rp }
   sellMargins     Json     @default("{}")
+  /// identity check for "Plus" services (e-wallet top-ups); VERIFIED locks the NIK
+  kycStatus       KycStatus @default(NONE)
   /// Daerah domisili (official codes from data/regions.json); GPS = picked from the phone's location
   domicileProvinceCode String?
   domicileRegencyCode  String?
@@ -165,6 +174,58 @@ model Agent {
   commissionsGenerated AgentMarkupCommision[] @relation("commissionSource")
   billChecks   BillCheck[]
   sellPrices   AgentSellPrice[]
+  kycSubmissions KycSubmission[]
+  livenessChallenges LivenessChallenge[]
+}
+
+/// One identity check sent by an agent: KTP photo, selfie and the live-check
+/// frames (private storage keys), what the phone read off the KTP, what the
+/// agent confirmed, and the admin's decision.
+model KycSubmission {
+  id            String    @id @default(cuid())
+  agentId       String
+  agent         Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  /// PENDING → VERIFIED | REJECTED
+  status        KycStatus @default(PENDING)
+  ktpKey        String
+  selfieKey     String
+  livenessId    String    @unique
+  liveness      LivenessChallenge @relation(fields: [livenessId], references: [id])
+  /// read on the phone (ML Kit) — kept next to what the agent confirmed
+  ocrNik        String?
+  ocrName       String?
+  ocrText       String?
+  nik           String
+  name          String
+  reviewedById  String?
+  reviewedAt    DateTime?
+  rejectReason  String?
+  createdAt     DateTime  @default(now())
+
+  @@index([status, createdAt])
+  @@index([agentId, createdAt])
+}
+
+/// Live check: the server picks the colour order, the phone flashes the screen
+/// in that order and sends a frame per colour; the server checks the face area
+/// shifted toward each colour (a photo or replayed video does not).
+model LivenessChallenge {
+  id          String    @id @default(cuid())
+  agentId     String
+  agent       Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  /// e.g. ["blue","red","yellow","red"] — the phone also shoots a white baseline first
+  colors      Json
+  expiresAt   DateTime
+  /// private storage keys: [baseline, ...one per colour]
+  frameKeys   Json?
+  metrics     Json?
+  passed      Boolean?
+  checkedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  submission  KycSubmission?
+
+  @@index([agentId, createdAt])
 }
 
 /// The agent's own price to its customer for one product, saved whenever the
@@ -264,6 +325,8 @@ model Segment {
   badge              String?
   sortOrder          Int       @default(0)
   isActive           Boolean   @default(true)
+  /// "Plus": only agents with a verified identity may buy (cash-like products such as e-wallet top-ups)
+  requiresVerification Boolean @default(false)
   maintenanceMessage String?
   draftTree          Json?
   draftUpdatedAt     DateTime?
@@ -404,6 +467,8 @@ model StoreConfig {
   maxReferralMarkup Int      @default(2000)
   /// true = every purchase needs the agent's PIN (turn on once agents run an app that asks for it)
   requirePurchasePin Boolean @default(false)
+  /// live check: minimum shift of the face area's colour toward each flash (chromaticity, 0–1)
+  livenessMinShift   Float   @default(0.012)
   /// Product Updater default margin: agent price = roundUp(cost + fixed + cost * percent / 100, roundTo)
   productMarginFixed   Int   @default(0)
   productMarginPercent Float @default(0)

@@ -105,6 +105,8 @@ describe('transactions', () => {
   it('gopay amount flow and PLN pascabayar inquiry (stub)', async () => {
     const { token, agent } = await registerAgent('Gopay');
     await giveSaldo(agent.id, 500000);
+    // e-wallet top-ups are "Plus": identity verified first (see kyc.test.ts)
+    await prisma.agent.update({ where: { id: agent.id }, data: { kycStatus: 'VERIFIED' } });
     const gopay = await request(app).get('/api/agent/segments/gopay/tree').set(auth(token));
     const steps: FlowStep[] = [
       { nodeId: 'jenis', type: 'ListNode', rowId: 'driver' },

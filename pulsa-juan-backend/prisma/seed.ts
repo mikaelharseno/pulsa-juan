@@ -97,7 +97,7 @@ async function seedSegments(segments: typeof SEED_SEGMENTS) {
     const tree = s.tree as unknown as Prisma.InputJsonValue;
     await prisma.$transaction(async (tx) => {
       const segment = await tx.segment.create({
-        data: { slug: s.slug, label: s.label, groupLabel: s.groupLabel, sortOrder: s.sortOrder, isActive: s.isActive, draftTree: tree, iconUrl },
+        data: { slug: s.slug, label: s.label, groupLabel: s.groupLabel, sortOrder: s.sortOrder, isActive: s.isActive, draftTree: tree, iconUrl, requiresVerification: s.groupLabel === 'E-Wallet' },
       });
       const v = await tx.segmentTreeVersion.create({ data: { segmentId: segment.id, version: 1, tree, publishedBy: 'seed' } });
       await tx.segment.update({ where: { id: segment.id }, data: { publishedVersionId: v.id } });

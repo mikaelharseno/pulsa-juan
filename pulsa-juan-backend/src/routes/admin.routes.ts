@@ -54,6 +54,9 @@ router.delete('/provider-prefixes/:id', requireRole('OWNER', 'ADMIN'), c.deleteP
 
 router.get('/config', c.getConfigHandler);
 router.put('/config', requireRole('OWNER', 'ADMIN'), c.putConfigHandler);
+router.get('/kyc', c.getKycList);
+router.get('/kyc/:id/files/:kind', c.getKycFile);
+router.put('/kyc/:id', requireRole('OWNER', 'ADMIN'), c.putKyc);
 router.get('/qris', c.getQris);
 router.post('/qris', requireRole('OWNER', 'ADMIN'), c.postQris);
 router.put('/qris/:id', requireRole('OWNER', 'ADMIN'), c.putQris);

@@ -21,6 +21,7 @@ import { getPrefixEntries } from './prefix.service';
 import { resolveMarkup } from './referral.service';
 import { creditSaldo, debitSaldo } from './saldo.service';
 import { verifyAgentPin } from './agentAuth.service';
+import { assertPlusAllowed } from './kyc.service';
 import { getConfig } from './config.service';
 import { initialSellPrice } from './sellPrice.service';
 import { manualOrderAlert, queueAdminAlert, stuckOrderAlert, supplierFailedAlert, supplierUnreachableAlert } from './telegram.service';
@@ -87,7 +88,8 @@ async function loadPublished(segmentId: string) {
  * otherwise only the dev stub (FULFILLMENT_STUB=1) answers, with no checkId.
  */
 export async function inquire(agent: Agent, input: z.infer<typeof inquirySchema>) {
-  const { tree } = await loadPublished(input.segmentId);
+  const { segment, tree } = await loadPublished(input.segmentId);
+  assertPlusAllowed(agent, segment);
   const node = tree.nodes[input.nodeId];
   if (!node || node.type !== 'BillInquiry') throw badRequest('Node cek tagihan tidak ditemukan');
   const biller = await prisma.biller.findUnique({ where: { key: node.product } });
@@ -112,6 +114,7 @@ export async function createTransaction(agent: Agent, input: z.infer<typeof crea
   if (config.requirePurchasePin || input.pin !== undefined) await verifyAgentPin(agent.id, input.pin);
 
   const { segment, version, tree } = await loadPublished(input.segmentId);
+  assertPlusAllowed(agent, segment);
   if (version.version !== input.treeVersion) {
     throw conflict('Layanan sudah diperbarui, silakan ulangi', 'TREE_OUTDATED', { treeVersion: version.version });
   }

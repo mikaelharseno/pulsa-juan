@@ -37,6 +37,7 @@ export default function RootLayout() {
             <Stack.Screen name="saldo" />
             <Stack.Screen name="pin" />
             <Stack.Screen name="pengajak" />
+            <Stack.Screen name="verifikasi" />
           </Stack.Protected>
           <Stack.Protected guard={!signedIn}>
             <Stack.Screen name="(auth)" />

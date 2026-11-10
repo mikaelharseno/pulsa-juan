@@ -4,5 +4,7 @@ process.env.DATABASE_URL = process.env.TEST_DATABASE_URL ?? 'postgresql://postgr
 process.env.DIRECT_URL = process.env.DATABASE_URL;
 process.env.UPLOAD_DRIVER = 'local';
 process.env.UPLOADS_DIR = require('path').join(__dirname, '..', 'uploads-test');
+process.env.PRIVATE_UPLOADS_DIR = require('path').join(__dirname, '..', 'uploads-test', 'private');
+delete process.env.S3_PRIVATE_BUCKET;
 process.env.FULFILLMENT_STUB = '1';
 process.env.OTP_DEBUG = '1';

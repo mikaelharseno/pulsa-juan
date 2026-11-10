@@ -25,6 +25,7 @@ export const segmentSchema = z.object({
   sortOrder: z.number().int().optional(),
   isActive: z.boolean().optional(),
   maintenanceMessage: z.string().trim().max(200).optional().nullable(),
+  requiresVerification: z.boolean().optional(),
 });
 
 export const reorderSchema = z.object({ ids: z.array(z.string()).min(1) });
@@ -42,7 +43,7 @@ export async function listSegmentsForAgent() {
   const rows = await prisma.segment.findMany({
     where: { isActive: true, publishedVersionId: { not: null } },
     orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
-    select: { id: true, slug: true, label: true, iconUrl: true, groupLabel: true, badge: true, maintenanceMessage: true },
+    select: { id: true, slug: true, label: true, iconUrl: true, groupLabel: true, badge: true, maintenanceMessage: true, requiresVerification: true },
   });
   const groups: { groupLabel: string; segments: typeof rows }[] = [];
   for (const row of rows) {
@@ -72,6 +73,7 @@ export async function treeForAgent(agent: Agent, segmentId: string) {
       label: segment.label,
       iconUrl: segment.iconUrl,
       maintenanceMessage: segment.maintenanceMessage,
+      requiresVerification: segment.requiresVerification,
     },
     treeVersion: segment.publishedVersion.version,
     treeVersionId: segment.publishedVersion.id,

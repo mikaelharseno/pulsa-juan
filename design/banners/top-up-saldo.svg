@@ -16,7 +16,7 @@
   <text x="188" y="89" text-anchor="middle" font-family="Avenir Next" font-weight="700" font-size="26" fill="#C2410C" letter-spacing="2">ISI SALDO</text>
   <text x="72" y="198" font-family="Avenir Next" font-weight="700" font-size="76" fill="#FFFFFF">Top up saldo</text>
   <text x="72" y="280" font-family="Avenir Next" font-weight="700" font-size="76" fill="#3B1D06">semudah transfer</text>
-  <text x="72" y="345" font-family="Avenir Next" font-weight="600" font-size="34" fill="#FFF7ED">Transfer ke BRI atau BCA</text>
+  <text x="72" y="345" font-family="Avenir Next" font-weight="600" font-size="34" fill="#FFF7ED">Transfer BRI, BCA atau QRIS</text>
   <g font-family="Avenir Next" font-weight="700" font-size="28">
     <circle cx="96" cy="420" r="24" fill="#FFFFFF"/><text x="96" y="430" text-anchor="middle" fill="#C2410C">1</text>
     <text x="132" y="430" fill="#FFFFFF">Nominal</text>

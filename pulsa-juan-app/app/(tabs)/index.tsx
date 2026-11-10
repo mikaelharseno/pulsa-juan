@@ -40,7 +40,7 @@ export default function HomeScreen() {
         <View style={{ paddingHorizontal: size.gutter }}>
           {pending ? <PendingTopUpCard topUp={pending} /> : null}
           <BannerCarousel banners={d.banners} />
-          <ServicesGrid segments={d.segments} />
+          <ServicesGrid segments={d.segments} verified={d.agent.kycStatus === 'VERIFIED'} />
           <CsRow whatsapp={d.cs.whatsapp} telegram={d.cs.telegram} />
         </View>
       </ScrollView>

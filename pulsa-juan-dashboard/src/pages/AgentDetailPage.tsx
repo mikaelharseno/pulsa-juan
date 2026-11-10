@@ -20,6 +20,7 @@ interface AgentDetail {
   googleSub: string | null; hasPassword: boolean; hasPin: boolean; otpPending: boolean; pinFailedAttempts: number; pinLockedUntil: string | null;
   confirmationCodeExpiresAt: string | null; confirmationCodePurpose: string | null; confirmationCodeSentAt: string | null; phoneVerifiedAt: string | null;
   joinedAt: string; createdAt: string; updatedAt: string;
+  kycStatus: 'NONE' | 'PENDING' | 'VERIFIED' | 'REJECTED';
   domicileLabel: string | null; domicileSource: string | null; domicileLat: number | null; domicileLng: number | null; referrerSetAt: string | null;
   upline: { commisionAmount: number; agent: { id: string; name: string; commisionUniqueId: string } } | null;
   downline: { id: string; commisionAmount: number; createdAt: string; agent: { id: string; name: string; commisionUniqueId: string } }[];
@@ -164,6 +165,10 @@ export default function AgentDetailPage() {
               <Field label="NIK">
                 <span style={{ fontFamily: 'monospace' }}>{a.nik ?? '-'}</span>
                 <Button size="small" sx={{ ml: 1 }} onClick={() => { setNik(a.nik ?? ''); setEditNik(true); }}>Ubah</Button>
+              </Field>
+              <Field label="Verifikasi identitas (Plus)">
+                {{ NONE: 'Belum', PENDING: 'Menunggu pemeriksaan', VERIFIED: 'Terverifikasi', REJECTED: 'Ditolak' }[a.kycStatus] ?? '-'}
+                {a.kycStatus !== 'NONE' && <RouterLink to="/verifikasi" style={{ marginLeft: 8, fontSize: 12 }}>lihat</RouterLink>}
               </Field>
               <Field label="Email">{a.email ?? '-'}</Field>
               <Field label="Domisili">

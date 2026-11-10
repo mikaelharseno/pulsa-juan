@@ -335,6 +335,8 @@ export async function mockApi(path: string, method: string, json: any, query: Re
   }
   if (route === 'regions/match') return ok({ province: null, regency: null, district: null });
   if (route === 'mitra/referrer') return fail(400, 'Kode referral tidak ditemukan (data demo)');
+  if (route === 'kyc' && m === 'GET') return ok({ status: 'NONE', rejectReason: null, submittedAt: null, reviewedAt: null });
+  if (route.startsWith('kyc')) return fail(400, 'Verifikasi identitas tidak tersedia di data demo');
   if (route === 'sell-prices') return ok([]);
   if (seg[1] === 'sell-prices' && m === 'DELETE') return ok({ ok: true });
   if (seg[1] === 'transactions' && seg[2] && seg[3] === 'bon') return ok({ token: 'demo-bon-' + seg[2] });

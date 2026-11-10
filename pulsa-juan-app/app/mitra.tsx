@@ -75,7 +75,16 @@ export default function MitraScreen() {
         <Card style={{ marginBottom: 12 }}>
           <SectionTitle>{edit ? 'Ubah profil' : 'Pengaturan'}</SectionTitle>
           <Field label="Nama" value={form.name} onChangeText={(v) => setForm({ ...form, name: v })} />
-          <Field label="NIK" value={form.nik} onChangeText={(v) => setForm({ ...form, nik: v.replace(/\D/g, '').slice(0, 16) })} keyboardType="number-pad" placeholder="16 angka sesuai KTP" error={nikError} />
+          <Field
+            label="NIK"
+            value={form.nik}
+            onChangeText={(v) => setForm({ ...form, nik: v.replace(/\D/g, '').slice(0, 16) })}
+            keyboardType="number-pad"
+            placeholder="16 angka sesuai KTP"
+            error={nikError}
+            editable={a.kycStatus !== 'VERIFIED'}
+            hint={a.kycStatus === 'VERIFIED' ? 'Terverifikasi dari KTP. Hubungi CS untuk mengubah.' : undefined}
+          />
           <Field
             label="Markup untuk mitra baru (Rp per transaksi)"
             value={form.referralMarkup}
