@@ -36,6 +36,23 @@ export function domicileText(v: DomicileValue) {
 
 type Tab = 'gps' | 'manual';
 
+const FIX_TIMEOUT_MS = 12_000;
+
+/**
+ * A fresh fix when the phone gets one in time, else its last known position
+ * (indoors a fresh GPS fix can take long or never come). Errors in Indonesian.
+ */
+async function readPosition(): Promise<Location.LocationObject> {
+  if (Platform.OS !== 'web' && !(await Location.hasServicesEnabledAsync())) {
+    throw new Error('Lokasi HP sedang mati. Nyalakan lokasi, atau pilih wilayah secara manual.');
+  }
+  const fresh = Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).catch(() => null);
+  const timeout = new Promise<null>((r) => setTimeout(() => r(null), FIX_TIMEOUT_MS));
+  const pos = (await Promise.race([fresh, timeout])) ?? (Platform.OS === 'web' ? null : await Location.getLastKnownPositionAsync().catch(() => null));
+  if (!pos) throw new Error('Lokasi belum terbaca. Coba lagi di luar ruangan, atau pilih wilayah secara manual.');
+  return pos;
+}
+
 export function DomicilePicker({ value, onChange }: { value: DomicileValue; onChange: (v: DomicileValue) => void }) {
   const [tab, setTab] = useState<Tab>(value.source === 'GPS' ? 'gps' : 'manual');
   const [locating, setLocating] = useState(false);
@@ -47,7 +64,7 @@ export function DomicilePicker({ value, onChange }: { value: DomicileValue; onCh
     try {
       const perm = await Location.requestForegroundPermissionsAsync();
       if (!perm.granted) throw new Error('Izin lokasi ditolak. Pilih wilayah secara manual.');
-      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const pos = await readPosition();
       const { latitude: lat, longitude: lng } = pos.coords;
       let names: { province?: string; regency?: string; city?: string; district?: string } = {};
       if (Platform.OS !== 'web') {
