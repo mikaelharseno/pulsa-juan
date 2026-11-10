@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="500" viewBox="0 0 1200 500">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#075E56"/><stop offset="0.55" stop-color="#0B7C70"/><stop offset="1" stop-color="#12A594"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#E3F4F1"/><stop offset="1" stop-color="#FFFFFF"/>
+    </linearGradient>
+    <linearGradient id="coin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FCD34D"/><stop offset="1" stop-color="#F59E0B"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="500" fill="url(#bg)"/>
+  <circle cx="1080" cy="-40" r="260" fill="#FFFFFF" opacity="0.06"/>
+  <circle cx="860" cy="560" r="220" fill="#FFFFFF" opacity="0.05"/>
+  <circle cx="90" cy="470" r="120" fill="#FFFFFF" opacity="0.04"/>
+  <g fill="#FFFFFF" opacity="0.10">
+    <circle cx="560" cy="70" r="5"/><circle cx="600" cy="110" r="3"/><circle cx="640" cy="60" r="4"/>
+    <circle cx="700" cy="430" r="4"/><circle cx="740" cy="400" r="3"/>
+  </g>
+
+  <rect x="72" y="62" width="262" height="58" rx="29" fill="#F59E0B"/>
+  <text x="203" y="101" text-anchor="middle" font-family="Avenir Next" font-weight="700" font-size="28" fill="#3B2300" letter-spacing="2">PROMO AGEN</text>
+  <text x="72" y="222" font-family="Avenir Next" font-weight="700" font-size="80" fill="#FFFFFF">Pulsa &amp; data</text>
+  <text x="72" y="310" font-family="Avenir Next" font-weight="700" font-size="80" fill="#FCD34D">harga agen</text>
+  <text x="72" y="388" font-family="Avenir Next" font-weight="600" font-size="38" fill="#E3F4F1">Untung di setiap transaksi</text>
+  <g transform="translate(840 60) rotate(-8)">
+    <rect x="0" y="0" width="210" height="390" rx="34" fill="#0F172A"/>
+    <rect x="12" y="14" width="186" height="362" rx="24" fill="url(#screen)"/>
+    <rect x="80" y="24" width="50" height="8" rx="4" fill="#0F172A" opacity="0.8"/>
+    <g fill="#12A594">
+      <rect x="58" y="120" width="18" height="30" rx="4"/>
+      <rect x="84" y="100" width="18" height="50" rx="4"/>
+      <rect x="110" y="78" width="18" height="72" rx="4"/>
+      <rect x="136" y="56" width="18" height="94" rx="4"/>
+    </g>
+    <rect x="34" y="180" width="142" height="16" rx="8" fill="#0B7C70" opacity="0.25"/>
+    <rect x="34" y="208" width="104" height="16" rx="8" fill="#0B7C70" opacity="0.18"/>
+    <rect x="34" y="256" width="142" height="54" rx="14" fill="#12A594"/>
+    <text x="105" y="291" text-anchor="middle" font-family="Avenir Next" font-weight="700" font-size="22" fill="#FFFFFF">Isi pulsa</text>
+    <circle cx="105" cy="345" r="10" fill="#0F172A" opacity="0.12"/>
+  </g>
+
+  <g transform="translate(800 375)">
+    <ellipse cx="0" cy="58" rx="64" ry="18" fill="#B45309"/>
+    <rect x="-64" y="30" width="128" height="28" fill="#D97706"/>
+    <ellipse cx="0" cy="30" rx="64" ry="18" fill="url(#coin)"/>
+    <ellipse cx="0" cy="12" rx="64" ry="18" fill="#B45309"/>
+    <rect x="-64" y="-16" width="128" height="28" fill="#D97706"/>
+    <ellipse cx="0" cy="-16" rx="64" ry="18" fill="url(#coin)"/>
+    <text x="0" y="-9" text-anchor="middle" font-family="Avenir Next" font-weight="700" font-size="22" fill="#7C2D12">Rp</text>
+  </g>
+  <g fill="#FCD34D">
+    <path d="M770 150 l8 22 22 8 -22 8 -8 22 -8 -22 -22 -8 22 -8z"/>
+    <path d="M1110 230 l6 16 16 6 -16 6 -6 16 -6 -16 -16 -6 16 -6z"/>
+    <path d="M700 70 l5 12 12 5 -12 5 -5 12 -5 -12 -12 -5 12 -5z" opacity="0.8"/>
+  </g>
+</svg>

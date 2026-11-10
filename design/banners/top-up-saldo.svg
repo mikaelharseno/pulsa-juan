@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="500" viewBox="0 0 1200 500">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F59E0B"/><stop offset="0.6" stop-color="#F08A1C"/><stop offset="1" stop-color="#EA580C"/>
+    </linearGradient>
+    <linearGradient id="wallet" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#12A594"/><stop offset="1" stop-color="#0B7C70"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="500" fill="url(#bg)"/>
+  <circle cx="1120" cy="470" r="260" fill="#FFFFFF" opacity="0.08"/>
+  <circle cx="760" cy="-60" r="200" fill="#FFFFFF" opacity="0.07"/>
+  <circle cx="40" cy="40" r="110" fill="#FFFFFF" opacity="0.06"/>
+
+  <rect x="72" y="52" width="232" height="54" rx="27" fill="#FFFFFF"/>
+  <text x="188" y="89" text-anchor="middle" font-family="Avenir Next" font-weight="700" font-size="26" fill="#C2410C" letter-spacing="2">ISI SALDO</text>
+  <text x="72" y="198" font-family="Avenir Next" font-weight="700" font-size="76" fill="#FFFFFF">Top up saldo</text>
+  <text x="72" y="280" font-family="Avenir Next" font-weight="700" font-size="76" fill="#3B1D06">semudah transfer</text>
+  <text x="72" y="345" font-family="Avenir Next" font-weight="600" font-size="34" fill="#FFF7ED">Transfer ke BRI atau BCA</text>
+  <g font-family="Avenir Next" font-weight="700" font-size="28">
+    <circle cx="96" cy="420" r="24" fill="#FFFFFF"/><text x="96" y="430" text-anchor="middle" fill="#C2410C">1</text>
+    <text x="132" y="430" fill="#FFFFFF">Nominal</text>
+    <path d="M262 420 h26" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
+    <circle cx="326" cy="420" r="24" fill="#FFFFFF"/><text x="326" y="430" text-anchor="middle" fill="#C2410C">2</text>
+    <text x="362" y="430" fill="#FFFFFF">Transfer</text>
+    <path d="M492 420 h26" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
+    <circle cx="556" cy="420" r="24" fill="#FFFFFF"/><text x="556" y="430" text-anchor="middle" fill="#C2410C">3</text>
+    <text x="592" y="430" fill="#FFFFFF">Saldo masuk</text>
+  </g>
+  <g transform="translate(830 110)">
+    <rect x="30" y="-20" width="200" height="120" rx="14" fill="#FFFFFF" opacity="0.9" transform="rotate(-10 130 40)"/>
+    <rect x="50" y="-10" width="200" height="120" rx="14" fill="#FEF3C7" transform="rotate(6 150 50)"/>
+    <text x="150" y="58" text-anchor="middle" font-family="Avenir Next" font-weight="700" font-size="30" fill="#B45309" transform="rotate(6 150 50)">Rp</text>
+    <rect x="0" y="60" width="290" height="200" rx="30" fill="url(#wallet)"/>
+    <rect x="0" y="60" width="290" height="44" rx="22" fill="#075E56" opacity="0.5"/>
+    <rect x="200" y="130" width="110" height="70" rx="20" fill="#075E56"/>
+    <circle cx="238" cy="165" r="14" fill="#FCD34D"/>
+    <text x="36" y="232" font-family="Avenir Next" font-weight="700" font-size="24" fill="#FFFFFF" opacity="0.9">Saldo</text>
+  </g>
+  <g transform="translate(1110 120)">
+    <circle cx="0" cy="0" r="44" fill="#FFFFFF"/>
+    <path d="M0 -20 v40 M-20 0 h40" stroke="#EA580C" stroke-width="9" stroke-linecap="round"/>
+  </g>
+  <g fill="#FFFFFF">
+    <path d="M790 90 l7 18 18 7 -18 7 -7 18 -7 -18 -18 -7 18 -7z" opacity="0.9"/>
+    <path d="M1130 300 l5 13 13 5 -13 5 -5 13 -5 -13 -13 -5 13 -5z" opacity="0.8"/>
+  </g>
+</svg>

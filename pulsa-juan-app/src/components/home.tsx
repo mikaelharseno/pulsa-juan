@@ -6,7 +6,7 @@ import { formatRp, toInternationalMobile } from 'pulsa-juan-common';
 import React, { useEffect, useRef, useState } from 'react';
 import { Dimensions, FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { SegmentSummary } from '../api/types';
+import { SegmentSummary, TopUpOrder } from '../api/types';
 import { ServiceTile } from '../icons/ServiceIcon';
 import { colors, font, shadow, size, track } from '../theme';
 
@@ -193,6 +193,41 @@ export function ServicesGrid({ segments }: { segments: SegmentSummary[] }) {
           <ServiceCell key={s.id} label={s.label} iconUrl={s.iconUrl} slug={s.slug} badge={s.badge} onPress={() => router.push(`/segment/${s.id}`)} />
         ))}
       </View>
+    </View>
+  );
+}
+
+/** The newest top-up, only while it is still PENDING and before it expires. */
+export function waitingTopUp(topUps: TopUpOrder[] | undefined, now = Date.now()): TopUpOrder | null {
+  const last = topUps?.[0];
+  if (!last || last.status !== 'PENDING' || new Date(last.expiresAt).getTime() <= now) return null;
+  return last;
+}
+
+function untilLabel(iso: string) {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return d.toDateString() === new Date().toDateString() ? time : `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${time}`;
+}
+
+/** Shortcut back into an unfinished top-up (bank choice or the transfer screen). */
+export function PendingTopUpCard({ topUp }: { topUp: TopUpOrder }) {
+  const router = useRouter();
+  const what = topUp.bank
+    ? `#${topUp.orderNumber} · Transfer ${formatRp(topUp.totalTransfer)} ke ${topUp.bank}`
+    : `#${topUp.orderNumber} · ${formatRp(topUp.amount)} · Pilih bank`;
+  const sub = `${what}\nBerlaku sampai ${untilLabel(topUp.expiresAt)}`;
+  return (
+    <View style={{ marginBottom: 14 }}>
+      <HelpCard
+        icon="time-outline"
+        color={colors.warning}
+        tint="#FEF3C7"
+        title="Top up menunggu transfer"
+        sub={sub}
+        onPress={() => router.push(topUp.bank ? `/topup/${topUp.id}/pay` : `/topup/${topUp.id}/bank`)}
+      />
     </View>
   );
 }
