@@ -10,7 +10,8 @@ npm ci -w pulsa-juan-common -w pulsa-juan-backend --include-workspace-root
 npm run build -w pulsa-juan-common
 cd pulsa-juan-backend
 npx prisma generate
-npm run build
+# tsc needs more than node's default heap on the 512 MB droplet (uses swap)
+NODE_OPTIONS=--max-old-space-size=1800 npm run build
 pm2 reload pulsa-juan-backend --update-env || pm2 start dist/src/server.js --name pulsa-juan-backend
 pm2 save
 echo "Deploy complete: $(git rev-parse --short HEAD)"

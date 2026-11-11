@@ -1,6 +1,26 @@
 {
-  "latest": "1.0.3",
+  "latest": "1.1.0",
   "releases": [
+    {
+      "version": "1.1.0",
+      "versionCode": 5,
+      "date": "2026-11-11",
+      "file": "/download/pulsa-juan-1.1.0.apk",
+      "sizeBytes": 195963409,
+      "sha256": "f3bb0513c65d7fc3b1a3da9509039ca25a64958880f54cba79c9f85f4a6cd1dc",
+      "gitCommit": "425c21d6af484e95e26d948ae977cf71a7fd5bf2",
+      "easBuildId": "9ec8dcde-eea1-4424-aff2-8f0ed35d5f5c",
+      "notes": [
+        "Pulsa Juan kini bernama Murah Kuota. Ini aplikasi baru: pasang Murah Kuota, masuk dengan nomor HP dan PIN Anda, lalu hapus aplikasi Pulsa Juan yang lama",
+        "Isi saldo bisa dibayar dengan QRIS (biaya admin 1% untuk isi saldo di atas Rp 500.000)",
+        "Kirim bon PDF ke pembeli: simpan file, kirim lewat WhatsApp, atau bagikan ke aplikasi lain, juga dari Riwayat transaksi",
+        "Harga jual yang Anda ubah tersimpan per produk dan dipakai lagi di transaksi berikutnya",
+        "Layanan Plus (top up e-wallet seperti GoPay dan OVO) perlu verifikasi identitas sekali: foto KTP, cek wajah, dan selfie",
+        "Daftar akun kini dengan daerah domisili (bagikan lokasi atau pilih wilayah), tanpa NIK",
+        "Kode pengajak bisa dimasukkan setelah daftar (menu Mitra)",
+        "Masukkan PIN sebelum transaksi diproses"
+      ]
+    },
     {
       "version": "1.0.3",
       "versionCode": 4,
