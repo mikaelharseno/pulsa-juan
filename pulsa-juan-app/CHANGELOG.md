@@ -1,9 +1,19 @@
-# Changelog — Pulsa Juan (Android)
+# Changelog — Murah Kuota (Android)
 
 Satu bagian per rilis, terbaru di atas. Judul: `## <version> (versionCode <n>) — <YYYY-MM-DD>`;
 isi berupa poin `- ` yang ditampilkan di landing page (Riwayat versi), jadi tulis untuk agen.
 Sebelum rilis: naikkan `expo.version` dan `expo.android.versionCode` di `app.json`, tambah bagian
 baru di sini, commit, lalu `npm run release:android`.
+
+## 1.1.0 (versionCode 5) — 2026-11-11
+- Pulsa Juan kini bernama Murah Kuota. Ini aplikasi baru: pasang Murah Kuota, masuk dengan nomor HP dan PIN Anda, lalu hapus aplikasi Pulsa Juan yang lama
+- Isi saldo bisa dibayar dengan QRIS (biaya admin 1% untuk isi saldo di atas Rp 500.000)
+- Kirim bon PDF ke pembeli: simpan file, kirim lewat WhatsApp, atau bagikan ke aplikasi lain, juga dari Riwayat transaksi
+- Harga jual yang Anda ubah tersimpan per produk dan dipakai lagi di transaksi berikutnya
+- Layanan Plus (top up e-wallet seperti GoPay dan OVO) perlu verifikasi identitas sekali: foto KTP, cek wajah, dan selfie
+- Daftar akun kini dengan daerah domisili (bagikan lokasi atau pilih wilayah), tanpa NIK
+- Kode pengajak bisa dimasukkan setelah daftar (menu Mitra)
+- Masukkan PIN sebelum transaksi diproses
 
 ## 1.0.3 (versionCode 4) — 2026-10-28
 - Harga jual & keuntungan: atur untung per transaksi, untuk semua layanan atau per layanan (Profil → Harga jual & keuntungan)
