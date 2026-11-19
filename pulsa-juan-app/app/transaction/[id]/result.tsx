@@ -57,7 +57,7 @@ export default function ResultScreen() {
           {t.status === 'SUCCESS' || t.status === 'PENDING' ? (
             <Pressable onPress={() => setShowCost(!showCost)} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 }}>
               <Ionicons name={showCost ? 'eye-off-outline' : 'eye-outline'} size={16} color={colors.tealDark} />
-              <Text style={{ color: colors.tealDark, fontSize: font.small, fontWeight: '600' }}>{showCost ? 'Sembunyikan modal' : 'Lihat modal'}</Text>
+              <Text style={{ color: colors.tealDark, fontSize: font.small, fontWeight: '600' }}>{showCost ? 'Sembunyikan detail' : 'Lihat detail'}</Text>
             </Pressable>
           ) : null}
         </Card>

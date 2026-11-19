@@ -118,7 +118,7 @@ export default function ConfirmScreen() {
           ) : null}
           <Pressable onPress={() => setShowCost(!showCost)} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 }}>
             <Ionicons name={showCost ? 'eye-off-outline' : 'eye-outline'} size={16} color={colors.tealDark} />
-            <Text style={{ color: colors.tealDark, fontSize: font.small, fontWeight: '600' }}>{showCost ? 'Sembunyikan rincian saldo' : 'Lihat rincian saldo'}</Text>
+            <Text style={{ color: colors.tealDark, fontSize: font.small, fontWeight: '600' }}>{showCost ? 'Sembunyikan detail' : 'Lihat detail'}</Text>
           </Pressable>
         </Card>
         {serverTotal !== null ? <Text style={{ color: colors.accent, marginBottom: 8, fontSize: font.small }}>Harga berubah menjadi {formatRp(serverTotal)}. Periksa kembali lalu tekan Bayar.</Text> : null}

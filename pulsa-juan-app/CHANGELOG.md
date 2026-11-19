@@ -8,7 +8,7 @@ baru di sini, commit, lalu `npm run release:android`.
 ## 1.2.0 (versionCode 6) — 2026-11-19
 - Beli paket lebih cepat: nomor HP di atas (bisa pilih dari kontak), jenis paket di tengah, daftar paket langsung di bawah
 - Ikon Pulsa: masukkan nomor, langsung diarahkan ke paket operatornya
-- Halaman konfirmasi dan status transaksi menampilkan harga jual Anda; modal hanya terlihat bila Anda tekan "Lihat rincian"
+- Halaman konfirmasi dan status transaksi menampilkan harga jual Anda; modal hanya terlihat bila Anda tekan "Lihat detail"
 - Transfer saldo ke agen lain dari menu Profil
 - Bila koneksi terputus saat membeli, pesanan tetap diproses: cek Riwayat atau hubungi CS Komplain dengan nomor transaksinya
 - Konfirmasi transfer isi saldo lewat WhatsApp kini langsung ke CS Finance
