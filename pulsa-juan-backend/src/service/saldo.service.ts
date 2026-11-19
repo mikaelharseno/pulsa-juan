@@ -1,8 +1,16 @@
-import { LedgerType, Prisma } from '../../prisma/generated';
+import { Agent, LedgerType, Prisma } from '../../prisma/generated';
 import { prisma } from '../../prisma/client';
-import { badRequest } from '../lib/errors';
+import { badRequest, HttpError } from '../lib/errors';
 
 type Tx = Prisma.TransactionClient;
+
+/** A frozen saldo cannot be spent: purchases, transfers out and commission claims stop (top-ups still land). */
+export function assertSaldoUsable(agent: Pick<Agent, 'saldoFrozenAt' | 'saldoFrozenReason'>) {
+  if (agent.saldoFrozenAt) {
+    const reason = agent.saldoFrozenReason ?? '';
+    throw new HttpError(403, `Saldo Anda sedang dibekukan${reason ? `: ${reason}` : ''}. Hubungi CS.`, 'SALDO_FROZEN', { reason });
+  }
+}
 
 /**
  * Atomic debit: the guarded updateMany fails (count 0) when saldo < amount,

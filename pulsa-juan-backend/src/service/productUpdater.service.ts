@@ -472,7 +472,8 @@ async function syncTileSegment(adminId: string, t: ProductTile, categoryLabels: 
   const categories = groupCategories(t, active, { ...publishedLabels(segment?.publishedVersion?.tree), ...categoryLabels });
   const tree = buildTileTree(t, categories);
   if (!segment) {
-    await createSegment({ slug, label: t.label, iconUrl: t.icon, groupLabel: t.groupLabel, isActive: true });
+    // e-wallet top-ups are cash-like: identity check ("Plus"), same as the seeded GoPay tile
+    await createSegment({ slug, label: t.label, iconUrl: t.icon, groupLabel: t.groupLabel, isActive: true, requiresVerification: t.groupLabel === 'E-Wallet' });
     segment = await prisma.segment.findUniqueOrThrow({ where: { slug }, include: { publishedVersion: true } });
   }
   const unchanged = canonical(segment.publishedVersion?.tree ?? null) === canonical(tree);

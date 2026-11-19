@@ -19,7 +19,7 @@ import { getFulfillmentProvider, PurchaseOutcome, providerFor } from './fulfillm
 import { packagesForTree } from './package.service';
 import { getPrefixEntries } from './prefix.service';
 import { resolveMarkup } from './referral.service';
-import { creditSaldo, debitSaldo } from './saldo.service';
+import { assertSaldoUsable, creditSaldo, debitSaldo } from './saldo.service';
 import { verifyAgentPin } from './agentAuth.service';
 import { assertPlusAllowed } from './kyc.service';
 import { getConfig } from './config.service';
@@ -110,6 +110,7 @@ export async function createTransaction(agent: Agent, input: z.infer<typeof crea
     return { transaction: existing, reused: true };
   }
 
+  assertSaldoUsable(agent);
   const config = await getConfig();
   if (config.requirePurchasePin || input.pin !== undefined) await verifyAgentPin(agent.id, input.pin);
 
@@ -186,7 +187,6 @@ export async function createTransaction(agent: Agent, input: z.infer<typeof crea
     await debitSaldo(tx, agent.id, price.total, 'PURCHASE', trx.id, `${segment.label} #${trx.trxNumber}`);
     const commissions = [
       markup.parent ? { beneficiaryCommisionId: markup.parent.commisionId, level: 1, amount: markup.parent.amount } : null,
-      markup.grandparent ? { beneficiaryCommisionId: markup.grandparent.commisionId, level: 2, amount: markup.grandparent.amount } : null,
     ].filter((c): c is { beneficiaryCommisionId: string; level: number; amount: number } => !!c && c.amount > 0);
     if (commissions.length) {
       await tx.agentMarkupCommision.createMany({
@@ -363,13 +363,34 @@ export async function listForAgent(agentId: string, q: z.infer<typeof listSchema
     prisma.transaction.count({ where }),
     prisma.transaction.findMany({ where, orderBy, skip: (page - 1) * pageSize, take: pageSize, include: { segment: { select: { slug: true, iconUrl: true } } } }),
   ]);
-  return { total, page, pageSize, transactions };
+  return { total, page, pageSize, transactions: transactions.map(forAgent) };
 }
 
 export async function getForAgent(agentId: string, id: string) {
   const trx = await prisma.transaction.findFirst({ where: { id, agentId }, include: { segment: { select: { slug: true, iconUrl: true } } } });
   if (!trx) throw notFound('Transaksi tidak ditemukan');
-  return trx;
+  return forAgent(trx);
+}
+
+/**
+ * Supplier wording as the agent may see it: OtomaX replies carry our center's
+ * own saldo and trx refs ("T#991 R#12 … GAGAL. Nomor salah. Saldo 100.000 - …").
+ */
+export function agentFailReason(reason: string | null) {
+  if (!reason) return reason;
+  const cleaned = reason
+    .replace(/\b(?:sisa\s+)?saldo\b[\s\S]*$/i, '')
+    .replace(/\b[TR]#\S+\s*/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[.,;:-]+$/, '');
+  return cleaned || 'Gagal diproses oleh supplier';
+}
+
+/** Order as the agent app gets it: no raw supplier messages or refs. */
+export function forAgent<T extends { failReason: string | null; supplierMessage?: string | null; supplierRef?: string | null }>(trx: T) {
+  const { supplierMessage: _m, supplierRef: _r, ...rest } = trx;
+  return { ...rest, failReason: agentFailReason(trx.failReason) };
 }
 
 /**

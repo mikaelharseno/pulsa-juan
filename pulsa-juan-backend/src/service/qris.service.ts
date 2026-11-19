@@ -8,12 +8,16 @@ import { audit } from './audit.service';
 
 // Static QRIS codes for saldo top-ups. A static QRIS carries no amount, so the
 // agent types the exact total (kode unik included). Each one may take at most
-// monthlyLimit a month; a new QRIS top-up goes to the code with the least use.
+// monthlyLimit a month and, optionally, at most maxTopUp per top-up. A new QRIS
+// top-up goes to the code with the smallest maxTopUp that still fits the amount,
+// and among those to the one used least this month.
 
 export const qrisSchema = z.object({
   label: z.string().trim().min(1).max(60),
   imageUrl: z.string().trim().min(1).max(500),
-  monthlyLimit: z.number().int().min(100_000).max(1_000_000_000).default(QRIS_MONTHLY_LIMIT),
+  monthlyLimit: z.number().int().min(100_000).max(2_000_000_000).default(QRIS_MONTHLY_LIMIT),
+  /** largest single top-up (Rp, transfer total); null = no limit */
+  maxTopUp: z.number().int().min(10_000).max(1_000_000_000).nullable().optional(),
   isActive: z.boolean().default(true),
   sortOrder: z.number().int().min(0).max(999).default(0),
 });
@@ -51,7 +55,11 @@ export async function qrisUsage(db: Db, exceptOrderId?: string, now = new Date()
   return usage;
 }
 
-/** The active code with the least use that still fits `total`, or null. */
+/**
+ * The active code for a top-up of `total`: codes whose maxTopUp (if any) and
+ * remaining monthly room both fit, smallest maxTopUp first (no limit last),
+ * then least used this month, then sortOrder.
+ */
 export async function pickQrisCode(db: Db, total: number, exceptOrderId?: string) {
   const codes = await db.qrisCode.findMany({ where: { isActive: true }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] });
   if (!codes.length) return null;
@@ -61,8 +69,11 @@ export async function pickQrisCode(db: Db, total: number, exceptOrderId?: string
       const u = usage.get(c.id) ?? { paid: 0, reserved: 0 };
       return { code: c, used: u.paid + u.reserved };
     })
-    .filter((x) => x.used + total <= x.code.monthlyLimit)
-    .sort((a, b) => a.used - b.used || a.code.sortOrder - b.code.sortOrder);
+    .filter((x) => (x.code.maxTopUp == null || total <= x.code.maxTopUp) && x.used + total <= x.code.monthlyLimit)
+    .sort(
+      (a, b) =>
+        (a.code.maxTopUp ?? Infinity) - (b.code.maxTopUp ?? Infinity) || a.used - b.used || a.code.sortOrder - b.code.sortOrder,
+    );
   return ranked[0]?.code ?? null;
 }
 

@@ -26,6 +26,7 @@ export const segmentSchema = z.object({
   isActive: z.boolean().optional(),
   maintenanceMessage: z.string().trim().max(200).optional().nullable(),
   requiresVerification: z.boolean().optional(),
+  routeByOperator: z.boolean().optional(),
 });
 
 export const reorderSchema = z.object({ ids: z.array(z.string()).min(1) });
@@ -41,9 +42,10 @@ const publishedInclude = { publishedVersion: { select: { id: true, version: true
 
 export async function listSegmentsForAgent() {
   const rows = await prisma.segment.findMany({
-    where: { isActive: true, publishedVersionId: { not: null } },
+    // an operator-router tile ("Pulsa") has no tree of its own: the app asks the number and opens paket-<operator>
+    where: { isActive: true, OR: [{ publishedVersionId: { not: null } }, { routeByOperator: true }] },
     orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
-    select: { id: true, slug: true, label: true, iconUrl: true, groupLabel: true, badge: true, maintenanceMessage: true, requiresVerification: true },
+    select: { id: true, slug: true, label: true, iconUrl: true, groupLabel: true, badge: true, maintenanceMessage: true, requiresVerification: true, routeByOperator: true },
   });
   const groups: { groupLabel: string; segments: typeof rows }[] = [];
   for (const row of rows) {

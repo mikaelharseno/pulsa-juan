@@ -45,6 +45,9 @@ router.get('/rekap', c.getRekap);
 router.get('/sell-margins', c.getSellMargins);
 router.put('/sell-margins', c.putSellMargins);
 
+router.post('/transfers/lookup', c.postTransferLookup);
+router.post('/transfers', c.postTransfer);
+
 router.get('/commissions', c.getCommissions);
 router.post('/commissions/claim', c.postClaimCommissions);
 router.get('/mitra', c.getMitra);

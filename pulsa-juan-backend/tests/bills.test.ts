@@ -197,15 +197,17 @@ describe('bill payment', () => {
     expect(twice.body.code).toBe('CHECK_NOT_READY');
   });
 
-  it('total includes the referral markup on top of bill + admin', async () => {
+  it('a downline pays bill + admin only; the upline commission comes from our margin', async () => {
     const up = await registerAgent('Upline');
     await request(app).put('/api/agent/me').set(auth(up.token)).send({ referralMarkup: 700 });
     const down = await registerAgent('Downline', up.agent.commisionUniqueId);
     await giveSaldo(down.agent.id, 500_000);
     const c = (await check(down.token)).body;
-    const res = await pay(down.token, c.result, { markup: 700 });
+    const res = await pay(down.token, c.result);
     expect(res.status).toBe(201);
-    expect(res.body.transaction).toMatchObject({ markupTotal: 700, total: BILL + SUPPLIER_ADMIN + OUR_FEE + 700 });
+    expect(res.body.transaction).toMatchObject({ markupTotal: 0, total: BILL + SUPPLIER_ADMIN + OUR_FEE });
+    const comm = await prisma.agentMarkupCommision.findMany({ where: { transactionId: res.body.transaction.id } });
+    expect(comm.map((x) => [x.level, x.amount])).toEqual([[1, 700]]);
   });
 
   it("rejects an expired check, another agent's check, a different customer id and a missing checkId", async () => {

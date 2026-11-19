@@ -111,6 +111,7 @@ export async function agentProfile(agent: Agent) {
       : null,
     hasReferrer: !!agent.referrerAgentId,
     kycStatus: agent.kycStatus,
+    saldoFrozen: agent.saldoFrozenAt ? { at: agent.saldoFrozenAt, reason: agent.saldoFrozenReason ?? '' } : null,
     joinedAt: agent.joinedAt,
     createdAt: agent.createdAt,
   };

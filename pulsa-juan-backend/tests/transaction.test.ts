@@ -134,7 +134,7 @@ describe('transactions', () => {
 });
 
 describe('referral commissions (A → B → C → D)', () => {
-  it('prices markups two levels up, accrues, claims, voids on failure, transfers the crown', async () => {
+  it('one level, price unchanged, capped by the Settings max; accrues, claims, voids on failure, transfers the crown', async () => {
     const A = await registerAgent('AgenA');
     await request(app).put('/api/agent/me').set(auth(A.token)).send({ referralMarkup: 500 });
     const B = await registerAgent('AgenB', A.agent.commisionUniqueId);
@@ -145,32 +145,27 @@ describe('referral commissions (A → B → C → D)', () => {
     await giveSaldo(C.agent.id, 200000);
     await giveSaldo(D.agent.id, 200000);
 
+    // the downline pays the plain product price: the commission comes out of our margin
     const c = await pulsaXl(C.token);
-    expect(c.markupTotal).toBe(700);
-    const cTrx = await request(app).post('/api/agent/transactions').set(auth(C.token)).send({ segmentId: c.segmentId, treeVersion: 1, steps: c.steps, clientTotal: c.pkg.hargaAgen + 700, idempotencyKey: idem() });
+    expect(c.markupTotal).toBe(0);
+    const cTrx = await request(app).post('/api/agent/transactions').set(auth(C.token)).send({ segmentId: c.segmentId, treeVersion: 1, steps: c.steps, clientTotal: c.pkg.hargaAgen, idempotencyKey: idem() });
     expect(cTrx.status).toBe(201);
-    expect(cTrx.body.transaction.markupTotal).toBe(700);
+    expect(cTrx.body.transaction).toMatchObject({ markupTotal: 0, total: c.pkg.hargaAgen });
     const cComm = await prisma.agentMarkupCommision.findMany({ where: { transactionId: cTrx.body.transaction.id }, orderBy: { level: 'asc' } });
-    expect(cComm.map((x) => [x.level, x.amount, x.beneficiaryCommisionId])).toEqual([
-      [1, 200, B.agent.commisionUniqueId],
-      [2, 500, A.agent.commisionUniqueId],
-    ]);
+    // one level only: no grandparent row for A
+    expect(cComm.map((x) => [x.level, x.amount, x.beneficiaryCommisionId])).toEqual([[1, 200, B.agent.commisionUniqueId]]);
 
     const d = await pulsaXl(D.token);
-    expect(d.markupTotal).toBe(300);
-    const dTrx = await request(app).post('/api/agent/transactions').set(auth(D.token)).send({ segmentId: d.segmentId, treeVersion: 1, steps: d.steps, clientTotal: d.pkg.hargaAgen + 300, idempotencyKey: idem() });
+    expect(d.markupTotal).toBe(0);
+    const dTrx = await request(app).post('/api/agent/transactions').set(auth(D.token)).send({ segmentId: d.segmentId, treeVersion: 1, steps: d.steps, clientTotal: d.pkg.hargaAgen, idempotencyKey: idem() });
     const dComm = await prisma.agentMarkupCommision.findMany({ where: { transactionId: dTrx.body.transaction.id }, orderBy: { level: 'asc' } });
-    expect(dComm.map((x) => [x.level, x.amount, x.beneficiaryCommisionId])).toEqual([
-      [1, 100, C.agent.commisionUniqueId],
-      [2, 200, B.agent.commisionUniqueId],
-    ]);
-    expect(dComm.some((x) => x.beneficiaryCommisionId === A.agent.commisionUniqueId)).toBe(false);
+    expect(dComm.map((x) => [x.level, x.amount, x.beneficiaryCommisionId])).toEqual([[1, 100, C.agent.commisionUniqueId]]);
 
     // claim only after SUCCESS
     const early = await request(app).post('/api/agent/commissions/claim').set(auth(B.token));
     expect(early.status).toBe(400);
     const summary = await request(app).get('/api/agent/commissions').set(auth(B.token));
-    expect(summary.body.pendingTotal).toBe(400);
+    expect(summary.body.pendingTotal).toBe(200);
     const admin = await adminToken();
     await request(app).put(`/api/admin/transactions/${cTrx.body.transaction.id}`).set(auth(admin)).send({ status: 'SUCCESS', serialNumber: 'SN123' });
     const claim = await request(app).post('/api/agent/commissions/claim').set(auth(B.token));
@@ -185,19 +180,27 @@ describe('referral commissions (A → B → C → D)', () => {
     const voided = await prisma.agentMarkupCommision.findMany({ where: { transactionId: dTrx.body.transaction.id } });
     expect(voided.every((x) => x.status === 'VOIDED')).toBe(true);
 
-    // crown transfer: E takes A's code (and A's unclaimed 500)
+    // the Settings maximum caps commission on existing links at order time
+    await request(app).put('/api/admin/config').set(auth(admin)).send({ maxReferralMarkup: 150 });
+    const c2 = await pulsaXl(C.token);
+    const c2Trx = await request(app).post('/api/agent/transactions').set(auth(C.token)).send({ segmentId: c2.segmentId, treeVersion: 1, steps: c2.steps, clientTotal: c2.pkg.hargaAgen, idempotencyKey: idem() });
+    const c2Comm = await prisma.agentMarkupCommision.findMany({ where: { transactionId: c2Trx.body.transaction.id } });
+    expect(c2Comm.map((x) => x.amount)).toEqual([150]);
+    await request(app).put('/api/admin/config').set(auth(admin)).send({ maxReferralMarkup: 2000 });
+
+    // crown transfer: E takes B's code (and B's unclaimed 150)
     const E = await registerAgent('AgenE');
-    const crown = A.agent.commisionUniqueId;
-    const transfer = await request(app).post(`/api/admin/agents/${A.agent.id}/transfer-commission-id`).set(auth(admin)).send({ toAgentId: E.agent.id });
+    const crown = B.agent.commisionUniqueId;
+    await request(app).put(`/api/admin/transactions/${c2Trx.body.transaction.id}`).set(auth(admin)).send({ status: 'SUCCESS', serialNumber: 'SN124' });
+    const transfer = await request(app).post(`/api/admin/agents/${B.agent.id}/transfer-commission-id`).set(auth(admin)).send({ toAgentId: E.agent.id });
     expect(transfer.status).toBe(200);
     expect((await request(app).get('/api/agent/me').set(auth(E.token))).body.commisionUniqueId).toBe(crown);
-    expect((await request(app).get('/api/agent/me').set(auth(A.token))).body.commisionUniqueId).not.toBe(crown);
+    expect((await request(app).get('/api/agent/me').set(auth(B.token))).body.commisionUniqueId).not.toBe(crown);
     const eClaim = await request(app).post('/api/agent/commissions/claim').set(auth(E.token));
-    expect(eClaim.body.claimed).toBe(500);
+    expect(eClaim.body.claimed).toBe(150);
     const mitra = await request(app).get('/api/agent/mitra').set(auth(E.token));
-    expect(mitra.body.children.map((x: { name: string }) => x.name)).toEqual(['AgenB']);
-    // B's upline is now E, and B still pays 500 for A's old link
-    expect((await request(app).get('/api/agent/me').set(auth(B.token))).body.markupTotal).toBe(500);
+    expect(mitra.body.children.map((x: { name: string }) => x.name)).toEqual(['AgenC']);
+    expect((await request(app).get('/api/agent/me').set(auth(C.token))).body.markupTotal).toBe(0);
 
     // unknown referral code
     const bad = await request(app).post('/api/agent/auth/register').send({ otpTicket: await otpTicket(nextPhone()), name: 'X', pin: TEST_PIN, referralCode: 'NOPE1234' });
@@ -239,7 +242,8 @@ describe('refunds and admin order log', () => {
     const B = await registerAgent('RefB', A.agent.commisionUniqueId);
     await giveSaldo(B.agent.id, 100000);
     const b = await pulsaXl(B.token);
-    const total = b.pkg.hargaAgen + 300;
+    // the downline pays the plain price; A's 300 comes out of our margin
+    const total = b.pkg.hargaAgen;
     const trx = await request(app).post('/api/agent/transactions').set(auth(B.token)).send({ segmentId: b.segmentId, treeVersion: 1, steps: b.steps, clientTotal: total, idempotencyKey: idem() });
     const id = trx.body.transaction.id;
     expect(trx.body.transaction.provider).toBe('manual');

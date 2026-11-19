@@ -10,6 +10,7 @@ export const bannerSchema = z.object({
 export const configUpdateSchema = z.object({
   appName: z.string().trim().min(1).max(60).optional(),
   csWhatsapp: z.string().trim().max(30).optional(),
+  csFinanceWhatsapp: z.string().trim().max(30).optional(),
   csTelegram: z.string().trim().max(60).optional(),
   topUpMin: z.number().int().min(1000).optional(),
   topUpMax: z.number().int().min(1000).optional(),
@@ -50,7 +51,8 @@ export function bankAccounts(config: Awaited<ReturnType<typeof getConfig>>) {
 export function publicConfig(config: Awaited<ReturnType<typeof getConfig>>) {
   return {
     appName: config.appName,
-    cs: { whatsapp: config.csWhatsapp, telegram: config.csTelegram },
+    // whatsapp = CS Komplain (orders); financeWhatsapp = CS Finance (saldo top-ups), falls back to Komplain
+    cs: { whatsapp: config.csWhatsapp, telegram: config.csTelegram, financeWhatsapp: config.csFinanceWhatsapp || config.csWhatsapp },
     topUpMin: config.topUpMin,
     topUpMax: config.topUpMax,
     topUpExpiryHours: config.topUpExpiryHours,

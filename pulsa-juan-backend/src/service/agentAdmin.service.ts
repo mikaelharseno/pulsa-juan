@@ -40,6 +40,7 @@ export async function listAgents(q: { search?: string; status?: string }) {
     select: {
       id: true, name: true, email: true, phone: true, nik: true, status: true, saldo: true, hutang: true, poin: true,
       commisionUniqueId: true, saldoKomisi: true, referralMarkup: true, referrerMarkup: true, joinedAt: true, createdAt: true, googleSub: true,
+      saldoFrozenAt: true, saldoFrozenReason: true,
       referrer: { select: { id: true, name: true } },
     },
   });
@@ -114,4 +115,25 @@ export async function adjustSaldo(adminId: string, id: string, input: z.infer<ty
   });
   await audit(adminId, 'AGENT_ADJUST_SALDO', 'Agent', id, input);
   return { id, saldo };
+}
+
+export const freezeSchema = z.object({ reason: z.string().trim().min(3).max(300) });
+
+/** Freezes the agent's whole saldo (no purchases / transfers out / commission claims) with a reason the agent sees. */
+export async function freezeSaldo(adminId: string, id: string, input: z.infer<typeof freezeSchema>) {
+  const res = await prisma.agent.updateMany({
+    where: { id },
+    data: { saldoFrozenAt: new Date(), saldoFrozenReason: input.reason, saldoFrozenById: adminId },
+  });
+  if (res.count === 0) throw notFound('Agen tidak ditemukan');
+  await audit(adminId, 'AGENT_SALDO_FREEZE', 'Agent', id, input);
+  return getAgentDetail(id);
+}
+
+export async function unfreezeSaldo(adminId: string, id: string) {
+  const agent = await prisma.agent.findUnique({ where: { id }, select: { saldoFrozenReason: true } });
+  if (!agent) throw notFound('Agen tidak ditemukan');
+  await prisma.agent.update({ where: { id }, data: { saldoFrozenAt: null, saldoFrozenReason: null, saldoFrozenById: null } });
+  await audit(adminId, 'AGENT_SALDO_UNFREEZE', 'Agent', id, { previousReason: agent.saldoFrozenReason });
+  return getAgentDetail(id);
 }

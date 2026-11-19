@@ -4,32 +4,32 @@ import { Agent, Prisma } from '../../prisma/generated';
 import { prisma } from '../../prisma/client';
 import { badRequest, notFound } from '../lib/errors';
 import { audit } from './audit.service';
+import { getConfig } from './config.service';
 import { uniqueCommissionId } from './agentAuth.service';
 
-// Two-level referral scheme. The upline lives on Agent.referrerAgentId with the
-// markup frozen at join time in Agent.referrerMarkup. Commissions are still
-// paid to the transferable commisionUniqueId ("crown"), not to an agent id.
+// One-level referral (meeting 14 Nov 2026). The upline lives on
+// Agent.referrerAgentId with the Rp amount frozen at join time in
+// Agent.referrerMarkup. The downline's price no longer goes up: the parent's
+// commission comes out of our margin, capped by StoreConfig.maxReferralMarkup
+// at the time of each order. Commissions are paid to the transferable
+// commisionUniqueId ("crown"), not to an agent id.
 
 export interface MarkupResolution {
+  /** level-1 commission for this agent's orders */
   parent: { commisionId: string; amount: number } | null;
-  grandparent: { commisionId: string; amount: number } | null;
+  /** what the agent pays on top of the product price: always 0 now (kept for older app versions) */
   markupTotal: number;
 }
 
-/** parentShare = my referrerMarkup, grandparentShare = my parent's referrerMarkup. */
 export async function resolveMarkup(agentId: string): Promise<MarkupResolution> {
   const me = await prisma.agent.findUnique({ where: { id: agentId }, select: { referrerAgentId: true, referrerMarkup: true } });
-  if (!me?.referrerAgentId) return { parent: null, grandparent: null, markupTotal: 0 };
-  const parentRow = await prisma.agent.findUniqueOrThrow({
-    where: { id: me.referrerAgentId },
-    select: { commisionUniqueId: true, referrerAgentId: true, referrerMarkup: true },
-  });
-  const parent = { commisionId: parentRow.commisionUniqueId, amount: me.referrerMarkup };
-  const grandRow = parentRow.referrerAgentId
-    ? await prisma.agent.findUnique({ where: { id: parentRow.referrerAgentId }, select: { commisionUniqueId: true } })
-    : null;
-  const grandparent = grandRow ? { commisionId: grandRow.commisionUniqueId, amount: parentRow.referrerMarkup } : null;
-  return { parent, grandparent, markupTotal: parent.amount + (grandparent?.amount ?? 0) };
+  if (!me?.referrerAgentId) return { parent: null, markupTotal: 0 };
+  const [parentRow, config] = await Promise.all([
+    prisma.agent.findUniqueOrThrow({ where: { id: me.referrerAgentId }, select: { commisionUniqueId: true } }),
+    getConfig(),
+  ]);
+  const amount = Math.max(0, Math.min(me.referrerMarkup, config.maxReferralMarkup));
+  return { parent: { commisionId: parentRow.commisionUniqueId, amount }, markupTotal: 0 };
 }
 
 /** The agent owning `referralCode` (used at registration). */

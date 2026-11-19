@@ -115,7 +115,7 @@ export async function claimTopUp(agent: Agent, id: string) {
     queueAdminAlert(topUpClaimedAlert({ orderNumber: updated.orderNumber, totalTransfer: Number(updated.totalTransfer), bank: via }, agent));
   }
   const config = await getConfig();
-  const waNumber = toInternationalMobile(config.csWhatsapp);
+  const waNumber = toInternationalMobile(config.csFinanceWhatsapp || config.csWhatsapp);
   const waText =
     `Permisi kak, saya baru transfer sebesar ${formatRp(Number(updated.totalTransfer))} via ${payVia(updated.bank)}` +
     ` untuk top up saldo #${updated.orderNumber} a.n. ${agent.name}`;

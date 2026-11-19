@@ -16,6 +16,7 @@ import { deletePrefix, listPrefixes, prefixSchema, upsertPrefix } from '../servi
 import { listConnections, transferCommissionId, updateConnectionAmount } from '../service/referral.service';
 import * as seg from '../service/segment.service';
 import * as topup from '../service/topup.service';
+import * as transfers from '../service/transfer.service';
 import * as trx from '../service/transaction.service';
 import { integrationStatus, sendTelegramTest } from '../service/integrations.service';
 import { productIntegrationStatus } from '../service/productIntegration.service';
@@ -105,6 +106,28 @@ export const getAgentLedger = asyncHandler(async (req: Request, res: Response) =
 });
 export const putAgent = asyncHandler(async (req: Request, res: Response) => {
   res.json(toPlain(await agents.updateAgent(req.admin!.adminId, req.params.id, parse(agents.agentUpdateSchema, req.body))));
+});
+export const postFreezeSaldo = asyncHandler(async (req: Request, res: Response) => {
+  res.json(toPlain(await agents.freezeSaldo(req.admin!.adminId, req.params.id, parse(agents.freezeSchema, req.body))));
+});
+export const postUnfreezeSaldo = asyncHandler(async (req: Request, res: Response) => {
+  res.json(toPlain(await agents.unfreezeSaldo(req.admin!.adminId, req.params.id)));
+});
+export const getTransfers = asyncHandler(async (req: Request, res: Response) => {
+  const q = parse(z.object({ status: z.string().optional(), agentId: z.string().optional() }), req.query);
+  res.json({ transfers: await transfers.listTransfers(q) });
+});
+export const postTransferDraft = asyncHandler(async (req: Request, res: Response) => {
+  res.status(201).json(await transfers.createDraft(req.admin!.adminId, parse(transfers.draftSchema, req.body)));
+});
+export const postTransferApprove = asyncHandler(async (req: Request, res: Response) => {
+  res.json(await transfers.approveDraft(req.admin!.adminId, req.params.id));
+});
+export const postTransferReject = asyncHandler(async (req: Request, res: Response) => {
+  res.json(await transfers.rejectDraft(req.admin!.adminId, req.params.id, parse(transfers.reasonSchema, req.body).reason));
+});
+export const postTransferReverse = asyncHandler(async (req: Request, res: Response) => {
+  res.json(await transfers.reverseTransfer(req.admin!.adminId, req.params.id, parse(transfers.reasonSchema, req.body).reason));
 });
 export const postAdjustSaldo = asyncHandler(async (req: Request, res: Response) => {
   res.json(await agents.adjustSaldo(req.admin!.adminId, req.params.id, parse(agents.adjustSaldoSchema, req.body)));

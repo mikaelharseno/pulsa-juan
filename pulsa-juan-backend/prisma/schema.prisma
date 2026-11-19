@@ -59,6 +59,8 @@ enum LedgerType {
   REFUND
   ADJUSTMENT
   COMMISSION
+  /// saldo sent to / received from another agent (SaldoTransfer)
+  TRANSFER
 }
 
 enum BillCheckStatus {
@@ -164,6 +166,10 @@ model Agent {
   domicileLat          Float?
   domicileLng          Float?
   domicileSource       String?
+  /// set = whole saldo frozen by an admin: no purchases, transfers or commission claims
+  saldoFrozenAt     DateTime?
+  saldoFrozenReason String?
+  saldoFrozenById   String?
   joinedAt     DateTime    @default(now())
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
@@ -176,6 +182,51 @@ model Agent {
   sellPrices   AgentSellPrice[]
   kycSubmissions KycSubmission[]
   livenessChallenges LivenessChallenge[]
+  transfersOut SaldoTransfer[] @relation("transferFrom")
+  transfersIn  SaldoTransfer[] @relation("transferTo")
+}
+
+enum TransferSource {
+  /// sent by the agent from the app (done at once)
+  AGENT
+  /// drafted by an admin, executed when an OWNER approves
+  ADMIN
+}
+
+enum TransferStatus {
+  DRAFT
+  DONE
+  REJECTED
+  REVERSED
+}
+
+/// Saldo moved from one agent to another (agent self-service or admin draft → OWNER approval).
+model SaldoTransfer {
+  id               String         @id @default(cuid())
+  number           Int            @unique @default(autoincrement())
+  fromAgentId      String
+  fromAgent        Agent          @relation("transferFrom", fields: [fromAgentId], references: [id])
+  toAgentId        String
+  toAgent          Agent          @relation("transferTo", fields: [toAgentId], references: [id])
+  amount           Int
+  note             String?
+  source           TransferSource
+  status           TransferStatus
+  /// agent transfers: replay protection
+  idempotencyKey   String?        @unique
+  createdByAdminId String?
+  approvedById     String?
+  approvedAt       DateTime?
+  rejectReason     String?
+  reversedById     String?
+  reversedAt       DateTime?
+  reverseReason    String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([fromAgentId, createdAt])
+  @@index([toAgentId, createdAt])
+  @@index([status, createdAt])
 }
 
 /// One identity check sent by an agent: KTP photo, selfie and the live-check
@@ -327,6 +378,8 @@ model Segment {
   isActive           Boolean   @default(true)
   /// "Plus": only agents with a verified identity may buy (cash-like products such as e-wallet top-ups)
   requiresVerification Boolean @default(false)
+  /// "Pulsa" tile: ask the phone number, then continue in that operator's paket-<operator> tile
+  routeByOperator    Boolean   @default(false)
   maintenanceMessage String?
   draftTree          Json?
   draftUpdatedAt     DateTime?
@@ -453,7 +506,10 @@ model Transaction {
 model StoreConfig {
   id                String   @id @default("singleton")
   appName           String   @default("Murah Kuota")
+  /// CS Komplain (general): order problems
   csWhatsapp        String   @default("")
+  /// CS Finance: saldo top-up confirmations (empty = csWhatsapp)
+  csFinanceWhatsapp String   @default("")
   csTelegram        String   @default("")
   topUpMin          Int      @default(10000)
   topUpMax          Int      @default(5000000)
@@ -476,13 +532,16 @@ model StoreConfig {
   updatedAt         DateTime @updatedAt
 }
 
-/// A static QRIS image admins upload; top-ups paid by QRIS go to the one with
-/// the least paid this month that still has room under monthlyLimit.
+/// A static QRIS image admins upload; a QRIS top-up goes to the code with the
+/// smallest maxTopUp that fits the amount, then the least paid this month that
+/// still has room under monthlyLimit.
 model QrisCode {
   id           String   @id @default(cuid())
   label        String
   imageUrl     String
   monthlyLimit Int      @default(20000000)
+  /// largest single top-up this code takes (null = any); the smallest code that still fits is offered first
+  maxTopUp     Int?
   isActive     Boolean  @default(true)
   sortOrder    Int      @default(0)
   createdAt    DateTime @default(now())

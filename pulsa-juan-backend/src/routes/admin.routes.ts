@@ -20,8 +20,16 @@ router.get('/agents/:id', c.getAgent);
 router.get('/agents/:id/ledger', c.getAgentLedger);
 router.put('/agents/:id', requireRole('OWNER', 'ADMIN'), c.putAgent);
 router.post('/agents/:id/adjust-saldo', requireRole('OWNER', 'ADMIN'), c.postAdjustSaldo);
+router.post('/agents/:id/freeze', requireRole('OWNER', 'ADMIN'), c.postFreezeSaldo);
+router.post('/agents/:id/unfreeze', requireRole('OWNER', 'ADMIN'), c.postUnfreezeSaldo);
 router.post('/agents/:id/hutang-payment', requireRole('OWNER'), c.postHutangPayment);
 router.post('/agents/:id/transfer-commission-id', requireRole('OWNER'), c.postTransferCommissionId);
+
+router.get('/transfers', c.getTransfers);
+router.post('/transfers', requireRole('OWNER', 'ADMIN'), c.postTransferDraft);
+router.post('/transfers/:id/approve', requireRole('OWNER'), c.postTransferApprove);
+router.post('/transfers/:id/reject', requireRole('OWNER'), c.postTransferReject);
+router.post('/transfers/:id/reverse', requireRole('OWNER'), c.postTransferReverse);
 
 router.get('/mitra-connections', c.getConnections);
 router.put('/mitra-connections/:id', requireRole('OWNER'), c.putConnection);

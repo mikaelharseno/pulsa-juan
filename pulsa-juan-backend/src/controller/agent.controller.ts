@@ -37,6 +37,7 @@ import { getPrefixEntries } from '../service/prefix.service';
 import { listLedger } from '../service/saldo.service';
 import { listSegmentsForAgent, treeForAgent } from '../service/segment.service';
 import * as topup from '../service/topup.service';
+import * as transfers from '../service/transfer.service';
 import * as trx from '../service/transaction.service';
 
 export const postRegister = asyncHandler(async (req: Request, res: Response) => {
@@ -166,7 +167,7 @@ export const getTopUp = asyncHandler(async (req: Request, res: Response) => {
 
 export const postTransaction = asyncHandler(async (req: Request, res: Response) => {
   const result = await trx.createTransaction(req.agent!, parse(trx.createTransactionSchema, req.body));
-  res.status(result.reused ? 200 : 201).json(result);
+  res.status(result.reused ? 200 : 201).json({ ...result, transaction: trx.forAgent(result.transaction) });
 });
 
 export const getTransactions = asyncHandler(async (req: Request, res: Response) => {
@@ -209,6 +210,14 @@ export const postTransactionBon = asyncHandler(async (req: Request, res: Respons
 
 export const getCommissions = asyncHandler(async (req: Request, res: Response) => {
   res.json(await commissionSummary(req.agent!));
+});
+
+export const postTransferLookup = asyncHandler(async (req: Request, res: Response) => {
+  res.json(await transfers.lookupRecipient(req.agent!, parse(transfers.lookupSchema, req.body).to));
+});
+export const postTransfer = asyncHandler(async (req: Request, res: Response) => {
+  const result = await transfers.sendTransfer(req.agent!, parse(transfers.agentTransferSchema, req.body));
+  res.status(result.reused ? 200 : 201).json(result);
 });
 
 export const postClaimCommissions = asyncHandler(async (req: Request, res: Response) => {

@@ -1,7 +1,7 @@
 import { Agent, CommissionStatus } from '../../prisma/generated';
 import { prisma } from '../../prisma/client';
 import { badRequest } from '../lib/errors';
-import { creditSaldo } from './saldo.service';
+import { assertSaldoUsable, creditSaldo } from './saldo.service';
 
 export async function commissionSummary(agent: Agent) {
   const code = agent.commisionUniqueId;
@@ -40,6 +40,7 @@ export async function commissionSummary(agent: Agent) {
 
 /** Claims every UNCLAIMED entry whose source transaction succeeded. Idempotent per entry. */
 export async function claimCommissions(agent: Agent) {
+  assertSaldoUsable(agent);
   const code = agent.commisionUniqueId;
   const candidates = await prisma.agentMarkupCommision.findMany({
     where: { beneficiaryCommisionId: code, status: 'UNCLAIMED', transaction: { status: 'SUCCESS' } },
