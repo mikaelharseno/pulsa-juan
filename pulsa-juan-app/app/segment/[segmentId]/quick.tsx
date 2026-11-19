@@ -130,7 +130,7 @@ export default function QuickPickScreen() {
           {rows.length > 1 ? 'Pilihan Paket' : selected?.list.title || 'Pilihan Paket'}
         </Text>
         {rows.length > 1 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingVertical: 12 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0, minHeight: 60 }} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingVertical: 12, alignItems: "center" }}>
             {rows.map((r) => (
               <Chip key={r.id} label={r.label} selected={r.id === selected?.id} onPress={() => setChip(r.id)} />
             ))}
