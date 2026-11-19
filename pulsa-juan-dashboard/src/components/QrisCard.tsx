@@ -11,6 +11,7 @@ interface Qris {
   label: string;
   imageUrl: string;
   monthlyLimit: number;
+  maxTopUp: number | null;
   isActive: boolean;
   sortOrder: number;
   paidThisMonth: number;
@@ -50,6 +51,7 @@ export function QrisCard({ canEdit }: { canEdit: boolean }) {
             <TableRow>
               <TableCell>QRIS</TableCell>
               <TableCell>Terpakai bulan ini</TableCell>
+              <TableCell align="right" title="Top up terbesar untuk QRIS ini; kosong = tanpa batas. QRIS dengan batas terkecil yang masih cukup dipakai lebih dulu.">Maks / top up</TableCell>
               <TableCell align="right">Limit / bulan</TableCell>
               <TableCell align="center">Aktif</TableCell>
               <TableCell />
@@ -70,6 +72,17 @@ export function QrisCard({ canEdit }: { canEdit: boolean }) {
                     <Typography variant="caption" color="text.secondary">
                       {fmtRp(r.paidThisMonth)} lunas{r.reservedNow ? ` + ${fmtRp(r.reservedNow)} menunggu` : ''} · sisa {fmtRp(Math.max(0, r.monthlyLimit - used))}
                     </Typography>
+                  </TableCell>
+                  <TableCell align="right">
+                    <TextField
+                      size="small"
+                      type="number"
+                      placeholder="tanpa batas"
+                      defaultValue={r.maxTopUp ?? ''}
+                      disabled={!canEdit}
+                      onBlur={(e) => { const v = e.target.value ? Number(e.target.value) : null; if (v !== r.maxTopUp) update.mutate({ id: r.id, data: { maxTopUp: v } }); }}
+                      sx={{ width: 130 }}
+                    />
                   </TableCell>
                   <TableCell align="right">
                     <TextField

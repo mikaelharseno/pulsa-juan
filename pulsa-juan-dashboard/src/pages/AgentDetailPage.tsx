@@ -20,6 +20,7 @@ interface AgentDetail {
   googleSub: string | null; hasPassword: boolean; hasPin: boolean; otpPending: boolean; pinFailedAttempts: number; pinLockedUntil: string | null;
   confirmationCodeExpiresAt: string | null; confirmationCodePurpose: string | null; confirmationCodeSentAt: string | null; phoneVerifiedAt: string | null;
   joinedAt: string; createdAt: string; updatedAt: string;
+  saldoFrozenAt: string | null; saldoFrozenReason: string | null;
   kycStatus: 'NONE' | 'PENDING' | 'VERIFIED' | 'REJECTED';
   domicileLabel: string | null; domicileSource: string | null; domicileLat: number | null; domicileLng: number | null; referrerSetAt: string | null;
   upline: { commisionAmount: number; agent: { id: string; name: string; commisionUniqueId: string } } | null;
@@ -120,6 +121,12 @@ export default function AgentDetailPage() {
   const [nik, setNik] = useState('');
   const nikM = useMutation({ mutationFn: async () => (await api.put(`/admin/agents/${id}`, { nik: nik.trim() || null })).data, onSuccess: () => { refresh(); setEditNik(false); } });
 
+  const [freeze, setFreeze] = useState(false);
+  const [freezeReason, setFreezeReason] = useState('');
+  const freezeM = useMutation({
+    mutationFn: async () => (await api.post(`/admin/agents/${id}/${a?.saldoFrozenAt ? 'unfreeze' : 'freeze'}`, a?.saldoFrozenAt ? {} : { reason: freezeReason })).data,
+    onSuccess: () => { refresh(); setFreeze(false); setFreezeReason(''); },
+  });
   const statusM = useMutation({ mutationFn: async (s: string) => (await api.put(`/admin/agents/${id}`, { status: s })).data, onSuccess: refresh });
   const a = detail.data;
   if (detail.isError) return <Typography color="error">{errMsg(detail.error)}</Typography>;
@@ -140,8 +147,10 @@ export default function AgentDetailPage() {
         <Chip size="small" label={`Hutang ${fmtRp(a.hutang)}`} color={a.hutang > 0 ? 'error' : 'default'} />
         <Chip size="small" label={`Poin ${a.poin}`} />
         <Chip size="small" label={`Komisi belum diklaim ${fmtRp(a.unclaimedCommission)}`} />
+        {a.saldoFrozenAt && <Chip size="small" color="error" label={`Saldo dibekukan: ${a.saldoFrozenReason ?? ''}`} title={`sejak ${fmtDate(a.saldoFrozenAt)}`} />}
         <Box sx={{ flex: 1 }} />
         <Button size="small" variant="outlined" onClick={() => setAdjust(true)}>Sesuaikan saldo</Button>
+        {role !== 'STAFF' && <Button size="small" variant="outlined" color={a.saldoFrozenAt ? 'success' : 'error'} onClick={() => setFreeze(true)}>{a.saldoFrozenAt ? 'Cairkan saldo' : 'Bekukan saldo'}</Button>}
         <Button size="small" variant="outlined" color={a.status === 'ACTIVE' ? 'error' : 'success'} onClick={() => statusM.mutate(a.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE')}>{a.status === 'ACTIVE' ? 'Nonaktifkan' : 'Aktifkan'}</Button>
         {role === 'OWNER' && <Button size="small" variant="outlined" onClick={() => setHutang(true)} disabled={a.hutang <= 0}>Bayar hutang</Button>}
         {role === 'OWNER' && <Button size="small" variant="outlined" color="warning" onClick={() => setTransfer(true)}>Pindahkan kode komisi</Button>}
@@ -226,6 +235,26 @@ export default function AgentDetailPage() {
         </Paper>
       )}
 
+      <ConfirmDialog
+        open={freeze}
+        title={a.saldoFrozenAt ? 'Cairkan saldo' : 'Bekukan saldo'}
+        confirmLabel={a.saldoFrozenAt ? 'Cairkan' : 'Bekukan'}
+        confirmColor={a.saldoFrozenAt ? 'success' : 'error'}
+        busy={freezeM.isPending}
+        disabled={!a.saldoFrozenAt && freezeReason.trim().length < 3}
+        error={freezeM.isError ? errMsg(freezeM.error) : null}
+        onClose={() => { setFreeze(false); freezeM.reset(); }}
+        onConfirm={() => freezeM.mutate()}
+      >
+        {a.saldoFrozenAt ? (
+          <Typography variant="body2">Agen bisa bertransaksi, transfer dan klaim komisi lagi. Alasan sebelumnya: {a.saldoFrozenReason}</Typography>
+        ) : (
+          <>
+            <Typography variant="body2" sx={{ mb: 1 }}>Agen tidak bisa membeli, transfer saldo, atau klaim komisi sampai dicairkan. Top up tetap masuk. Alasan ditampilkan ke agen.</Typography>
+            <TextField fullWidth multiline minRows={2} label="Alasan" value={freezeReason} onChange={(e) => setFreezeReason(e.target.value)} />
+          </>
+        )}
+      </ConfirmDialog>
       <ConfirmDialog open={adjust} title="Sesuaikan saldo" confirmLabel="Simpan" busy={adjustM.isPending} disabled={!delta || !note} error={adjustM.isError ? errMsg(adjustM.error) : null} onClose={() => { setAdjust(false); adjustM.reset(); }} onConfirm={() => adjustM.mutate()}>
         <TextField label="Delta (negatif untuk mengurangi)" type="number" fullWidth margin="dense" value={delta} onChange={(e) => setDelta(e.target.value)} />
         <TextField label="Catatan" fullWidth margin="dense" value={note} onChange={(e) => setNote(e.target.value)} />

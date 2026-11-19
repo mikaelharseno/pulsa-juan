@@ -25,7 +25,7 @@ export default function MitraPage() {
       <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>Koneksi mitra</Typography>
       <Paper sx={{ overflowX: 'auto', mb: 3 }}>
         <Table size="small">
-          <TableHead><TableRow><TableCell>Pengundang</TableCell><TableCell>Mitra</TableCell><TableCell align="right">Markup / trx</TableCell><TableCell>Sejak</TableCell><TableCell /></TableRow></TableHead>
+          <TableHead><TableRow><TableCell>Pengundang</TableCell><TableCell>Mitra</TableCell><TableCell align="right" title="Diambil dari margin kita; harga mitra tidak naik (maks. di Pengaturan)">Komisi / trx</TableCell><TableCell>Sejak</TableCell><TableCell /></TableRow></TableHead>
           <TableBody>
             {(conns.data ?? []).map((c) => (
               <TableRow key={c.id} hover>

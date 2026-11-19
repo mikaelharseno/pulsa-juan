@@ -13,6 +13,7 @@ import ProductUpdaterPage from './pages/ProductUpdaterPage';
 import SegmentsPage from './pages/SegmentsPage';
 import SettingsPage from './pages/SettingsPage';
 import TopUpsPage from './pages/TopUpsPage';
+import TransfersPage from './pages/TransfersPage';
 import TransactionsPage from './pages/TransactionsPage';
 import TreeEditorPage from './pages/tree/TreeEditorPage';
 import Shell from './Shell';
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="/agents" element={<AgentsPage />} />
         <Route path="/agents/:id" element={<AgentDetailPage />} />
         <Route path="/mitra" element={<MitraPage />} />
+        <Route path="/transfers" element={<TransfersPage />} />
         <Route path="/verifikasi" element={<KycPage />} />
         <Route path="/segments" element={<SegmentsPage />} />
         <Route path="/segments/:id/tree" element={<TreeEditorPage />} />
