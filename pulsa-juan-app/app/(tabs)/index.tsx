@@ -49,7 +49,7 @@ export default function HomeScreen() {
           {pending ? <PendingTopUpCard topUp={pending} /> : null}
           <BannerCarousel banners={d.banners} />
           <ServicesGrid segments={d.segments} verified={d.agent.kycStatus === 'VERIFIED'} />
-          <CsRow whatsapp={d.cs.whatsapp} telegram={d.cs.telegram} financeWhatsapp={d.cs.financeWhatsapp} />
+          <CsRow whatsapp={d.cs.whatsapp} telegram={d.cs.telegram} />
         </View>
       </ScrollView>
     </SafeAreaView>

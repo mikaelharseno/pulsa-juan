@@ -22,7 +22,7 @@ export default function ResultScreen() {
   if (trx.isError) return <Screen title="Status Transaksi"><ErrorView message={(trx.error as Error).message} onRetry={() => trx.refetch()} /></Screen>;
   const t = trx.data!;
   const wa = toInternationalMobile(config.data?.cs.whatsapp ?? '');
-  const csText = `Halo CS Komplain, mohon dicek transaksi #${t.trxNumber} (${t.segmentLabel}${t.phoneNumber ? `, ${t.phoneNumber}` : ''}) yang ${t.status === 'PENDING' ? 'masih diproses' : t.status === 'FAILED' ? 'gagal' : 'bermasalah'}.`;
+  const csText = `Halo CS, mohon dicek transaksi #${t.trxNumber} (${t.segmentLabel}${t.phoneNumber ? `, ${t.phoneNumber}` : ''}) yang ${t.status === 'PENDING' ? 'masih diproses' : t.status === 'FAILED' ? 'gagal' : 'bermasalah'}.`;
 
   const head =
     t.status === 'SUCCESS'
@@ -70,7 +70,7 @@ export default function ResultScreen() {
         <View style={{ flex: 1 }} />
         {t.status !== 'SUCCESS' ? (
           <Button
-            title={t.status === 'PENDING' ? `Hubungi CS Komplain (#${t.trxNumber})` : 'Hubungi CS Komplain'}
+            title={t.status === 'PENDING' ? `Hubungi CS (#${t.trxNumber})` : 'Hubungi Customer Service'}
             variant={t.status === 'PENDING' ? 'primary' : 'outline'}
             style={{ marginBottom: 10 }}
             disabled={!wa}

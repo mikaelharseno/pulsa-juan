@@ -11,7 +11,7 @@ baru di sini, commit, lalu `npm run release:android`.
 - Halaman konfirmasi dan status transaksi menampilkan harga jual Anda; modal hanya terlihat bila Anda tekan "Lihat rincian"
 - Transfer saldo ke agen lain dari menu Profil
 - Bila koneksi terputus saat membeli, pesanan tetap diproses: cek Riwayat atau hubungi CS Komplain dengan nomor transaksinya
-- CS dipisah: CS Finance untuk isi saldo dan CS Komplain untuk transaksi
+- Konfirmasi transfer isi saldo lewat WhatsApp kini langsung ke CS Finance
 - Pilih tanggal Rekap dari kalender
 - Komisi mitra kini diambil dari margin kami: harga mitra Anda tidak naik
 

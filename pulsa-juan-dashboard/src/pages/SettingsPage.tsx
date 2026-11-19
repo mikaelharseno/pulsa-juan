@@ -52,7 +52,7 @@ export default function SettingsPage() {
             <Grid container spacing={1.5}>
               <Grid item xs={6}><TextField label="Nama aplikasi" {...f('appName')} /></Grid>
               <Grid item xs={6}><TextField label="WA CS Komplain" {...f('csWhatsapp')} /></Grid>
-              <Grid item xs={6}><TextField label="WA CS Finance (top up)" helperText="kosong = pakai CS Komplain" {...f('csFinanceWhatsapp')} /></Grid>
+              <Grid item xs={6}><TextField label="WA CS Finance (top up)" helperText="Hanya untuk konfirmasi transfer top up; kosong = CS Komplain" {...f('csFinanceWhatsapp')} /></Grid>
               <Grid item xs={6}><TextField label="Telegram CS (username)" {...f('csTelegram')} /></Grid>
               <Grid item xs={6}><TextField label="Maks. komisi pengajak (Rp)" type="number" helperText="Per transaksi, dari margin kita" {...f('maxReferralMarkup')} /></Grid>
               <Grid item xs={4}><TextField label="Top up min (Rp)" type="number" {...f('topUpMin')} /></Grid>
