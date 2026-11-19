@@ -14,7 +14,7 @@ import {
   validateStepInput,
 } from 'pulsa-juan-common';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 
 import { useAgentConfig, useTree } from '../../../src/api/hooks';
 import { Chip, Empty, ErrorView, Field, ListRow, Loading, Screen } from '../../../src/components/ui';
@@ -38,6 +38,16 @@ export default function QuickPickScreen() {
   const commit = useFlowStore((s) => s.commit);
   const [raw, setRaw] = useState(phone ?? '');
   const [chip, setChip] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  // fresh prices / packages without leaving the screen (header ↻ or pull down on the list)
+  const refresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([tree.refetch(), config.refetch()]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     if (tree.data) {
@@ -100,7 +110,15 @@ export default function QuickPickScreen() {
   };
 
   return (
-    <Screen title={data.segment.label} padded={false}>
+    <Screen
+      title={data.segment.label}
+      padded={false}
+      right={
+        <Pressable onPress={refresh} disabled={refreshing} hitSlop={12} accessibilityLabel="Muat ulang harga">
+          {refreshing ? <ActivityIndicator size="small" color={colors.tealDark} /> : <Ionicons name="refresh" size={22} color={colors.ink} />}
+        </Pressable>
+      }
+    >
       <View style={{ backgroundColor: colors.teal, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 12 }}>
         <View style={{ backgroundColor: colors.white, borderRadius: 12, paddingHorizontal: 12, paddingTop: 10 }}>
           <Field
@@ -147,6 +165,7 @@ export default function QuickPickScreen() {
             data={ids}
             keyExtractor={(id) => id}
             keyboardShouldPersistTaps="handled"
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.teal} colors={[colors.teal]} />}
             contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24, gap: 10 }}
             renderItem={({ item }) => {
               const p = data.packages[item];
