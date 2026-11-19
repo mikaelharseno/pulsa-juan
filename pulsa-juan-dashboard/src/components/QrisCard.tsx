@@ -42,7 +42,7 @@ export function QrisCard({ canEdit }: { canEdit: boolean }) {
     <Paper sx={{ p: 2 }}>
       <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>QRIS untuk top up</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-        QRIS statis: agen membayar nominal persis (dengan kode unik). Top up di atas Rp 500.000 kena biaya admin 1% (tidak masuk saldo). Tiap top up QRIS memakai QRIS aktif yang paling sedikit terpakai bulan ini dan masih di bawah limitnya.
+        QRIS statis: agen membayar nominal persis (dengan kode unik). Top up di atas Rp 500.000 kena biaya admin 1% (tidak masuk saldo). Tiap top up QRIS memakai QRIS aktif dengan "Maks / top up" terkecil yang masih cukup untuk nominalnya, lalu yang paling sedikit terpakai bulan ini dan masih di bawah limit bulanannya.
       </Typography>
       {rows.length === 0 && <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Belum ada QRIS. Opsi QRIS tidak tampil di aplikasi sampai ada QRIS aktif.</Typography>}
       {rows.length > 0 && (
