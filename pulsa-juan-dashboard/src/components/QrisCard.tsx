@@ -29,10 +29,12 @@ export function QrisCard({ canEdit }: { canEdit: boolean }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['admin-qris'], queryFn: async () => (await api.get<Qris[]>('/admin/qris')).data });
   const refresh = () => qc.invalidateQueries({ queryKey: ['admin-qris'] });
-  const [draft, setDraft] = useState<{ label: string; imageUrl: string; monthlyLimit: string }>({ label: '', imageUrl: '', monthlyLimit: String(LIMIT_DEFAULT) });
+  const EMPTY_DRAFT = { label: '', imageUrl: '', monthlyLimit: String(LIMIT_DEFAULT), maxTopUp: '' };
+  const [draft, setDraft] = useState<{ label: string; imageUrl: string; monthlyLimit: string; maxTopUp: string }>(EMPTY_DRAFT);
   const add = useMutation({
-    mutationFn: async () => (await api.post('/admin/qris', { label: draft.label, imageUrl: draft.imageUrl, monthlyLimit: Number(draft.monthlyLimit) || LIMIT_DEFAULT, sortOrder: q.data?.length ?? 0 })).data,
-    onSuccess: () => { setDraft({ label: '', imageUrl: '', monthlyLimit: String(LIMIT_DEFAULT) }); refresh(); },
+    mutationFn: async () =>
+      (await api.post('/admin/qris', { label: draft.label, imageUrl: draft.imageUrl, monthlyLimit: Number(draft.monthlyLimit) || LIMIT_DEFAULT, maxTopUp: Number(draft.maxTopUp) || null, sortOrder: q.data?.length ?? 0 })).data,
+    onSuccess: () => { setDraft(EMPTY_DRAFT); refresh(); },
   });
   const update = useMutation({ mutationFn: async (v: { id: string; data: Partial<Qris> }) => (await api.put(`/admin/qris/${v.id}`, v.data)).data, onSuccess: refresh });
   const remove = useMutation({ mutationFn: async (id: string) => (await api.delete(`/admin/qris/${id}`)).data, onSuccess: refresh });
@@ -78,6 +80,7 @@ export function QrisCard({ canEdit }: { canEdit: boolean }) {
                       size="small"
                       type="number"
                       placeholder="tanpa batas"
+                      helperText="tersimpan saat keluar kolom"
                       defaultValue={r.maxTopUp ?? ''}
                       disabled={!canEdit}
                       onBlur={(e) => { const v = e.target.value ? Number(e.target.value) : null; if (v !== r.maxTopUp) update.mutate({ id: r.id, data: { maxTopUp: v } }); }}
@@ -124,6 +127,7 @@ export function QrisCard({ canEdit }: { canEdit: boolean }) {
             )}
           </Box>
           <TextField size="small" label="Nama QRIS (mis. QRIS Toko A)" value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} sx={{ minWidth: 220 }} />
+          <TextField size="small" label="Maks / top up (Rp)" type="number" placeholder="tanpa batas" helperText="kosong = tanpa batas" value={draft.maxTopUp} onChange={(e) => setDraft({ ...draft, maxTopUp: e.target.value })} sx={{ width: 170 }} />
           <TextField size="small" label="Limit / bulan (Rp)" type="number" value={draft.monthlyLimit} onChange={(e) => setDraft({ ...draft, monthlyLimit: e.target.value })} sx={{ width: 170 }} />
           <Button variant="outlined" onClick={() => add.mutate()} disabled={!draft.label.trim() || !draft.imageUrl || add.isPending}>Tambah QRIS</Button>
           {add.isError && <Typography color="error" variant="body2" sx={{ alignSelf: 'center' }}>{errMsg(add.error)}</Typography>}
