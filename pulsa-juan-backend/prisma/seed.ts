@@ -115,8 +115,24 @@ export async function seedBillPayments() {
   await seedSegments(SEED_SEGMENTS.filter((s) => s.slug === 'pln-pascabayar' || s.slug === 'telkom'));
 }
 
+/**
+ * The "Pulsa" tile (meeting 14 Nov 2026): asks the number, then opens that
+ * operator's paket-<operator> tile (app 1.2.0+). No tree of its own; created once,
+ * first in the "Pulsa & Data" group. Safe to run again.
+ */
+export async function seedPulsaRouter() {
+  const existing = await prisma.segment.findFirst({ where: { routeByOperator: true } });
+  if (existing) return console.log(`Pulsa tile already there: ${existing.slug}`);
+  const first = await prisma.segment.findFirst({ where: { groupLabel: 'Pulsa & Data' }, orderBy: { sortOrder: 'asc' } });
+  const slug = (await prisma.segment.findUnique({ where: { slug: 'pulsa' } })) ? 'pulsa-semua' : 'pulsa';
+  const s = await prisma.segment.create({
+    data: { slug, label: 'Pulsa', iconUrl: 'builtin:pulsa', groupLabel: 'Pulsa & Data', isActive: true, routeByOperator: true, sortOrder: (first?.sortOrder ?? 1) - 1 },
+  });
+  console.log(`Pulsa tile created: ${s.slug} (${s.id})`);
+}
+
 if (require.main === module) {
-  (process.argv.includes('--bills-only') ? seedBillPayments() : seed())
+  (process.argv.includes('--bills-only') ? seedBillPayments() : process.argv.includes('--pulsa-router') ? seedPulsaRouter() : seed())
     .then(() => {
       console.log('seed complete');
       return prisma.$disconnect();

@@ -20,6 +20,7 @@
     "migrate:prod": "npx -y dotenv-cli -e .env.production -- prisma migrate deploy",
     "seed": "prisma db seed",
     "seed:bills:prod": "npx -y dotenv-cli -e .env.production -- ts-node prisma/seed.ts --bills-only",
+    "seed:pulsa-router:prod": "npx -y dotenv-cli -e .env.production -- ts-node prisma/seed.ts --pulsa-router",
     "pretest": "bash scripts/test-db.sh"
   },
   "prisma": {
