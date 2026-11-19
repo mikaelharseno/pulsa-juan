@@ -1,6 +1,26 @@
 {
-  "latest": "1.1.0",
+  "latest": "1.2.0",
   "releases": [
+    {
+      "version": "1.2.0",
+      "versionCode": 6,
+      "date": "2026-11-19",
+      "file": "/download/pulsa-juan-1.2.0.apk",
+      "sizeBytes": 196235725,
+      "sha256": "6b6915fc8dc77ecea5fd0739c232cf895309a71c34bf6285470e23faa881cfcf",
+      "gitCommit": "cfef5804ddf809543cf2c7d5dccf21d2acd22fe5",
+      "easBuildId": "cda38359-2654-43c4-b330-0f43ae9f9dfb",
+      "notes": [
+        "Beli paket lebih cepat: nomor HP di atas (bisa pilih dari kontak), jenis paket di tengah, daftar paket langsung di bawah",
+        "Ikon Pulsa: masukkan nomor, langsung diarahkan ke paket operatornya",
+        "Halaman konfirmasi dan status transaksi menampilkan harga jual Anda; modal hanya terlihat bila Anda tekan \"Lihat detail\"",
+        "Transfer saldo ke agen lain dari menu Profil",
+        "Bila koneksi terputus saat membeli, pesanan tetap diproses: cek Riwayat atau hubungi CS Komplain dengan nomor transaksinya",
+        "Konfirmasi transfer isi saldo lewat WhatsApp kini langsung ke CS Finance",
+        "Pilih tanggal Rekap dari kalender",
+        "Komisi mitra kini diambil dari margin kami: harga mitra Anda tidak naik"
+      ]
+    },
     {
       "version": "1.1.0",
       "versionCode": 5,
