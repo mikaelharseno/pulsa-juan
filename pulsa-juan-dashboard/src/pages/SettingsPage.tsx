@@ -51,10 +51,10 @@ export default function SettingsPage() {
             <Typography variant="subtitle1" sx={{ fontWeight: 700, mt: 3, mb: 1.5 }}>Customer service & aplikasi</Typography>
             <Grid container spacing={1.5}>
               <Grid item xs={6}><TextField label="Nama aplikasi" {...f('appName')} /></Grid>
-              <Grid item xs={6}><TextField label="WhatsApp CS Komplain transaksi (08xx)" {...f('csWhatsapp')} /></Grid>
-              <Grid item xs={6}><TextField label="WhatsApp CS Finance top up (08xx)" helperText="kosong = pakai CS Komplain" {...f('csFinanceWhatsapp')} /></Grid>
+              <Grid item xs={6}><TextField label="WA CS Komplain" {...f('csWhatsapp')} /></Grid>
+              <Grid item xs={6}><TextField label="WA CS Finance (top up)" helperText="kosong = pakai CS Komplain" {...f('csFinanceWhatsapp')} /></Grid>
               <Grid item xs={6}><TextField label="Telegram CS (username)" {...f('csTelegram')} /></Grid>
-              <Grid item xs={6}><TextField label="Maks. komisi pengajak / transaksi (Rp)" type="number" helperText="Diambil dari margin kita; harga mitra tidak naik" {...f('maxReferralMarkup')} /></Grid>
+              <Grid item xs={6}><TextField label="Maks. komisi pengajak (Rp)" type="number" helperText="Per transaksi, dari margin kita" {...f('maxReferralMarkup')} /></Grid>
               <Grid item xs={4}><TextField label="Top up min (Rp)" type="number" {...f('topUpMin')} /></Grid>
               <Grid item xs={4}><TextField label="Top up maks (Rp)" type="number" {...f('topUpMax')} /></Grid>
               <Grid item xs={4}><TextField label="Kedaluwarsa (jam)" type="number" {...f('topUpExpiryHours')} /></Grid>

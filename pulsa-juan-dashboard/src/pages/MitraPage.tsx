@@ -21,7 +21,7 @@ export default function MitraPage() {
 
   return (
     <Box>
-      <PageHeader title="Referral & Komisi" subtitle="Koneksi mitra (pengundang → mitra) dengan markup per transaksi, dan komisi yang dihasilkan." />
+      <PageHeader title="Referral & Komisi" subtitle="Koneksi mitra (pengundang → mitra) dengan komisi per transaksi (satu tingkat, diambil dari margin kita; harga mitra tidak naik, maks. di Pengaturan), dan komisi yang dihasilkan." />
       <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>Koneksi mitra</Typography>
       <Paper sx={{ overflowX: 'auto', mb: 3 }}>
         <Table size="small">
@@ -33,7 +33,7 @@ export default function MitraPage() {
                 <TableCell>{c.child?.name ?? '-'} <code>{c.childCommisionId}</code></TableCell>
                 <TableCell align="right">{fmtRp(c.commisionAmount)}</TableCell>
                 <TableCell>{fmtDate(c.createdAt)}</TableCell>
-                <TableCell align="right">{role === 'OWNER' && <Button size="small" onClick={() => { setEdit(c); setAmount(String(c.commisionAmount)); }}>Ubah markup</Button>}</TableCell>
+                <TableCell align="right">{role === 'OWNER' && <Button size="small" onClick={() => { setEdit(c); setAmount(String(c.commisionAmount)); }}>Ubah komisi</Button>}</TableCell>
               </TableRow>
             ))}
             {conns.data?.length === 0 && <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3, color: 'text.secondary' }}>Belum ada koneksi</TableCell></TableRow>}
@@ -66,8 +66,8 @@ export default function MitraPage() {
           </TableBody>
         </Table>
       </Paper>
-      <ConfirmDialog open={!!edit} title="Ubah markup koneksi" confirmLabel="Simpan" busy={editM.isPending} error={editM.isError ? errMsg(editM.error) : null} onClose={() => setEdit(null)} onConfirm={() => editM.mutate()}>
-        <TextField label="Markup per transaksi (Rp)" type="number" fullWidth value={amount} onChange={(e) => setAmount(e.target.value)} />
+      <ConfirmDialog open={!!edit} title="Ubah komisi koneksi" confirmLabel="Simpan" busy={editM.isPending} error={editM.isError ? errMsg(editM.error) : null} onClose={() => setEdit(null)} onConfirm={() => editM.mutate()}>
+        <TextField label="Komisi per transaksi (Rp)" type="number" fullWidth value={amount} onChange={(e) => setAmount(e.target.value)} />
       </ConfirmDialog>
     </Box>
   );
