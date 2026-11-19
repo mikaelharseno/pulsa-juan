@@ -93,7 +93,7 @@ export default function QuickPickScreen() {
       return;
     }
     const steps: FlowStep[] = [state.step];
-    if (state.choices?.listNode && selected) steps.push({ nodeId: state.choices.listNode.id, type: 'ListNode', rowId: selected.id });
+    steps.push(...selected!.path);
     steps.push({ nodeId: selected!.list.id, type: 'PackagesList', packageId });
     steps.forEach((s) => commit(segmentId, s));
     router.push(`/segment/${segmentId}/confirm`);
@@ -127,7 +127,7 @@ export default function QuickPickScreen() {
       </View>
       <View style={{ flex: 1 }}>
         <Text style={{ fontSize: font.title, fontWeight: '700', color: colors.text, paddingHorizontal: 16, paddingTop: 14 }}>
-          {state.choices?.listNode?.title || selected?.list.title || 'Pilihan Paket'}
+          {rows.length > 1 ? 'Pilihan Paket' : selected?.list.title || 'Pilihan Paket'}
         </Text>
         {rows.length > 1 ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingVertical: 12 }}>
