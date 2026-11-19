@@ -1,7 +1,9 @@
+import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
 import { formatRp } from 'pulsa-juan-common';
 import React, { useMemo, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { useRekap, useSellMargins } from '../../src/api/hooks';
 import { Button, Card, Chip, ErrorView, Field, KeyValue, Loading, Screen, SectionTitle } from '../../src/components/ui';
@@ -28,6 +30,7 @@ export default function RekapScreen() {
   const [preset, setPreset] = useState('today');
   const [custom, setCustom] = useState({ from: daysAgo(6), to: iso(new Date()) });
   const [applied, setApplied] = useState(custom);
+  const [picking, setPicking] = useState<'from' | 'to' | null>(null);
   const range = useMemo(() => {
     const p = PRESETS.find((x) => x.key === preset)!;
     return preset === 'custom' ? applied : { from: p.from(), to: p.to() };
@@ -47,10 +50,35 @@ export default function RekapScreen() {
         </View>
         {preset === 'custom' ? (
           <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-end' }}>
-            <View style={{ flex: 1 }}><Field label="Dari" value={custom.from} onChangeText={(v) => setCustom({ ...custom, from: v })} placeholder="YYYY-MM-DD" /></View>
-            <View style={{ flex: 1 }}><Field label="Sampai" value={custom.to} onChangeText={(v) => setCustom({ ...custom, to: v })} placeholder="YYYY-MM-DD" /></View>
+            {(['from', 'to'] as const).map((k) => (
+              <View key={k} style={{ flex: 1 }}>
+                <Field
+                  label={k === 'from' ? 'Dari' : 'Sampai'}
+                  value={custom[k]}
+                  onChangeText={(v) => setCustom({ ...custom, [k]: v })}
+                  placeholder="YYYY-MM-DD"
+                  right={
+                    <Pressable onPress={() => setPicking(k)} hitSlop={10} accessibilityLabel="Pilih tanggal">
+                      <Ionicons name="calendar-outline" size={20} color={colors.tealDark} />
+                    </Pressable>
+                  }
+                />
+              </View>
+            ))}
             <Button title="OK" style={{ marginBottom: 14, paddingHorizontal: 18 }} onPress={() => setApplied(custom)} />
           </View>
+        ) : null}
+        {picking ? (
+          <DateTimePicker
+            value={/^\d{4}-\d{2}-\d{2}$/.test(custom[picking]) ? new Date(custom[picking] + 'T00:00:00') : new Date()}
+            mode="date"
+            maximumDate={new Date()}
+            onChange={(e, date) => {
+              const k = picking;
+              setPicking(null);
+              if (e.type === 'set' && date) setCustom({ ...custom, [k]: iso(date) });
+            }}
+          />
         ) : null}
         <Text style={{ color: colors.muted, fontSize: font.small, marginBottom: 8 }}>
           {range.from} s/d {range.to}

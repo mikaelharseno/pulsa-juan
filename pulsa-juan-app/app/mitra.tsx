@@ -64,7 +64,7 @@ export default function MitraScreen() {
           <Text style={{ color: colors.muted, fontSize: font.small }}>Kode referral Anda</Text>
           <Text style={{ fontSize: 28, fontWeight: '800', color: colors.primary, letterSpacing: 2 }}>{a.commisionUniqueId}</Text>
           <Text style={{ color: colors.muted, fontSize: font.small, marginTop: 4 }}>
-            Setiap transaksi mitra yang mendaftar dengan kode ini memberi Anda komisi {formatRp(a.referralMarkup)}. Berlaku sampai 2 tingkat.
+            Setiap transaksi mitra yang mendaftar dengan kode ini memberi Anda komisi {formatRp(Math.min(a.referralMarkup, cap))}. Komisi diambil dari margin kami: harga mitra Anda tidak naik.
           </Text>
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
             <Button title="Bagikan" style={{ flex: 1 }} onPress={share} />
@@ -86,7 +86,7 @@ export default function MitraScreen() {
             hint={a.kycStatus === 'VERIFIED' ? 'Terverifikasi dari KTP. Hubungi CS untuk mengubah.' : undefined}
           />
           <Field
-            label="Markup untuk mitra baru (Rp per transaksi)"
+            label="Komisi dari mitra baru (Rp per transaksi)"
             value={form.referralMarkup}
             onChangeText={(v) => setForm({ ...form, referralMarkup: v.replace(/\D/g, '') })}
             keyboardType="number-pad"

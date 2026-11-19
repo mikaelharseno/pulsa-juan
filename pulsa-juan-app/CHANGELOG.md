@@ -5,6 +5,16 @@ isi berupa poin `- ` yang ditampilkan di landing page (Riwayat versi), jadi tuli
 Sebelum rilis: naikkan `expo.version` dan `expo.android.versionCode` di `app.json`, tambah bagian
 baru di sini, commit, lalu `npm run release:android`.
 
+## 1.2.0 (versionCode 6) — 2026-11-19
+- Beli paket lebih cepat: nomor HP di atas (bisa pilih dari kontak), jenis paket di tengah, daftar paket langsung di bawah
+- Ikon Pulsa: masukkan nomor, langsung diarahkan ke paket operatornya
+- Halaman konfirmasi dan status transaksi menampilkan harga jual Anda; modal hanya terlihat bila Anda tekan "Lihat rincian"
+- Transfer saldo ke agen lain dari menu Profil
+- Bila koneksi terputus saat membeli, pesanan tetap diproses: cek Riwayat atau hubungi CS Komplain dengan nomor transaksinya
+- CS dipisah: CS Finance untuk isi saldo dan CS Komplain untuk transaksi
+- Pilih tanggal Rekap dari kalender
+- Komisi mitra kini diambil dari margin kami: harga mitra Anda tidak naik
+
 ## 1.1.0 (versionCode 5) — 2026-11-11
 - Pulsa Juan kini bernama Murah Kuota. Ini aplikasi baru: pasang Murah Kuota, masuk dengan nomor HP dan PIN Anda, lalu hapus aplikasi Pulsa Juan yang lama
 - Isi saldo bisa dibayar dengan QRIS (biaya admin 1% untuk isi saldo di atas Rp 500.000)

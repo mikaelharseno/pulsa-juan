@@ -2,7 +2,7 @@
   "expo": {
     "name": "Murah Kuota",
     "slug": "pulsa-juan",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": [
@@ -13,7 +13,7 @@
     "newArchEnabled": true,
     "android": {
       "package": "com.murahkuota.agent",
-      "versionCode": 5,
+      "versionCode": 6,
       "adaptiveIcon": {
         "backgroundColor": "#1E9C8F",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

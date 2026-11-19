@@ -15,6 +15,7 @@ const TYPE: Record<LedgerEntry['type'], { label: string; icon: keyof typeof Ioni
   REFUND: { label: 'Refund', icon: 'return-down-back-outline' },
   ADJUSTMENT: { label: 'Penyesuaian', icon: 'construct-outline' },
   COMMISSION: { label: 'Klaim komisi', icon: 'gift-outline' },
+  TRANSFER: { label: 'Transfer saldo', icon: 'paper-plane-outline' },
 };
 
 /** Riwayat Saldo: every saldo mutation with the balance after it, newest first. */

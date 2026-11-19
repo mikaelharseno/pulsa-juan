@@ -25,6 +25,8 @@ export interface AgentProfile {
   hasReferrer?: boolean;
   /** identity check for "Plus" services */
   kycStatus?: KycStatus;
+  /** set = an admin froze the whole saldo (no purchases / transfers / claims) */
+  saldoFrozen?: { at: string; reason: string } | null;
   joinedAt: string;
   createdAt: string;
 }
@@ -84,7 +86,7 @@ export type GoogleLoginResult = ({ needsPhone: false } & Session) | { needsPhone
 
 export interface LedgerEntry {
   id: string;
-  type: 'TOPUP' | 'PURCHASE' | 'REFUND' | 'ADJUSTMENT' | 'COMMISSION';
+  type: 'TOPUP' | 'PURCHASE' | 'REFUND' | 'ADJUSTMENT' | 'COMMISSION' | 'TRANSFER';
   delta: number;
   balanceAfter: number;
   referenceId: string | null;
@@ -109,6 +111,8 @@ export interface SegmentSummary {
   maintenanceMessage: string | null;
   /** "Plus": needs a verified identity */
   requiresVerification?: boolean;
+  /** "Pulsa" tile: ask the number, then open that operator's paket-<operator> tile */
+  routeByOperator?: boolean;
 }
 
 export interface HomeData {
@@ -122,7 +126,8 @@ export interface HomeData {
   banners: { imageUrl: string; linkUrl?: string }[];
   groups: { groupLabel: string; segments: SegmentSummary[] }[];
   segments: SegmentSummary[];
-  cs: { whatsapp: string; telegram: string };
+  /** whatsapp = CS Komplain (orders), financeWhatsapp = CS Finance (top-ups) */
+  cs: { whatsapp: string; telegram: string; financeWhatsapp?: string };
   config: { topUpMin: number; topUpMax: number; appName: string; maxReferralMarkup: number };
 }
 
@@ -133,7 +138,8 @@ export interface AgentConfig {
   bankAccounts: { bank: 'BRI' | 'BCA'; accountNumber: string; accountName: string }[];
   /** static QRIS top-ups; absent on older servers */
   qris?: { enabled: boolean; feePercent: number; feeAbove: number };
-  cs: { whatsapp: string; telegram: string };
+  /** whatsapp = CS Komplain (orders), financeWhatsapp = CS Finance (top-ups) */
+  cs: { whatsapp: string; telegram: string; financeWhatsapp?: string };
   topUpMin: number;
   topUpMax: number;
 }

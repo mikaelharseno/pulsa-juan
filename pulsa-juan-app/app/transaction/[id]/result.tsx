@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { formatRp, toInternationalMobile } from 'pulsa-juan-common';
-import React from 'react';
-import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { useAgentConfig, useTransaction } from '../../../src/api/hooks';
 import { BonCard, SellPriceCard } from '../../../src/components/bon';
@@ -16,12 +16,13 @@ export default function ResultScreen() {
   const router = useRouter();
   const trx = useTransaction(id, true);
   const config = useAgentConfig();
+  const [showCost, setShowCost] = useState(false);
 
   if (trx.isLoading) return <Screen title="Status Transaksi"><Loading /></Screen>;
   if (trx.isError) return <Screen title="Status Transaksi"><ErrorView message={(trx.error as Error).message} onRetry={() => trx.refetch()} /></Screen>;
   const t = trx.data!;
   const wa = toInternationalMobile(config.data?.cs.whatsapp ?? '');
-  const csText = `Halo CS, saya butuh bantuan untuk transaksi #${t.trxNumber} (${t.segmentLabel}, ${formatRp(t.total)}).`;
+  const csText = `Halo CS Komplain, mohon dicek transaksi #${t.trxNumber} (${t.segmentLabel}${t.phoneNumber ? `, ${t.phoneNumber}` : ''}) yang ${t.status === 'PENDING' ? 'masih diproses' : t.status === 'FAILED' ? 'gagal' : 'bermasalah'}.`;
 
   const head =
     t.status === 'SUCCESS'
@@ -48,9 +49,17 @@ export default function ResultScreen() {
           {t.summary.map((r, i) => (
             <KeyValue key={i} label={r.label} value={r.value} />
           ))}
-          <KeyValue label="Total" value={formatRp(t.total)} bold />
+          {/* the agent may hand the phone over: the cost stays behind a tap */}
+          {t.status === 'SUCCESS' || t.status === 'PENDING' ? <KeyValue label="Harga" value={formatRp(t.sellPrice ?? t.total)} bold /> : <KeyValue label="Dikembalikan" value={formatRp(t.total)} bold />}
+          {showCost && (t.status === 'SUCCESS' || t.status === 'PENDING') ? <KeyValue label="Modal (dipotong dari saldo)" value={formatRp(t.total)} /> : null}
           {t.serialNumber ? <KeyValue label={t.steps.some((x) => x.type === 'BillInquiry') ? 'No. Referensi' : 'SN / Token'} value={t.serialNumber} bold /> : null}
           <KeyValue label="Waktu" value={fmtDate(t.createdAt)} />
+          {t.status === 'SUCCESS' || t.status === 'PENDING' ? (
+            <Pressable onPress={() => setShowCost(!showCost)} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 }}>
+              <Ionicons name={showCost ? 'eye-off-outline' : 'eye-outline'} size={16} color={colors.tealDark} />
+              <Text style={{ color: colors.tealDark, fontSize: font.small, fontWeight: '600' }}>{showCost ? 'Sembunyikan modal' : 'Lihat modal'}</Text>
+            </Pressable>
+          ) : null}
         </Card>
         {t.status === 'SUCCESS' || t.status === 'PENDING' ? (
           <>
@@ -60,7 +69,13 @@ export default function ResultScreen() {
         ) : null}
         <View style={{ flex: 1 }} />
         {t.status !== 'SUCCESS' ? (
-          <Button title="Hubungi Customer Service" variant="outline" style={{ marginBottom: 10 }} disabled={!wa} onPress={() => openExternal(`https://wa.me/${wa}?text=${encodeURIComponent(csText)}`)} />
+          <Button
+            title={t.status === 'PENDING' ? `Hubungi CS Komplain (#${t.trxNumber})` : 'Hubungi CS Komplain'}
+            variant={t.status === 'PENDING' ? 'primary' : 'outline'}
+            style={{ marginBottom: 10 }}
+            disabled={!wa}
+            onPress={() => openExternal(`https://wa.me/${wa}?text=${encodeURIComponent(csText)}`)}
+          />
         ) : null}
         <Button title="Kembali ke Beranda" onPress={() => router.replace('/(tabs)')} />
         <View style={{ height: 16 }} />

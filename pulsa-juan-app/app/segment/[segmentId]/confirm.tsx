@@ -3,10 +3,11 @@ import * as Crypto from 'expo-crypto';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { computeTotal, describeSteps, formatRp } from 'pulsa-juan-common';
 import React, { useMemo, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { ApiError, post } from '../../../src/api/client';
-import { useAgentConfig, useInvalidateMoney, useMe, useTree } from '../../../src/api/hooks';
+import { useAgentConfig, useInvalidateMoney, useMe, useSavedSellPrices, useSellMargins, useTree } from '../../../src/api/hooks';
 import { Transaction } from '../../../src/api/types';
 import { PinSheet } from '../../../src/components/PinSheet';
 import { Button, Card, ErrorView, KeyValue, Loading, Screen, SectionTitle } from '../../../src/components/ui';
@@ -26,16 +27,28 @@ export default function ConfirmScreen() {
   const [serverTotal, setServerTotal] = useState<number | null>(null);
   const [pinOpen, setPinOpen] = useState(false);
 
+  const [showCost, setShowCost] = useState(false);
+  const [lost, setLost] = useState(false);
+  const margins = useSellMargins();
+  const savedPrices = useSavedSellPrices();
+
   const submit = useMutation({
-    mutationFn: ({ clientTotal, pin }: { clientTotal: number; pin: string }) =>
-      post<{ transaction: Transaction }>('/agent/transactions', {
-        segmentId,
-        treeVersion: session!.treeVersion,
-        steps: session!.steps,
-        clientTotal,
-        idempotencyKey,
-        pin,
-      }),
+    mutationFn: async ({ clientTotal, pin }: { clientTotal: number; pin: string }) => {
+      const body = { segmentId, treeVersion: session!.treeVersion, steps: session!.steps, clientTotal, idempotencyKey, pin };
+      setLost(false);
+      // a dropped connection must never look like a failed sale: the same key returns the order if it was made
+      for (let attempt = 0; ; attempt++) {
+        try {
+          return await post<{ transaction: Transaction }>('/agent/transactions', body);
+        } catch (e) {
+          if (e instanceof ApiError || attempt >= 3) {
+            if (!(e instanceof ApiError)) setLost(true);
+            throw e;
+          }
+          await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+        }
+      }
+    },
     onSuccess: ({ transaction }) => {
       setPinOpen(false);
       clear(segmentId);
@@ -72,6 +85,12 @@ export default function ConfirmScreen() {
   if ('error' in view) return <Screen title="Konfirmasi"><ErrorView message={view.error!} /></Screen>;
 
   const total = serverTotal ?? view.price!.total;
+  // what the agent's customer pays (saved product price, else cost + margin): shown instead of the cost
+  const packageId = view.price!.packageId ?? null;
+  const saved = packageId ? savedPrices.data?.find((x) => x.packageId === packageId) : undefined;
+  const m = margins.data;
+  const sellPrice = saved?.sellPrice ?? total + (m ? (m.bySegment[tree.data!.segment.id] ?? m.default) : 0);
+  const cs = config.data?.cs?.whatsapp;
   const saldo = me.data?.saldo ?? 0;
   const enough = saldo >= total;
   const pinError = submit.error instanceof ApiError && submit.error.code === 'PIN_INVALID' ? submit.error.message + (typeof submit.error.extra.attemptsLeft === 'number' ? ` (sisa ${submit.error.extra.attemptsLeft} kali)` : '') : null;
@@ -87,15 +106,38 @@ export default function ConfirmScreen() {
           ))}
         </Card>
         <Card style={{ marginBottom: 12 }}>
-          <KeyValue label="Harga" value={formatRp(view.price!.amountBase)} />
-          {view.price!.adminFee + view.price!.markupTotal > 0 ? <KeyValue label="Biaya Admin" value={formatRp(view.price!.adminFee + view.price!.markupTotal)} /> : null}
-          <KeyValue label="Total dipotong dari saldo" value={formatRp(total)} bold />
-          <KeyValue label="Saldo Anda" value={formatRp(saldo)} />
-          <KeyValue label="Saldo setelah transaksi" value={formatRp(saldo - total)} />
+          <KeyValue label="Harga" value={formatRp(sellPrice)} bold last={!showCost} />
+          {showCost ? (
+            <>
+              <KeyValue label="Modal" value={formatRp(view.price!.amountBase)} />
+              {view.price!.adminFee + view.price!.markupTotal > 0 ? <KeyValue label="Biaya Admin" value={formatRp(view.price!.adminFee + view.price!.markupTotal)} /> : null}
+              <KeyValue label="Dipotong dari saldo" value={formatRp(total)} />
+              <KeyValue label="Saldo Anda" value={formatRp(saldo)} />
+              <KeyValue label="Saldo setelah transaksi" value={formatRp(saldo - total)} last />
+            </>
+          ) : null}
+          <Pressable onPress={() => setShowCost(!showCost)} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 }}>
+            <Ionicons name={showCost ? 'eye-off-outline' : 'eye-outline'} size={16} color={colors.tealDark} />
+            <Text style={{ color: colors.tealDark, fontSize: font.small, fontWeight: '600' }}>{showCost ? 'Sembunyikan rincian saldo' : 'Lihat rincian saldo'}</Text>
+          </Pressable>
         </Card>
         {serverTotal !== null ? <Text style={{ color: colors.accent, marginBottom: 8, fontSize: font.small }}>Harga berubah menjadi {formatRp(serverTotal)}. Periksa kembali lalu tekan Bayar.</Text> : null}
         {!enough ? <Text style={{ color: colors.danger, marginBottom: 8 }}>Saldo tidak cukup. Silakan isi saldo terlebih dahulu.</Text> : null}
-        {errorMsg ? <Text style={{ color: colors.danger, marginBottom: 8 }}>{errorMsg}</Text> : null}
+        {lost ? (
+          <Card style={{ marginBottom: 12 }}>
+            <Text style={{ color: colors.text, fontWeight: '700', marginBottom: 4 }}>Sedang diproses</Text>
+            <Text style={{ color: colors.muted, fontSize: font.body, marginBottom: 10 }}>Koneksi terputus saat mengirim pesanan. Pesanan Anda mungkin sudah masuk dan sedang diproses: cek menu Riwayat sebelum mencoba lagi, atau hubungi CS.</Text>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <Button title="Cek Riwayat" variant="outline" style={{ flex: 1 }} onPress={() => router.replace('/(tabs)/transaksi')} />
+              <Button
+                title="Hubungi CS"
+                style={{ flex: 1 }}
+                disabled={!cs}
+                onPress={() => Linking.openURL(`https://wa.me/${toWa(cs!)}?text=${encodeURIComponent(`Halo CS, koneksi saya terputus saat order ${tree.data!.segment.label} (kode ${idempotencyKey.slice(0, 8).toUpperCase()}). Mohon dicek apakah pesanan sudah masuk.`)}`)}
+              />
+            </View>
+          </Card>
+        ) : errorMsg ? <Text style={{ color: colors.danger, marginBottom: 8 }}>{errorMsg}</Text> : null}
         <View style={{ flexDirection: 'row', gap: 10 }}>
           {!enough ? <Button title="Isi Saldo" variant="outline" style={{ flex: 1 }} onPress={() => router.push('/topup/amount')} /> : null}
           <Button title="Bayar" style={{ flex: 1 }} disabled={!enough} loading={submit.isPending && !pinOpen} onPress={() => { submit.reset(); setPinOpen(true); }} />
@@ -111,4 +153,10 @@ export default function ConfirmScreen() {
       />
     </Screen>
   );
+}
+
+/** 08xx → 628xx for wa.me */
+function toWa(n: string) {
+  const d = n.replace(/\D/g, '');
+  return d.startsWith('0') ? '62' + d.slice(1) : d;
 }

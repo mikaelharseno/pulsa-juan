@@ -196,7 +196,7 @@ export function ServicesGrid({ segments, verified = false }: { segments: Segment
             iconUrl={s.iconUrl}
             slug={s.slug}
             badge={s.requiresVerification ? 'PLUS' : s.badge}
-            onPress={() => router.push(s.requiresVerification && !verified ? '/verifikasi' : `/segment/${s.id}`)}
+            onPress={() => router.push(s.requiresVerification && !verified ? '/verifikasi' : (s.routeByOperator ? `/pulsa/${s.id}` : `/segment/${s.id}`) as never)}
           />
         ))}
       </View>
@@ -254,8 +254,9 @@ function HelpCard({ icon, color, tint, title, sub, onPress }: { icon: keyof type
   );
 }
 
-export function CsRow({ whatsapp, telegram }: { whatsapp: string; telegram: string }) {
+export function CsRow({ whatsapp, telegram, financeWhatsapp }: { whatsapp: string; telegram: string; financeWhatsapp?: string }) {
   const wa = toInternationalMobile(whatsapp);
+  const waFinance = toInternationalMobile(financeWhatsapp || whatsapp);
   const tg = telegram.replace(/^@/, '');
   return (
     <View style={styles.section}>
@@ -263,7 +264,8 @@ export function CsRow({ whatsapp, telegram }: { whatsapp: string; telegram: stri
         <Text style={styles.sectionTitle}>Bantuan</Text>
       </View>
       <View style={{ gap: 10 }}>
-        <HelpCard icon="logo-whatsapp" color="#16A34A" tint="#DCFCE7" title="CS WhatsApp" sub="Chat cepat untuk konfirmasi & kendala" onPress={() => wa && openExternal(`https://wa.me/${wa}`)} />
+        <HelpCard icon="wallet" color="#16A34A" tint="#DCFCE7" title="CS Finance (top up saldo)" sub="Konfirmasi & kendala top up saldo" onPress={() => waFinance && openExternal(`https://wa.me/${waFinance}`)} />
+        <HelpCard icon="logo-whatsapp" color="#16A34A" tint="#DCFCE7" title="CS Komplain transaksi" sub="Pesanan belum masuk, gagal atau bermasalah" onPress={() => wa && openExternal(`https://wa.me/${wa}`)} />
         <HelpCard icon="paper-plane" color="#2563EB" tint="#DBEAFE" title="CS Telegram" sub="Alternatif bila WhatsApp sibuk" onPress={() => tg && openExternal(`https://t.me/${tg}`)} />
       </View>
     </View>
