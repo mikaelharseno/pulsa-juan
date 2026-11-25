@@ -1,6 +1,26 @@
 {
-  "latest": "1.2.0",
+  "latest": "1.3.0",
   "releases": [
+    {
+      "version": "1.3.0",
+      "versionCode": 7,
+      "date": "2026-11-25",
+      "file": "/download/pulsa-juan-1.3.0.apk",
+      "sizeBytes": 196368881,
+      "sha256": "e62c4f13fab93bc6b8b25284fc42efbb5943c7c05987efc5d29e668ce12ac80c",
+      "gitCommit": "63fb9375c4dfec304c53fda5d8520bce9a1ded2c",
+      "easBuildId": "5cb326ca-b505-4b70-8960-21b21b72f109",
+      "notes": [
+        "Konfirmasi pembelian kembali menampilkan harga modal, dan harga jual ke pelanggan bisa langsung diisi di sana (tersimpan untuk produk itu)",
+        "Tombol muat ulang saldo di Beranda",
+        "QRIS bisa diperbesar dan disimpan ke galeri",
+        "Isi saldo kini bisa lewat transfer Bank Mandiri",
+        "Menu bawah tidak lagi tertutup tombol navigasi Android",
+        "Top up e-wallet tidak perlu verifikasi identitas lagi",
+        "Komisi mitra kini diatur per produk oleh admin, bukan lagi diisi sendiri",
+        "Aplikasi akan meminta update bila versinya sudah terlalu lama"
+      ]
+    },
     {
       "version": "1.2.0",
       "versionCode": 6,
