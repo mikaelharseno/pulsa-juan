@@ -55,9 +55,8 @@ describe('sign-up domicile', () => {
 });
 
 describe('inviter code after sign-up', () => {
-  it('links once, locks the upline markup, and refuses self and downline', async () => {
+  it('links once, and refuses self and downline', async () => {
     const ana = await registerAgent('Ana');
-    await request(app).put('/api/agent/me').set(auth(ana.token)).send({ referralMarkup: 700 });
     const budi = await registerAgent('Budi', ana.agent.commisionUniqueId);
     const solo = await registerAgent('Solo');
 
@@ -80,10 +79,10 @@ describe('inviter code after sign-up', () => {
     const cyc = await request(app).post('/api/agent/mitra/referrer').set(auth(ana.token)).send({ code: solo.agent.commisionUniqueId });
     expect(cyc.body.code).toBe('REFERRER_CYCLE');
 
-    // the frozen markup is the upline's at linking time
+    // commission is per product now: the link carries no amount of its own
     const cici = await registerAgent('Cici');
     const linked2 = await request(app).post('/api/agent/mitra/referrer').set(auth(cici.token)).send({ code: ana.agent.commisionUniqueId });
-    expect(linked2.body.parent.commisionAmount).toBe(700);
+    expect(linked2.body.parent).toMatchObject({ name: 'Ana', commisionAmount: 0 });
     expect((await request(app).get('/api/agent/me').set(auth(cici.token))).body.hasReferrer).toBe(true);
   });
 });

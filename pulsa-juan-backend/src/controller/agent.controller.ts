@@ -31,7 +31,8 @@ import * as liveness from '../service/liveness.service';
 import * as referral from '../service/referral.service';
 import * as regions from '../service/region.service';
 import * as sell from '../service/sellPrice.service';
-import { getConfig, publicConfig } from '../service/config.service';
+import { getConfig, MANDIRI_APP_VERSION, publicConfig } from '../service/config.service';
+import { appAtLeast } from '../lib/appVersion';
 import { otpRequestSchema, otpVerifySchema, requestOtp, verifyOtp } from '../service/otp/otp.service';
 import { getPrefixEntries } from '../service/prefix.service';
 import { listLedger } from '../service/saldo.service';
@@ -102,7 +103,7 @@ export const getHome = asyncHandler(async (req: Request, res: Response) => {
       _sum: { amount: true },
     }),
   ]);
-  const pub = publicConfig(config);
+  const pub = publicConfig(config, { mandiri: appAtLeast(req, MANDIRI_APP_VERSION) });
   res.json({
     agent: profile,
     todayTransactions,
@@ -119,10 +120,10 @@ export const getHome = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
-export const getAgentConfig = asyncHandler(async (_req: Request, res: Response) => {
+export const getAgentConfig = asyncHandler(async (req: Request, res: Response) => {
   const [config, prefixes, qrisOn] = await Promise.all([getConfig(), getPrefixEntries(), qrisEnabled()]);
   res.json({
-    ...publicConfig(config),
+    ...publicConfig(config, { mandiri: appAtLeast(req, MANDIRI_APP_VERSION) }),
     qris: { enabled: qrisOn, feePercent: QRIS_FEE_PERCENT, feeAbove: QRIS_FEE_ABOVE },
     prefixes,
     configVersion: config.updatedAt.getTime(),

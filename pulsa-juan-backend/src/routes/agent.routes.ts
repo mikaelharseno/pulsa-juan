@@ -1,9 +1,13 @@
 import { Router } from 'express';
 
 import * as c from '../controller/agent.controller';
+import { appVersionGate } from '../lib/appVersion';
 import { authenticateAgent } from '../middleware/authenticateAgent';
 
 const router = Router();
+
+// forced update (StoreConfig.minAppVersion); GET /config stays open so 1.3.0+ can show its dialog
+router.use(appVersionGate);
 
 router.post('/auth/register', c.postRegister);
 router.post('/auth/login', c.postLogin);

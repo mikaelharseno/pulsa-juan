@@ -10,7 +10,7 @@ export { app, prisma, request };
 export async function resetDb() {
   await prisma.$executeRawUnsafe(`
     TRUNCATE TABLE "AdminAuditLog","AgentMarkupCommision","SaldoLedger","Transaction","TopUpOrder","PhoneVerification","ProductUpdate","BillCheck","Biller",
-    "Agent","AdminUser","SegmentTreeVersion","Segment","Package","ProviderPrefix","StoreConfig","QrisCode" RESTART IDENTITY CASCADE
+    "AgentPackageOverride","Agent","AdminUser","SegmentTreeVersion","Segment","Package","ProviderPrefix","StoreConfig","QrisCode" RESTART IDENTITY CASCADE
   `);
   await seed();
 }
@@ -62,3 +62,11 @@ export async function giveSaldo(agentId: string, amount: number) {
 }
 
 export const auth = (token: string) => ({ Authorization: 'Bearer ' + token });
+
+/** Harga Agen / Komisi sheet: sets a package's default (no agentId) or one agent's override (null removes it). */
+export async function setPricing(field: 'hargaAgen' | 'commission', packageId: string, value: number | null, agentId?: string) {
+  const token = await adminToken();
+  const res = await request(app).put('/api/admin/pricing').set('Authorization', 'Bearer ' + token).send({ agentId, field, rows: [{ packageId, value }] });
+  if (res.status !== 200) throw new Error('pricing failed: ' + JSON.stringify(res.body));
+  return res.body;
+}

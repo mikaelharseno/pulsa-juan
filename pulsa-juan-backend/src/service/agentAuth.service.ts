@@ -65,6 +65,7 @@ export const profileUpdateSchema = z.object({
   nik: nikField.optional(),
   /// otpTicket (VERIFY_PHONE) for the new number
   phoneOtpTicket: z.string().min(10).optional(),
+  /** ignored (kept so older apps can still save their profile) */
   referralMarkup: z.number().int().min(0).optional(),
   domicile: domicileSchema.optional(),
 });
@@ -232,7 +233,6 @@ export async function registerAgent(input: z.infer<typeof registerSchema>) {
       avatarUrl: google?.picture ?? null,
       commisionUniqueId: await uniqueCommissionId(),
       referrerAgentId: referrer?.id ?? null,
-      referrerMarkup: referrer?.referralMarkup ?? 0,
       ...(input.domicile ? domicileData(input.domicile) : {}),
     },
   });
@@ -334,12 +334,7 @@ export async function updateProfile(agent: Agent, input: z.infer<typeof profileU
     data.phone = phone;
     data.phoneVerifiedAt = new Date();
   }
-  if (input.referralMarkup !== undefined) {
-    const config = await prisma.storeConfig.findUnique({ where: { id: 'singleton' } });
-    const cap = config?.maxReferralMarkup ?? 2000;
-    if (input.referralMarkup > cap) throw badRequest(`Markup referral maksimal Rp ${cap}`);
-    data.referralMarkup = input.referralMarkup;
-  }
+  // input.referralMarkup (older apps) is ignored: commission is set per product in the dashboard
   if (input.domicile !== undefined) Object.assign(data, domicileData(input.domicile));
   const updated = await prisma.agent.update({ where: { id: agent.id }, data });
   return agentProfile(updated);

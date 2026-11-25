@@ -55,6 +55,8 @@ router.post('/packages', requireRole('OWNER', 'ADMIN'), c.postPackage);
 router.post('/packages/import', requireRole('OWNER', 'ADMIN'), c.postPackagesImport);
 router.put('/packages/:id', requireRole('OWNER', 'ADMIN'), c.putPackage);
 router.delete('/packages/:id', requireRole('OWNER'), c.deletePackage);
+router.get('/pricing', c.getPricing);
+router.put('/pricing', requireRole('OWNER', 'ADMIN'), c.putPricing);
 
 router.get('/provider-prefixes', c.getPrefixes);
 router.post('/provider-prefixes', requireRole('OWNER', 'ADMIN'), c.postPrefix);

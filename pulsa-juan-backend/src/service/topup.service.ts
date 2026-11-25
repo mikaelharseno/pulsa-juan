@@ -11,7 +11,7 @@ import { creditSaldo } from './saldo.service';
 import { queueAdminAlert, topUpClaimedAlert } from './telegram.service';
 
 export const createTopUpSchema = z.object({ amount: z.number().int() });
-export const selectBankSchema = z.object({ bank: z.enum(['BRI', 'BCA', 'QRIS']) });
+export const selectBankSchema = z.object({ bank: z.enum(['BRI', 'BCA', 'MANDIRI', 'QRIS']) });
 export const adminTopUpUpdateSchema = z.object({
   status: z.enum(['PAID', 'REJECTED']),
   reason: z.string().trim().max(200).optional(),

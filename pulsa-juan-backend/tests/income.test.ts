@@ -1,6 +1,6 @@
 import { FlowStep, PackagePublic } from 'pulsa-juan-common';
 
-import { adminToken, app, auth, giveSaldo, prisma, registerAgent, request, resetDb } from './helpers';
+import { adminToken, app, auth, giveSaldo, prisma, registerAgent, request, resetDb, setPricing } from './helpers';
 
 beforeAll(async () => {
   await resetDb();
@@ -32,9 +32,10 @@ describe('income recap', () => {
   it('sell margins per service, per-order price edits, profit + mitra commission in Rekap', async () => {
     const admin = await adminToken();
     const upline = await registerAgent('Upline');
-    await request(app).put('/api/agent/me').set(auth(upline.token)).send({ referralMarkup: 500 });
     const { token, agent } = await registerAgent('Penjual', upline.agent.commisionUniqueId);
     await giveSaldo(agent.id, 200_000);
+    // 500 per order of the pulsa product, to the buyer's upline
+    await setPricing('commission', (await prisma.package.findUniqueOrThrow({ where: { code: 'XL_10K' } })).id, 500);
 
     // margins: nothing set yet → sell price = our price
     expect((await request(app).get('/api/agent/sell-margins').set(auth(token))).body).toEqual({ default: 0, bySegment: {} });

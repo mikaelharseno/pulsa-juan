@@ -12,6 +12,7 @@ import * as agents from '../service/agentAdmin.service';
 import { adminListCommissions } from '../service/commission.service';
 import { configUpdateSchema, getConfig, updateConfig } from '../service/config.service';
 import * as pkg from '../service/package.service';
+import * as pricing from '../service/pricing.service';
 import { deletePrefix, listPrefixes, prefixSchema, upsertPrefix } from '../service/prefix.service';
 import { listConnections, transferCommissionId, updateConnectionAmount } from '../service/referral.service';
 import * as seg from '../service/segment.service';
@@ -197,6 +198,12 @@ export const postSegmentDiscardDraft = asyncHandler(async (req: Request, res: Re
 // ---- packages ----
 export const getPackages = asyncHandler(async (req: Request, res: Response) => {
   res.json({ packages: await pkg.listPackages({ category: req.query.category as string, q: req.query.q as string }) });
+});
+export const getPricing = asyncHandler(async (req: Request, res: Response) => {
+  res.json(await pricing.listPricing(parse(pricing.pricingQuerySchema, req.query)));
+});
+export const putPricing = asyncHandler(async (req: Request, res: Response) => {
+  res.json(await pricing.updatePricing(req.admin!.adminId, parse(pricing.pricingUpdateSchema, req.body)));
 });
 export const getPackageCategories = asyncHandler(async (_req: Request, res: Response) => {
   res.json({ categories: await pkg.listCategories() });

@@ -4,32 +4,28 @@ import { Agent, Prisma } from '../../prisma/generated';
 import { prisma } from '../../prisma/client';
 import { badRequest, notFound } from '../lib/errors';
 import { audit } from './audit.service';
-import { getConfig } from './config.service';
 import { uniqueCommissionId } from './agentAuth.service';
 
-// One-level referral (meeting 14 Nov 2026). The upline lives on
-// Agent.referrerAgentId with the Rp amount frozen at join time in
-// Agent.referrerMarkup. The downline's price no longer goes up: the parent's
-// commission comes out of our margin, capped by StoreConfig.maxReferralMarkup
-// at the time of each order. Commissions are paid to the transferable
+// One-level referral. The upline lives on Agent.referrerAgentId. Since the
+// 19 Nov 2026 meeting the commission is set per product (Package.commission,
+// or the upline's own AgentPackageOverride.commission) and paid from our
+// margin; the agent-set referralMarkup / referrerMarkup and
+// StoreConfig.maxReferralMarkup are no longer used (columns kept). The
+// downline's price never goes up. Commissions are paid to the transferable
 // commisionUniqueId ("crown"), not to an agent id.
 
 export interface MarkupResolution {
-  /** level-1 commission for this agent's orders */
-  parent: { commisionId: string; amount: number } | null;
+  /** the agent's upline, who earns the commission on its orders */
+  parent: { agentId: string; commisionId: string } | null;
   /** what the agent pays on top of the product price: always 0 now (kept for older app versions) */
   markupTotal: number;
 }
 
 export async function resolveMarkup(agentId: string): Promise<MarkupResolution> {
-  const me = await prisma.agent.findUnique({ where: { id: agentId }, select: { referrerAgentId: true, referrerMarkup: true } });
+  const me = await prisma.agent.findUnique({ where: { id: agentId }, select: { referrerAgentId: true } });
   if (!me?.referrerAgentId) return { parent: null, markupTotal: 0 };
-  const [parentRow, config] = await Promise.all([
-    prisma.agent.findUniqueOrThrow({ where: { id: me.referrerAgentId }, select: { commisionUniqueId: true } }),
-    getConfig(),
-  ]);
-  const amount = Math.max(0, Math.min(me.referrerMarkup, config.maxReferralMarkup));
-  return { parent: { commisionId: parentRow.commisionUniqueId, amount }, markupTotal: 0 };
+  const parentRow = await prisma.agent.findUniqueOrThrow({ where: { id: me.referrerAgentId }, select: { commisionUniqueId: true } });
+  return { parent: { agentId: me.referrerAgentId, commisionId: parentRow.commisionUniqueId }, markupTotal: 0 };
 }
 
 /** The agent owning `referralCode` (used at registration). */
@@ -59,7 +55,7 @@ export async function setReferrer(agent: Agent, code: string) {
   }
   const res = await prisma.agent.updateMany({
     where: { id: agent.id, referrerAgentId: null },
-    data: { referrerAgentId: upline.id, referrerMarkup: upline.referralMarkup, referrerSetAt: new Date() },
+    data: { referrerAgentId: upline.id, referrerSetAt: new Date() },
   });
   if (res.count === 0) throw badRequest('Kode pengajak sudah terisi', 'REFERRER_SET');
   return mitraOverview(await prisma.agent.findUniqueOrThrow({ where: { id: agent.id } }));
@@ -71,18 +67,19 @@ export async function mitraOverview(agent: Agent) {
     prisma.agent.findMany({
       where: { referrerAgentId: agent.id },
       orderBy: { joinedAt: 'desc' },
-      select: { id: true, name: true, commisionUniqueId: true, referrerMarkup: true, joinedAt: true },
+      select: { id: true, name: true, commisionUniqueId: true, joinedAt: true },
     }),
   ]);
   return {
     commisionUniqueId: agent.commisionUniqueId,
-    referralMarkup: agent.referralMarkup,
-    parent: up ? { name: up.name, commisionAmount: agent.referrerMarkup } : null,
+    // agent-set commission is gone (per-product now); older apps still read these fields
+    referralMarkup: 0,
+    parent: up ? { name: up.name, commisionAmount: 0 } : null,
     children: children.map((c) => ({
       id: c.id,
       name: c.name,
       commisionUniqueId: c.commisionUniqueId,
-      commisionAmount: c.referrerMarkup,
+      commisionAmount: 0,
       joinedAt: c.joinedAt,
     })),
   };

@@ -75,7 +75,12 @@ export async function listSellPrices(agentId: string) {
     orderBy: { updatedAt: 'desc' },
     include: { package: { select: { name: true, hargaAgen: true, category: true, isActive: true } } },
   });
-  return rows.map((r) => ({ id: r.id, packageId: r.packageId, name: r.package.name, category: r.package.category, isActive: r.package.isActive, hargaAgen: r.package.hargaAgen, sellPrice: r.sellPrice, updatedAt: r.updatedAt }));
+  const overrides = await prisma.agentPackageOverride.findMany({
+    where: { agentId, packageId: { in: rows.map((r) => r.packageId) }, hargaAgen: { not: null } },
+    select: { packageId: true, hargaAgen: true },
+  });
+  const own = new Map(overrides.map((o) => [o.packageId, o.hargaAgen!]));
+  return rows.map((r) => ({ id: r.id, packageId: r.packageId, name: r.package.name, category: r.package.category, isActive: r.package.isActive, hargaAgen: own.get(r.packageId) ?? r.package.hargaAgen, sellPrice: r.sellPrice, updatedAt: r.updatedAt }));
 }
 
 export async function deleteSellPrice(agentId: string, id: string) {

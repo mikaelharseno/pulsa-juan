@@ -90,8 +90,16 @@ export async function submitKyc(agent: Agent, input: z.infer<typeof kycSubmitSch
   return { id: submission.id, ...(await kycState({ id: agent.id, kycStatus: 'PENDING' })) };
 }
 
+/**
+ * Plus (identity check before cash-like services) is switched off since the
+ * 19 Nov 2026 meeting: every agent may buy every service. The KYC flow, data
+ * and dashboard review stay; flip this back to true to turn Plus on again.
+ */
+export const PLUS_ENABLED = false;
+
 /** Blocks a "Plus" service for an agent whose identity is not verified. */
 export function assertPlusAllowed(agent: Pick<Agent, 'kycStatus'>, segment: { requiresVerification: boolean; label: string }) {
+  if (!PLUS_ENABLED) return;
   if (segment.requiresVerification && agent.kycStatus !== 'VERIFIED') {
     throw new HttpError(403, `${segment.label} termasuk layanan Plus. Verifikasi identitas dulu untuk memakainya.`, 'KYC_REQUIRED');
   }

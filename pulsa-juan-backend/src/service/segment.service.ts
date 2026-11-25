@@ -14,6 +14,8 @@ import { badRequest, conflict, notFound } from '../lib/errors';
 import { randomNodeId } from '../lib/ids';
 import { audit } from './audit.service';
 import { packagesForTree } from './package.service';
+import { packagesForAgent } from './pricing.service';
+import { PLUS_ENABLED } from './kyc.service';
 import { resolveMarkup } from './referral.service';
 
 export const segmentSchema = z.object({
@@ -47,6 +49,8 @@ export async function listSegmentsForAgent() {
     orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
     select: { id: true, slug: true, label: true, iconUrl: true, groupLabel: true, badge: true, maintenanceMessage: true, requiresVerification: true, routeByOperator: true },
   });
+  // Plus off: the app shows no badge and no verification redirect
+  if (!PLUS_ENABLED) for (const row of rows) row.requiresVerification = false;
   const groups: { groupLabel: string; segments: typeof rows }[] = [];
   for (const row of rows) {
     const key = row.groupLabel ?? '';
@@ -67,7 +71,7 @@ export async function treeForAgent(agent: Agent, segmentId: string) {
   });
   if (!segment || !segment.publishedVersion) throw notFound('Layanan tidak ditemukan');
   const tree = segment.publishedVersion.tree as unknown as SegmentTree;
-  const [packages, markup] = await Promise.all([packagesForTree(tree), resolveMarkup(agent.id)]);
+  const [packages, markup] = await Promise.all([packagesForAgent(tree, agent.id), resolveMarkup(agent.id)]);
   return {
     segment: {
       id: segment.id,
@@ -75,7 +79,7 @@ export async function treeForAgent(agent: Agent, segmentId: string) {
       label: segment.label,
       iconUrl: segment.iconUrl,
       maintenanceMessage: segment.maintenanceMessage,
-      requiresVerification: segment.requiresVerification,
+      requiresVerification: PLUS_ENABLED && segment.requiresVerification,
     },
     treeVersion: segment.publishedVersion.version,
     treeVersionId: segment.publishedVersion.id,

@@ -85,10 +85,10 @@ describe('identity check (Plus)', () => {
           idempotencyKey: `kyc-order-${Date.now()}-${Math.random()}`,
           pin: TEST_PIN,
         });
-    const blocked = await order();
-    expect(blocked.status).toBe(403);
-    expect(blocked.body.code).toBe('KYC_REQUIRED');
-    expect((await request(app).get('/api/agent/home').set(auth(token))).body.segments.find((s: { slug: string }) => s.slug === 'gopay').requiresVerification).toBe(true);
+    // Plus is switched off (meeting 19 Nov 2026): an unverified agent can buy e-wallet, and the app sees no Plus flag
+    const open = await order();
+    expect(open.status).toBe(201);
+    expect((await request(app).get('/api/agent/home').set(auth(token))).body.segments.find((s: { slug: string }) => s.slug === 'gopay').requiresVerification).toBe(false);
 
     // submitting needs a passed live check
     const noLive = await request(app).post('/api/agent/kyc').set(auth(token)).field('livenessId', 'x'.repeat(20)).field('nik', '3273021505900001').field('name', 'KYC TEST');

@@ -16,7 +16,7 @@ import { badRequest, conflict, HttpError, notFound } from '../lib/errors';
 import { audit } from './audit.service';
 import { billerUsable, checkResult, checkView, claimCheck, getAgentCheck, payableCheck, startAgentCheck } from './bill.service';
 import { getFulfillmentProvider, PurchaseOutcome, providerFor } from './fulfillment';
-import { packagesForTree } from './package.service';
+import { commissionFor, packagesForAgent } from './pricing.service';
 import { getPrefixEntries } from './prefix.service';
 import { resolveMarkup } from './referral.service';
 import { assertSaldoUsable, creditSaldo, debitSaldo } from './saldo.service';
@@ -36,6 +36,8 @@ export const createTransactionSchema = z.object({
   idempotencyKey: z.string().min(8).max(64),
   /** the agent's 6-digit PIN; required when StoreConfig.requirePurchasePin is on, always checked when sent */
   pin: z.string().trim().regex(/^\d{6}$/, 'PIN 6 angka').optional(),
+  /** sell price typed on the confirm screen (1.3.0+); saved for the product like an edit on the result screen */
+  sellPrice: z.number().int().min(0).max(100_000_000).optional(),
 });
 
 export const inquirySchema = z.object({
@@ -121,7 +123,7 @@ export async function createTransaction(agent: Agent, input: z.infer<typeof crea
   }
 
   const steps = input.steps as unknown as FlowStep[];
-  const [packages, prefixes, markup] = await Promise.all([packagesForTree(tree), getPrefixEntries(), resolveMarkup(agent.id)]);
+  const [packages, prefixes, markup] = await Promise.all([packagesForAgent(tree, agent.id), getPrefixEntries(), resolveMarkup(agent.id)]);
   const ctx = { packages, prefixes };
 
   const walk = walkPath(tree, steps, ctx);
@@ -158,7 +160,8 @@ export async function createTransaction(agent: Agent, input: z.infer<typeof crea
     : null;
   const productCode = bill ? bill.biller.payCode : pkg?.supplierSku ?? null;
   const provider = providerFor(productCode ? { supplierSku: productCode } : null);
-  const sellPrice = await initialSellPrice(agent, segment.id, price.packageId ?? null, price.total);
+  const sellPrice = input.sellPrice ?? (await initialSellPrice(agent, segment.id, price.packageId ?? null, price.total));
+  const commissionAmount = markup.parent ? await commissionFor(markup.parent.agentId, price.packageId) : 0;
 
   const transaction = await prisma.$transaction(async (tx) => {
     const trx = await tx.transaction.create({
@@ -185,8 +188,16 @@ export async function createTransaction(agent: Agent, input: z.infer<typeof crea
     });
     if (bill) await claimCheck(tx, bill.id);
     await debitSaldo(tx, agent.id, price.total, 'PURCHASE', trx.id, `${segment.label} #${trx.trxNumber}`);
+    // the agent typed a sell price on the confirm screen: remember it for this product
+    if (input.sellPrice !== undefined && price.packageId) {
+      await tx.agentSellPrice.upsert({
+        where: { agentId_packageId: { agentId: agent.id, packageId: price.packageId } },
+        update: { sellPrice: input.sellPrice },
+        create: { agentId: agent.id, packageId: price.packageId, sellPrice: input.sellPrice },
+      });
+    }
     const commissions = [
-      markup.parent ? { beneficiaryCommisionId: markup.parent.commisionId, level: 1, amount: markup.parent.amount } : null,
+      markup.parent ? { beneficiaryCommisionId: markup.parent.commisionId, level: 1, amount: commissionAmount } : null,
     ].filter((c): c is { beneficiaryCommisionId: string; level: number; amount: number } => !!c && c.amount > 0);
     if (commissions.length) {
       await tx.agentMarkupCommision.createMany({

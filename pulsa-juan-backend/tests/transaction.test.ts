@@ -1,7 +1,7 @@
 import { FlowStep, PackagePublic } from 'pulsa-juan-common';
 
 import { setGoogleVerifier } from '../src/service/agentAuth.service';
-import { adminToken, app, auth, giveSaldo, nextPhone, otpTicket, prisma, registerAgent, request, resetDb, TEST_PIN } from './helpers';
+import { setPricing, adminToken, app, auth, giveSaldo, nextPhone, otpTicket, prisma, registerAgent, request, resetDb, TEST_PIN } from './helpers';
 
 beforeAll(async () => {
   await resetDb();
@@ -134,19 +134,20 @@ describe('transactions', () => {
 });
 
 describe('referral commissions (A → B → C → D)', () => {
-  it('one level, price unchanged, capped by the Settings max; accrues, claims, voids on failure, transfers the crown', async () => {
+  it('one level, price unchanged, commission per product with per-upline overrides; accrues, claims, voids on failure, transfers the crown', async () => {
     const A = await registerAgent('AgenA');
-    await request(app).put('/api/agent/me').set(auth(A.token)).send({ referralMarkup: 500 });
     const B = await registerAgent('AgenB', A.agent.commisionUniqueId);
-    await request(app).put('/api/agent/me').set(auth(B.token)).send({ referralMarkup: 200 });
+    // the agent's own markup setting is ignored now (older apps still send it)
+    expect((await request(app).put('/api/agent/me').set(auth(B.token)).send({ referralMarkup: 999 })).status).toBe(200);
     const C = await registerAgent('AgenC', B.agent.commisionUniqueId);
-    await request(app).put('/api/agent/me').set(auth(C.token)).send({ referralMarkup: 100 });
     const D = await registerAgent('AgenD', C.agent.commisionUniqueId);
     await giveSaldo(C.agent.id, 200000);
     await giveSaldo(D.agent.id, 200000);
 
     // the downline pays the plain product price: the commission comes out of our margin
     const c = await pulsaXl(C.token);
+    // default commission for this product: 200 to whoever is the buyer's upline
+    await setPricing('commission', c.pkg.id, 200);
     expect(c.markupTotal).toBe(0);
     const cTrx = await request(app).post('/api/agent/transactions').set(auth(C.token)).send({ segmentId: c.segmentId, treeVersion: 1, steps: c.steps, clientTotal: c.pkg.hargaAgen, idempotencyKey: idem() });
     expect(cTrx.status).toBe(201);
@@ -157,6 +158,8 @@ describe('referral commissions (A → B → C → D)', () => {
 
     const d = await pulsaXl(D.token);
     expect(d.markupTotal).toBe(0);
+    // C earns a special 100 on this product (the upline's override)
+    await setPricing('commission', d.pkg.id, 100, C.agent.id);
     const dTrx = await request(app).post('/api/agent/transactions').set(auth(D.token)).send({ segmentId: d.segmentId, treeVersion: 1, steps: d.steps, clientTotal: d.pkg.hargaAgen, idempotencyKey: idem() });
     const dComm = await prisma.agentMarkupCommision.findMany({ where: { transactionId: dTrx.body.transaction.id }, orderBy: { level: 'asc' } });
     expect(dComm.map((x) => [x.level, x.amount, x.beneficiaryCommisionId])).toEqual([[1, 100, C.agent.commisionUniqueId]]);
@@ -180,8 +183,9 @@ describe('referral commissions (A → B → C → D)', () => {
     const voided = await prisma.agentMarkupCommision.findMany({ where: { transactionId: dTrx.body.transaction.id } });
     expect(voided.every((x) => x.status === 'VOIDED')).toBe(true);
 
-    // the Settings maximum caps commission on existing links at order time
-    await request(app).put('/api/admin/config').set(auth(admin)).send({ maxReferralMarkup: 150 });
+    // the old Settings maximum no longer matters; B's own override does
+    await request(app).put('/api/admin/config').set(auth(admin)).send({ maxReferralMarkup: 50 });
+    await setPricing('commission', c.pkg.id, 150, B.agent.id);
     const c2 = await pulsaXl(C.token);
     const c2Trx = await request(app).post('/api/agent/transactions').set(auth(C.token)).send({ segmentId: c2.segmentId, treeVersion: 1, steps: c2.steps, clientTotal: c2.pkg.hargaAgen, idempotencyKey: idem() });
     const c2Comm = await prisma.agentMarkupCommision.findMany({ where: { transactionId: c2Trx.body.transaction.id } });
@@ -238,10 +242,10 @@ describe('refunds and admin order log', () => {
   it('SUCCESS → REFUNDED credits back and claws back claimed commissions', async () => {
     const admin = await adminToken();
     const A = await registerAgent('RefA');
-    await request(app).put('/api/agent/me').set(auth(A.token)).send({ referralMarkup: 300 });
     const B = await registerAgent('RefB', A.agent.commisionUniqueId);
     await giveSaldo(B.agent.id, 100000);
     const b = await pulsaXl(B.token);
+    await setPricing('commission', b.pkg.id, 300);
     // the downline pays the plain price; A's 300 comes out of our margin
     const total = b.pkg.hargaAgen;
     const trx = await request(app).post('/api/agent/transactions').set(auth(B.token)).send({ segmentId: b.segmentId, treeVersion: 1, steps: b.steps, clientTotal: total, idempotencyKey: idem() });

@@ -83,6 +83,7 @@ enum BankCode {
   BRI
   BCA
   QRIS
+  MANDIRI
 }
 
 enum Provider {
@@ -180,6 +181,7 @@ model Agent {
   commissionsGenerated AgentMarkupCommision[] @relation("commissionSource")
   billChecks   BillCheck[]
   sellPrices   AgentSellPrice[]
+  packageOverrides AgentPackageOverride[]
   kycSubmissions KycSubmission[]
   livenessChallenges LivenessChallenge[]
   transfersOut SaldoTransfer[] @relation("transferFrom")
@@ -291,6 +293,23 @@ model AgentSellPrice {
   updatedAt DateTime @updatedAt
 
   @@unique([agentId, packageId])
+}
+
+/// Per-agent exceptions to a package's defaults (dashboard Harga Agen / Komisi).
+/// hargaAgen: what this agent pays instead of Package.hargaAgen.
+/// commission: what this agent EARNS when its mitra buy the package, instead of Package.commission.
+model AgentPackageOverride {
+  id         String   @id @default(cuid())
+  agentId    String
+  agent      Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  packageId  String
+  package    Package  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  hargaAgen  Int?
+  commission Int?
+  updatedAt  DateTime @updatedAt
+
+  @@unique([agentId, packageId])
+  @@index([packageId])
 }
 
 /// OTP for a phone that has no Agent yet (registration). Existing agents keep
@@ -419,6 +438,8 @@ model Package {
   hargaAgen    Int
   /// supplier cost, admin-only
   hargaBeli    Int       @default(0)
+  /// default referral commission (Rp) paid to the buyer's upline for each order of this package
+  commission   Int       @default(0)
   imageUrl     String?
   /// "OtomaX" = managed by the Product Updater (may be deactivated when missing from a sheet)
   supplierName String?
@@ -433,6 +454,7 @@ model Package {
 
   transactions Transaction[]
   agentSellPrices AgentSellPrice[]
+  agentOverrides  AgentPackageOverride[]
 
   @@index([category, isActive, sortOrder])
 }
@@ -518,9 +540,16 @@ model StoreConfig {
   briAccountName    String   @default("")
   bcaAccountNumber  String   @default("")
   bcaAccountName    String   @default("")
+  mandiriAccountNumber String @default("")
+  mandiriAccountName   String @default("")
   /// ordered [{imageUrl, linkUrl?}] — one carousel for the whole app
   banners           Json     @default("[]")
+  /// unused since 19 Nov 2026 (commission is per product now); kept, not migrated away
   maxReferralMarkup Int      @default(2000)
+  /// oldest app version (x.y.z) allowed to use the API; "" = no forced update
+  minAppVersion     String   @default("")
+  /// where the forced-update dialog sends agents
+  appDownloadUrl    String   @default("https://pulsa-juan-landing.mikaelharseno.workers.dev/download/pulsa-juan.apk")
   /// true = every purchase needs the agent's PIN (turn on once agents run an app that asks for it)
   requirePurchasePin Boolean @default(false)
   /// live check: minimum shift of the face area's colour toward each flash (chromaticity, 0–1)
