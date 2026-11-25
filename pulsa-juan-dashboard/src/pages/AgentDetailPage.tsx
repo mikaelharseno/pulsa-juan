@@ -202,10 +202,10 @@ export default function AgentDetailPage() {
               <Field label="Poin">{a.poin}</Field>
               <Field label="Hutang">{fmtRp(a.hutang)}</Field>
               <Field label="Komisi diterima (total)">{fmtRp(a.saldoKomisi)}</Field>
-              <Field label="Kode referral (crown)"><code>{a.commisionUniqueId}</code> · markup untuk mitra {fmtRp(a.referralMarkup)}/trx</Field>
+              <Field label="Kode referral (crown)"><code>{a.commisionUniqueId}</code> · komisi diatur per produk di menu <RouterLink to="/komisi">Komisi</RouterLink></Field>
               <Field label="Pengundang (referrer)">
                 {a.upline ? (
-                  <><RouterLink to={`/agents/${a.upline.agent.id}`}>{a.upline.agent.name}</RouterLink> · referrer markup {fmtRp(a.referrerMarkup)}/trx{a.referrerSetAt ? ` · diisi setelah daftar (${fmtDate(a.referrerSetAt)})` : ''}</>
+                  <><RouterLink to={`/agents/${a.upline.agent.id}`}>{a.upline.agent.name}</RouterLink>{a.referrerSetAt ? ` · diisi setelah daftar (${fmtDate(a.referrerSetAt)})` : ''}</>
                 ) : '-'}
               </Field>
               <Field label="Diperbarui">{fmtDate(a.updatedAt)}</Field>
@@ -219,17 +219,16 @@ export default function AgentDetailPage() {
       {tab === 'referral' && (
         <Paper sx={{ overflowX: 'auto', maxWidth: 820 }}>
           <Table size="small">
-            <TableHead><TableRow><TableCell>Mitra</TableCell><TableCell>Kode</TableCell><TableCell align="right">Markup / trx</TableCell><TableCell>Bergabung</TableCell></TableRow></TableHead>
+            <TableHead><TableRow><TableCell>Mitra</TableCell><TableCell>Kode</TableCell><TableCell>Bergabung</TableCell></TableRow></TableHead>
             <TableBody>
               {a.downline.map((d) => (
                 <TableRow key={d.id} hover>
                   <TableCell><RouterLink to={`/agents/${d.agent.id}`}>{d.agent.name}</RouterLink></TableCell>
                   <TableCell><code>{d.agent.commisionUniqueId}</code></TableCell>
-                  <TableCell align="right">{fmtRp(d.commisionAmount)}</TableCell>
                   <TableCell>{fmtDate(d.createdAt)}</TableCell>
                 </TableRow>
               ))}
-              {a.downline.length === 0 && <TableRow><TableCell colSpan={4} align="center" sx={{ py: 4, color: 'text.secondary' }}>Belum ada mitra</TableCell></TableRow>}
+              {a.downline.length === 0 && <TableRow><TableCell colSpan={3} align="center" sx={{ py: 4, color: 'text.secondary' }}>Belum ada mitra</TableCell></TableRow>}
             </TableBody>
           </Table>
         </Paper>

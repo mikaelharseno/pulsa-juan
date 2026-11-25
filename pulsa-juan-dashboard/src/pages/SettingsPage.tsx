@@ -13,7 +13,7 @@ import { QrisCard } from '../components/QrisCard';
 
 interface Config {
   appName: string; csWhatsapp: string; csFinanceWhatsapp: string; csTelegram: string; topUpMin: number; topUpMax: number; topUpExpiryHours: number;
-  briAccountNumber: string; briAccountName: string; bcaAccountNumber: string; bcaAccountName: string; banners: { imageUrl: string; linkUrl?: string }[]; maxReferralMarkup: number; requirePurchasePin: boolean;
+  briAccountNumber: string; briAccountName: string; bcaAccountNumber: string; bcaAccountName: string; mandiriAccountNumber: string; mandiriAccountName: string; minAppVersion: string; appDownloadUrl: string; banners: { imageUrl: string; linkUrl?: string }[]; maxReferralMarkup: number; requirePurchasePin: boolean;
 }
 interface Prefix { id: string; prefix: string; provider: string; isActive: boolean }
 
@@ -23,7 +23,7 @@ export default function SettingsPage() {
   const q = useQuery({ queryKey: ['admin-config'], queryFn: async () => (await api.get<Config>('/admin/config')).data });
   const [form, setForm] = useState<Config | null>(null);
   useEffect(() => { if (q.data) setForm(q.data); }, [q.data]);
-  const save = useMutation({ mutationFn: async () => (await api.put('/admin/config', { ...form, topUpMin: Number(form!.topUpMin), topUpMax: Number(form!.topUpMax), topUpExpiryHours: Number(form!.topUpExpiryHours), maxReferralMarkup: Number(form!.maxReferralMarkup) })).data, onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-config'] }) });
+  const save = useMutation({ mutationFn: async () => (await api.put('/admin/config', { ...form, topUpMin: Number(form!.topUpMin), topUpMax: Number(form!.topUpMax), topUpExpiryHours: Number(form!.topUpExpiryHours) })).data, onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-config'] }) });
   const prefixes = useQuery({ queryKey: ['admin-prefixes'], queryFn: async () => (await api.get<{ prefixes: Prefix[] }>('/admin/provider-prefixes')).data.prefixes });
   const [newPrefix, setNewPrefix] = useState({ prefix: '', provider: 'TELKOMSEL' });
   const addPrefix = useMutation({ mutationFn: async () => (await api.post('/admin/provider-prefixes', newPrefix)).data, onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-prefixes'] }); setNewPrefix({ prefix: '', provider: 'TELKOMSEL' }); } });
@@ -47,6 +47,8 @@ export default function SettingsPage() {
               <Grid item xs={6}><TextField label="Atas nama (BRI)" {...f('briAccountName')} /></Grid>
               <Grid item xs={6}><TextField label="No. rekening BCA" {...f('bcaAccountNumber')} /></Grid>
               <Grid item xs={6}><TextField label="Atas nama (BCA)" {...f('bcaAccountName')} /></Grid>
+              <Grid item xs={6}><TextField label="No. rekening Mandiri" helperText="Muncul di aplikasi versi 1.3.0 ke atas" {...f('mandiriAccountNumber')} /></Grid>
+              <Grid item xs={6}><TextField label="Atas nama (Mandiri)" {...f('mandiriAccountName')} /></Grid>
             </Grid>
             <Typography variant="subtitle1" sx={{ fontWeight: 700, mt: 3, mb: 1.5 }}>Customer service & aplikasi</Typography>
             <Grid container spacing={1.5}>
@@ -54,11 +56,18 @@ export default function SettingsPage() {
               <Grid item xs={6}><TextField label="WA CS Komplain" {...f('csWhatsapp')} /></Grid>
               <Grid item xs={6}><TextField label="WA CS Finance (top up)" helperText="Hanya untuk konfirmasi transfer top up; kosong = CS Komplain" {...f('csFinanceWhatsapp')} /></Grid>
               <Grid item xs={6}><TextField label="Telegram CS (username)" {...f('csTelegram')} /></Grid>
-              <Grid item xs={6}><TextField label="Maks. komisi pengajak (Rp)" type="number" helperText="Per transaksi, dari margin kita" {...f('maxReferralMarkup')} /></Grid>
               <Grid item xs={4}><TextField label="Top up min (Rp)" type="number" {...f('topUpMin')} /></Grid>
               <Grid item xs={4}><TextField label="Top up maks (Rp)" type="number" {...f('topUpMax')} /></Grid>
               <Grid item xs={4}><TextField label="Kedaluwarsa (jam)" type="number" {...f('topUpExpiryHours')} /></Grid>
             </Grid>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, mt: 3, mb: 1.5 }}>Update aplikasi</Typography>
+            <Grid container spacing={1.5}>
+              <Grid item xs={5}><TextField label="Versi aplikasi minimal" placeholder="mis. 1.3.0" helperText="Kosong = tidak dipaksa update" {...f('minAppVersion')} /></Grid>
+              <Grid item xs={7}><TextField label="Link download aplikasi" helperText="Dibuka dari dialog 'Perbarui aplikasi'" {...f('appDownloadUrl')} /></Grid>
+            </Grid>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              Aplikasi di bawah versi minimal tidak bisa dipakai sampai diperbarui. Versi 1.3.0 ke atas menampilkan dialog dengan tombol update; versi 1.2.0 dan lebih lama hanya menampilkan pesan error berisi link ini.
+            </Typography>
             <Typography variant="subtitle1" sx={{ fontWeight: 700, mt: 3, mb: 0.5 }}>Keamanan transaksi</Typography>
             <FormControlLabel
               control={<Switch checked={!!form.requirePurchasePin} disabled={!canEdit} onChange={(e) => setForm({ ...form, requirePurchasePin: e.target.checked })} />}

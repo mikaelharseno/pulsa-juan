@@ -1,42 +1,36 @@
-import { Box, Button, MenuItem, Paper, Select, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Box, MenuItem, Paper, Select, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
+import { useQuery } from '@tanstack/react-query';
+import { Link as RouterLink } from 'react-router-dom';
 import { useState } from 'react';
 
-import { api, errMsg, fmtDate, fmtRp } from '../api';
-import { useRole } from '../auth/useSession';
-import { ConfirmDialog, PageHeader, StatusChip } from '../components/common';
+import { api, fmtDate, fmtRp } from '../api';
+import { PageHeader, StatusChip } from '../components/common';
 
 interface Conn { id: string; parentCommisionId: string; childCommisionId: string; commisionAmount: number; createdAt: string; parent: { name: string } | null; child: { name: string } | null }
 interface Comm { id: string; level: number; amount: number; status: string; beneficiaryCommisionId: string; createdAt: string; claimedAt: string | null; transaction: { trxNumber: number; status: string }; sourceAgent: { name: string } }
 
 export default function MitraPage() {
-  const role = useRole();
-  const qc = useQueryClient();
   const conns = useQuery({ queryKey: ['admin-connections'], queryFn: async () => (await api.get<{ connections: Conn[] }>('/admin/mitra-connections')).data.connections });
   const [status, setStatus] = useState('ALL');
   const comms = useQuery({ queryKey: ['admin-commissions', status], queryFn: async () => (await api.get<{ commissions: Comm[] }>('/admin/commissions', { params: { status } })).data.commissions });
-  const [edit, setEdit] = useState<Conn | null>(null);
-  const [amount, setAmount] = useState('');
-  const editM = useMutation({ mutationFn: async () => (await api.put(`/admin/mitra-connections/${edit!.id}`, { commisionAmount: Number(amount) })).data, onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-connections'] }); setEdit(null); } });
 
   return (
     <Box>
-      <PageHeader title="Referral & Komisi" subtitle="Koneksi mitra (pengundang → mitra) dengan komisi per transaksi (satu tingkat, diambil dari margin kita; harga mitra tidak naik, maks. di Pengaturan), dan komisi yang dihasilkan." />
+      <PageHeader title="Referral" subtitle="Koneksi mitra (pengundang → mitra) dan komisi yang dihasilkan. Besar komisi diatur per produk di menu Komisi (satu tingkat, dari margin kita; harga mitra tidak naik)." />
       <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>Koneksi mitra</Typography>
       <Paper sx={{ overflowX: 'auto', mb: 3 }}>
         <Table size="small">
-          <TableHead><TableRow><TableCell>Pengundang</TableCell><TableCell>Mitra</TableCell><TableCell align="right" title="Diambil dari margin kita; harga mitra tidak naik (maks. di Pengaturan)">Komisi / trx</TableCell><TableCell>Sejak</TableCell><TableCell /></TableRow></TableHead>
+          <TableHead><TableRow><TableCell>Pengundang</TableCell><TableCell>Mitra</TableCell><TableCell>Sejak</TableCell><TableCell /></TableRow></TableHead>
           <TableBody>
             {(conns.data ?? []).map((c) => (
               <TableRow key={c.id} hover>
                 <TableCell>{c.parent?.name ?? '-'} <code>{c.parentCommisionId}</code></TableCell>
                 <TableCell>{c.child?.name ?? '-'} <code>{c.childCommisionId}</code></TableCell>
-                <TableCell align="right">{fmtRp(c.commisionAmount)}</TableCell>
                 <TableCell>{fmtDate(c.createdAt)}</TableCell>
-                <TableCell align="right">{role === 'OWNER' && <Button size="small" onClick={() => { setEdit(c); setAmount(String(c.commisionAmount)); }}>Ubah komisi</Button>}</TableCell>
+                <TableCell align="right"><RouterLink to="/komisi">Atur komisi</RouterLink></TableCell>
               </TableRow>
             ))}
-            {conns.data?.length === 0 && <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3, color: 'text.secondary' }}>Belum ada koneksi</TableCell></TableRow>}
+            {conns.data?.length === 0 && <TableRow><TableCell colSpan={4} align="center" sx={{ py: 3, color: 'text.secondary' }}>Belum ada koneksi</TableCell></TableRow>}
           </TableBody>
         </Table>
       </Paper>
@@ -66,9 +60,6 @@ export default function MitraPage() {
           </TableBody>
         </Table>
       </Paper>
-      <ConfirmDialog open={!!edit} title="Ubah komisi koneksi" confirmLabel="Simpan" busy={editM.isPending} error={editM.isError ? errMsg(editM.error) : null} onClose={() => setEdit(null)} onConfirm={() => editM.mutate()}>
-        <TextField label="Komisi per transaksi (Rp)" type="number" fullWidth value={amount} onChange={(e) => setAmount(e.target.value)} />
-      </ConfirmDialog>
     </Box>
   );
 }

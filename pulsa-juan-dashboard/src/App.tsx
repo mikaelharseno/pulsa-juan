@@ -6,6 +6,8 @@ import AgentDetailPage from './pages/AgentDetailPage';
 import AgentsPage from './pages/AgentsPage';
 import BillersPage from './pages/BillersPage';
 import IntegrationStatusPage from './pages/IntegrationStatusPage';
+import HargaAgenPage from './pages/HargaAgenPage';
+import KomisiPage from './pages/KomisiPage';
 import KycPage from './pages/KycPage';
 import MitraPage from './pages/MitraPage';
 import PackagesPage from './pages/PackagesPage';
@@ -32,6 +34,8 @@ export default function App() {
         <Route path="/mitra" element={<MitraPage />} />
         <Route path="/transfers" element={<TransfersPage />} />
         <Route path="/verifikasi" element={<KycPage />} />
+        <Route path="/harga-agen" element={<HargaAgenPage />} />
+        <Route path="/komisi" element={<KomisiPage />} />
         <Route path="/segments" element={<SegmentsPage />} />
         <Route path="/segments/:id/tree" element={<TreeEditorPage />} />
         <Route path="/packages" element={<PackagesPage />} />

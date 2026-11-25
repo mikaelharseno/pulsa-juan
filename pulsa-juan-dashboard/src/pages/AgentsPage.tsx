@@ -64,7 +64,7 @@ export default function AgentsPage() {
                 <TableCell align="right">{r.poin}</TableCell>
                 <TableCell align="right">{fmtRp(r.saldoKomisi)}</TableCell>
                 <TableCell><code>{r.commisionUniqueId}</code></TableCell>
-                <TableCell>{r.referrer ? `${r.referrer.name} (+${fmtRp(r.referrerMarkup)})` : '-'}</TableCell>
+                <TableCell>{r.referrer ? r.referrer.name : '-'}</TableCell>
                 <TableCell>{fmtDate(r.joinedAt)}</TableCell>
               </TableRow>
             ))}
