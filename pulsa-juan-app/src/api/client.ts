@@ -12,6 +12,8 @@ function defaultBase(): string {
 }
 
 export const IS_MOCK = process.env.EXPO_PUBLIC_MOCK === '1';
+/** sent as X-App-Version; the server's forced-update gate compares it with the dashboard minimum */
+export const APP_VERSION = Constants.expoConfig?.version ?? '0.0.0';
 export const API_BASE = IS_MOCK ? 'mock (data demo)' : defaultBase();
 
 export class ApiError extends Error {
@@ -28,6 +30,11 @@ export class ApiError extends Error {
   }
 }
 
+let onUpdateRequired: ((info: { min: string; url: string }) => void) | null = null;
+export function setUpdateRequiredHandler(fn: typeof onUpdateRequired) {
+  onUpdateRequired = fn;
+}
+
 let onAuthDenied: (() => void) | null = null;
 export function setAuthDeniedHandler(fn: () => void) {
   onAuthDenied = fn;
@@ -41,7 +48,7 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown;
     return res.body as T;
   }
   const token = await getToken();
-  const headers: Record<string, string> = { Accept: 'application/json', ...(init.headers as Record<string, string>) };
+  const headers: Record<string, string> = { Accept: 'application/json', 'X-App-Version': APP_VERSION, ...(init.headers as Record<string, string>) };
   if (token) headers.Authorization = 'Bearer ' + token;
   let body = init.body;
   if (init.json !== undefined) {
@@ -67,6 +74,7 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown;
   if (!res.ok) {
     const err = new ApiError(res.status, parsed);
     if (err.authDenied && onAuthDenied) onAuthDenied();
+    if (res.status === 426 && onUpdateRequired) onUpdateRequired({ min: String(parsed?.minAppVersion ?? ''), url: String(parsed?.appDownloadUrl ?? '') });
     throw err;
   }
   return parsed as T;

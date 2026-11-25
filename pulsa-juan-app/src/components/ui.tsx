@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { BottomTabBarHeightContext } from '@react-navigation/bottom-tabs';
+import React, { useContext, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, TextInputProps, View, ViewStyle } from 'react-native';
 import { formatNumberId, statusMeta, StatusTone } from 'pulsa-juan-common';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, font, shadow, size, track } from '../theme';
 
@@ -24,6 +25,8 @@ export function Screen({
   padded?: boolean;
 }) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const inTabs = useContext(BottomTabBarHeightContext);
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
@@ -39,7 +42,8 @@ export function Screen({
         </Text>
         <View style={styles.headerBtn}>{right}</View>
       </View>
-      <View style={[styles.body, padded && styles.padded]}>{children}</View>
+      {/* outside the tab bar, keep content clear of Android's navigation bar (edge-to-edge) */}
+      <View style={[styles.body, padded && styles.padded, inTabs === undefined && { paddingBottom: (padded ? size.gutter : 0) + insets.bottom }]}>{children}</View>
     </SafeAreaView>
   );
 }

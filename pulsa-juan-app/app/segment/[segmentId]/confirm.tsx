@@ -1,16 +1,15 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as Crypto from 'expo-crypto';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { computeTotal, describeSteps, formatRp } from 'pulsa-juan-common';
-import React, { useMemo, useState } from 'react';
-import { Ionicons } from '@expo/vector-icons';
-import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Linking, ScrollView, Text, View } from 'react-native';
 
 import { ApiError, post } from '../../../src/api/client';
 import { useAgentConfig, useInvalidateMoney, useMe, useSavedSellPrices, useSellMargins, useTree } from '../../../src/api/hooks';
 import { Transaction } from '../../../src/api/types';
 import { PinSheet } from '../../../src/components/PinSheet';
-import { Button, Card, ErrorView, KeyValue, Loading, Screen, SectionTitle } from '../../../src/components/ui';
+import { Button, Card, ErrorView, Field, KeyValue, Loading, Screen, SectionTitle } from '../../../src/components/ui';
 import { useFlowSession, useFlowStore } from '../../../src/flow/useFlowStore';
 import { colors, font } from '../../../src/theme';
 
@@ -27,14 +26,16 @@ export default function ConfirmScreen() {
   const [serverTotal, setServerTotal] = useState<number | null>(null);
   const [pinOpen, setPinOpen] = useState(false);
 
-  const [showCost, setShowCost] = useState(false);
   const [lost, setLost] = useState(false);
+  // the sell price the agent charges its customer; prefilled, editable, saved for the product with the order
+  const [sellText, setSellText] = useState<string | null>(null);
+  const qc = useQueryClient();
   const margins = useSellMargins();
   const savedPrices = useSavedSellPrices();
 
   const submit = useMutation({
-    mutationFn: async ({ clientTotal, pin }: { clientTotal: number; pin: string }) => {
-      const body = { segmentId, treeVersion: session!.treeVersion, steps: session!.steps, clientTotal, idempotencyKey, pin };
+    mutationFn: async ({ clientTotal, pin, sellPrice }: { clientTotal: number; pin: string; sellPrice?: number }) => {
+      const body = { segmentId, treeVersion: session!.treeVersion, steps: session!.steps, clientTotal, idempotencyKey, pin, sellPrice };
       setLost(false);
       // a dropped connection must never look like a failed sale: the same key returns the order if it was made
       for (let attempt = 0; ; attempt++) {
@@ -53,6 +54,7 @@ export default function ConfirmScreen() {
       setPinOpen(false);
       clear(segmentId);
       invalidate();
+      qc.invalidateQueries({ queryKey: ['sellPrices'] });
       router.replace(`/transaction/${transaction.id}/result`);
     },
     onError: (e) => {
@@ -80,16 +82,26 @@ export default function ConfirmScreen() {
     }
   }, [tree.data, session, config.data]);
 
+  // what the customer pays by default: the saved product price, else cost + margin
+  const suggestedSell = useMemo(() => {
+    if (!view || 'error' in view || !tree.data) return null;
+    const packageId = view.price!.packageId ?? null;
+    const saved = packageId ? savedPrices.data?.find((x) => x.packageId === packageId) : undefined;
+    const m = margins.data;
+    return saved?.sellPrice ?? view.price!.total + (m ? (m.bySegment[tree.data.segment.id] ?? m.default) : 0);
+  }, [view, tree.data, savedPrices.data, margins.data]);
+  useEffect(() => {
+    if (sellText === null && suggestedSell !== null && !savedPrices.isLoading && !margins.isLoading) setSellText(String(suggestedSell));
+  }, [suggestedSell, sellText, savedPrices.isLoading, margins.isLoading]);
+
   if (tree.isLoading || me.isLoading) return <Screen title="Konfirmasi"><Loading /></Screen>;
   if (!session || !view) return <Screen title="Konfirmasi"><ErrorView message="Sesi transaksi tidak ditemukan" onRetry={() => router.replace(`/segment/${segmentId}`)} /></Screen>;
   if ('error' in view) return <Screen title="Konfirmasi"><ErrorView message={view.error!} /></Screen>;
 
   const total = serverTotal ?? view.price!.total;
-  // what the agent's customer pays (saved product price, else cost + margin): shown instead of the cost
   const packageId = view.price!.packageId ?? null;
-  const saved = packageId ? savedPrices.data?.find((x) => x.packageId === packageId) : undefined;
-  const m = margins.data;
-  const sellPrice = saved?.sellPrice ?? total + (m ? (m.bySegment[tree.data!.segment.id] ?? m.default) : 0);
+  const sellDigits = (sellText ?? '').replace(/\D/g, '');
+  const sellPrice = sellDigits ? Number(sellDigits) : undefined;
   const cs = config.data?.cs?.whatsapp;
   const saldo = me.data?.saldo ?? 0;
   const enough = saldo >= total;
@@ -106,20 +118,23 @@ export default function ConfirmScreen() {
           ))}
         </Card>
         <Card style={{ marginBottom: 12 }}>
-          <KeyValue label="Harga" value={formatRp(sellPrice)} bold last={!showCost} />
-          {showCost ? (
-            <>
-              <KeyValue label="Modal" value={formatRp(view.price!.amountBase)} />
-              {view.price!.adminFee + view.price!.markupTotal > 0 ? <KeyValue label="Biaya Admin" value={formatRp(view.price!.adminFee + view.price!.markupTotal)} /> : null}
-              <KeyValue label="Dipotong dari saldo" value={formatRp(total)} />
-              <KeyValue label="Saldo Anda" value={formatRp(saldo)} />
-              <KeyValue label="Saldo setelah transaksi" value={formatRp(saldo - total)} last />
-            </>
-          ) : null}
-          <Pressable onPress={() => setShowCost(!showCost)} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 }}>
-            <Ionicons name={showCost ? 'eye-off-outline' : 'eye-outline'} size={16} color={colors.tealDark} />
-            <Text style={{ color: colors.tealDark, fontSize: font.small, fontWeight: '600' }}>{showCost ? 'Sembunyikan detail' : 'Lihat detail'}</Text>
-          </Pressable>
+          <KeyValue label="Harga" value={formatRp(view.price!.amountBase)} />
+          {view.price!.adminFee + view.price!.markupTotal > 0 ? <KeyValue label="Biaya Admin" value={formatRp(view.price!.adminFee + view.price!.markupTotal)} /> : null}
+          <KeyValue label="Total dipotong dari saldo" value={formatRp(total)} bold />
+          <KeyValue label="Saldo Anda" value={formatRp(saldo)} />
+          <KeyValue label="Saldo setelah transaksi" value={formatRp(saldo - total)} last />
+        </Card>
+        <Card style={{ marginBottom: 12 }}>
+          <Field
+            label="Harga jual ke pelanggan"
+            value={sellText ?? ''}
+            onChangeText={(v) => setSellText(v.replace(/\D/g, ''))}
+            keyboardType="number-pad"
+            placeholder={suggestedSell !== null ? String(suggestedSell) : '0'}
+            hint={packageId ? 'Disimpan untuk produk ini: transaksi berikutnya otomatis memakai harga ini.' : 'Dipakai untuk bon transaksi ini.'}
+            style={{ marginBottom: 0 }}
+            testID="confirm-sell-price"
+          />
         </Card>
         {serverTotal !== null ? <Text style={{ color: colors.accent, marginBottom: 8, fontSize: font.small }}>Harga berubah menjadi {formatRp(serverTotal)}. Periksa kembali lalu tekan Bayar.</Text> : null}
         {!enough ? <Text style={{ color: colors.danger, marginBottom: 8 }}>Saldo tidak cukup. Silakan isi saldo terlebih dahulu.</Text> : null}
@@ -149,7 +164,7 @@ export default function ConfirmScreen() {
         busy={submit.isPending}
         error={pinError}
         onClose={() => setPinOpen(false)}
-        onSubmit={(pin) => submit.mutate({ clientTotal: total, pin })}
+        onSubmit={(pin) => submit.mutate({ clientTotal: total, pin, sellPrice })}
       />
     </Screen>
   );

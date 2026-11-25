@@ -5,7 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { Platform, ScrollView, Share, Text, View } from 'react-native';
 
 import { API_BASE } from '../src/api/client';
-import { useHome, useMe, useMitra, useUpdateProfile } from '../src/api/hooks';
+import { useMe, useMitra, useUpdateProfile } from '../src/api/hooks';
 import { OtpStep } from '../src/auth/OtpStep';
 import { DomicilePicker, domicileInput, DomicileValue, EMPTY_DOMICILE } from '../src/components/DomicilePicker';
 import { ReferrerForm } from '../src/components/ReferrerForm';
@@ -16,23 +16,21 @@ import { fmtDate } from './(tabs)/transaksi';
 export default function MitraScreen() {
   const { edit } = useLocalSearchParams<{ edit?: string }>();
   const me = useMe();
-  const home = useHome();
   const mitra = useMitra();
   const update = useUpdateProfile();
-  const [form, setForm] = useState({ name: '', nik: '', referralMarkup: '' });
+  const [form, setForm] = useState({ name: '', nik: '' });
   const [changingPhone, setChangingPhone] = useState(false);
   const [editingDomicile, setEditingDomicile] = useState(false);
   const [domicile, setDomicile] = useState<DomicileValue>(EMPTY_DOMICILE);
   const [msg, setMsg] = useState<string | null>(null);
   useEffect(() => {
-    if (me.data) setForm({ name: me.data.name, nik: me.data.nik ?? '', referralMarkup: String(me.data.referralMarkup) });
+    if (me.data) setForm({ name: me.data.name, nik: me.data.nik ?? '' });
   }, [me.data]);
 
   if (me.isLoading || mitra.isLoading) return <Screen title="Mitra"><Loading /></Screen>;
   if (me.isError || mitra.isError) return <Screen title="Mitra"><ErrorView message={((me.error ?? mitra.error) as Error).message} /></Screen>;
   const a = me.data!;
   const m = mitra.data!;
-  const cap = home.data?.config.maxReferralMarkup ?? 2000;
   const shareText = `Gabung jadi agen Murah Kuota pakai kode referral saya: ${a.commisionUniqueId}`;
   const share = async () => {
     if (Platform.OS === 'web') {
@@ -43,7 +41,7 @@ export default function MitraScreen() {
   const nikError = form.nik && !isValidNik(form.nik) ? 'NIK harus 16 angka' : null;
   const save = () =>
     update.mutate(
-      { name: form.name, nik: form.nik && form.nik !== a.nik ? form.nik : undefined, referralMarkup: Number(form.referralMarkup) || 0 },
+      { name: form.name, nik: form.nik && form.nik !== a.nik ? form.nik : undefined },
       { onSuccess: () => setMsg('Tersimpan'), onError: (e) => setMsg((e as Error).message) },
     );
   const saveDomicile = () => {
@@ -64,7 +62,7 @@ export default function MitraScreen() {
           <Text style={{ color: colors.muted, fontSize: font.small }}>Kode referral Anda</Text>
           <Text style={{ fontSize: 28, fontWeight: '800', color: colors.primary, letterSpacing: 2 }}>{a.commisionUniqueId}</Text>
           <Text style={{ color: colors.muted, fontSize: font.small, marginTop: 4 }}>
-            Setiap transaksi mitra yang mendaftar dengan kode ini memberi Anda komisi {formatRp(Math.min(a.referralMarkup, cap))}. Komisi diambil dari margin kami: harga mitra Anda tidak naik.
+            Setiap transaksi sukses mitra yang mendaftar dengan kode ini memberi Anda komisi. Besarnya berbeda per produk dan diambil dari margin kami: harga mitra Anda tidak naik.
           </Text>
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
             <Button title="Bagikan" style={{ flex: 1 }} onPress={share} />
@@ -84,13 +82,6 @@ export default function MitraScreen() {
             error={nikError}
             editable={a.kycStatus !== 'VERIFIED'}
             hint={a.kycStatus === 'VERIFIED' ? 'Terverifikasi dari KTP. Hubungi CS untuk mengubah.' : undefined}
-          />
-          <Field
-            label="Komisi dari mitra baru (Rp per transaksi)"
-            value={form.referralMarkup}
-            onChangeText={(v) => setForm({ ...form, referralMarkup: v.replace(/\D/g, '') })}
-            keyboardType="number-pad"
-            hint={`Maksimal ${formatRp(cap)}. Dikunci per mitra saat mereka mendaftar.`}
           />
           {msg ? <Text style={{ color: msg === 'Tersimpan' || msg === 'Nomor HP diperbarui' ? colors.primary : colors.danger, marginBottom: 8 }}>{msg}</Text> : null}
           <Button title="Simpan" loading={update.isPending} onPress={save} disabled={!!nikError} />
@@ -132,7 +123,7 @@ export default function MitraScreen() {
         {m.parent ? (
           <Card style={{ marginBottom: 12 }}>
             <SectionTitle>Mitra pengundang</SectionTitle>
-            <KeyValue label={m.parent.name} value={`+${formatRp(m.parent.commisionAmount)} / transaksi`} />
+            <KeyValue label={m.parent.name} value="Pengajak Anda" />
           </Card>
         ) : (
           <Card style={{ marginBottom: 12 }}>
@@ -145,7 +136,7 @@ export default function MitraScreen() {
           <SectionTitle>{`Mitra saya (${m.children.length})`}</SectionTitle>
           {m.children.length === 0 ? <Text style={{ color: colors.muted }}>Belum ada mitra. Bagikan kode referral Anda.</Text> : null}
           {m.children.map((c) => (
-            <KeyValue key={c.id} label={`${c.name} · ${fmtDate(c.joinedAt).slice(0, 10)}`} value={formatRp(c.commisionAmount) + ' / trx'} />
+            <KeyValue key={c.id} label={`${c.name} · ${fmtDate(c.joinedAt).slice(0, 10)}`} value={c.commisionUniqueId} />
           ))}
         </Card>
         <Text style={{ color: colors.muted, fontSize: 10, marginTop: 16 }}>API: {API_BASE}</Text>

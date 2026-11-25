@@ -36,7 +36,7 @@ export default function HomeScreen() {
         refreshControl={<RefreshControl refreshing={home.isRefetching} onRefresh={refresh} tintColor={colors.white} />}
       >
         <HomeHeader name={d.agent.name} todayTransactions={d.todayTransactions ?? 0} onProfile={() => router.push('/(tabs)/profil')} />
-        <AccountCard saldo={d.saldo} hutang={d.hutang} poin={d.poin} commissionUnclaimed={d.commissionUnclaimed ?? 0} saldoKomisi={d.agent.saldoKomisi} />
+        <AccountCard saldo={d.saldo} hutang={d.hutang} poin={d.poin} commissionUnclaimed={d.commissionUnclaimed ?? 0} saldoKomisi={d.agent.saldoKomisi} onRefresh={refresh} refreshing={home.isRefetching} />
         <View style={{ paddingHorizontal: size.gutter }}>
           {d.agent.saldoFrozen ? (
             <View style={{ backgroundColor: '#FEE2E2', borderRadius: 12, padding: 12, marginTop: 12 }}>

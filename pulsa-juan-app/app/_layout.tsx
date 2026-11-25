@@ -6,6 +6,7 @@ import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { useAuth } from '../src/auth/useAuth';
+import { UpdateGate } from '../src/update/UpdateGate';
 import { colors } from '../src/theme';
 
 const queryClient = new QueryClient({
@@ -43,6 +44,7 @@ export default function RootLayout() {
             <Stack.Screen name="(auth)" />
           </Stack.Protected>
         </Stack>
+        <UpdateGate />
       </QueryClientProvider>
     </SafeAreaProvider>
   );

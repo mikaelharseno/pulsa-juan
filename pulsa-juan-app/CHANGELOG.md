@@ -5,6 +5,16 @@ isi berupa poin `- ` yang ditampilkan di landing page (Riwayat versi), jadi tuli
 Sebelum rilis: naikkan `expo.version` dan `expo.android.versionCode` di `app.json`, tambah bagian
 baru di sini, commit, lalu `npm run release:android`.
 
+## 1.3.0 (versionCode 7) — 2026-11-25
+- Konfirmasi pembelian kembali menampilkan harga modal, dan harga jual ke pelanggan bisa langsung diisi di sana (tersimpan untuk produk itu)
+- Tombol muat ulang saldo di Beranda
+- QRIS bisa diperbesar dan disimpan ke galeri
+- Isi saldo kini bisa lewat transfer Bank Mandiri
+- Menu bawah tidak lagi tertutup tombol navigasi Android
+- Top up e-wallet tidak perlu verifikasi identitas lagi
+- Komisi mitra kini diatur per produk oleh admin, bukan lagi diisi sendiri
+- Aplikasi akan meminta update bila versinya sudah terlalu lama
+
 ## 1.2.0 (versionCode 6) — 2026-11-19
 - Beli paket lebih cepat: nomor HP di atas (bisa pilih dari kontak), jenis paket di tengah, daftar paket langsung di bawah
 - Ikon Pulsa: masukkan nomor, langsung diarahkan ke paket operatornya

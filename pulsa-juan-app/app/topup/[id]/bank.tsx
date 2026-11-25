@@ -12,7 +12,10 @@ import { colors, font } from '../../../src/theme';
 const BANK_STYLE: Record<string, { fg: string }> = {
   BCA: { fg: '#0060AF' },
   BRI: { fg: '#00529C' },
+  MANDIRI: { fg: '#003D79' },
 };
+// a bank this version does not know yet still shows (never crashes the screen)
+const DEFAULT_STYLE = { fg: colors.ink };
 
 export default function TopUpBankScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -41,14 +44,14 @@ export default function TopUpBankScreen() {
           <SectionBand>Bank</SectionBand>
           {accounts.length === 0 ? <Text style={{ padding: 16, color: colors.muted }}>Rekening bank belum tersedia. Hubungi CS.</Text> : null}
           {accounts.map((a, i) => {
-            const st = BANK_STYLE[a.bank];
+            const st = BANK_STYLE[a.bank] ?? DEFAULT_STYLE;
             const selected = bank === a.bank;
             return (
               <Pressable key={a.bank} onPress={() => setBank(a.bank)} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 15, borderTopWidth: i ? StyleSheet.hairlineWidth : 0, borderTopColor: colors.hairline, backgroundColor: selected ? colors.tealTint : colors.card }}>
                 <View style={{ width: 64, height: 30, borderRadius: 6, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
-                  <Text style={{ color: st.fg, fontWeight: '800', fontSize: 12, letterSpacing: 0.5, fontStyle: 'italic' }}>{a.bank}</Text>
+                  <Text style={{ color: st.fg, fontWeight: '800', fontSize: a.bank.length > 4 ? 10 : 12, letterSpacing: 0.5, fontStyle: 'italic' }}>{a.bank}</Text>
                 </View>
-                <Text style={{ flex: 1, fontSize: font.rowLabel, color: colors.ink, fontWeight: '500' }}>Bank {a.bank}</Text>
+                <Text style={{ flex: 1, fontSize: font.rowLabel, color: colors.ink, fontWeight: '500' }}>Bank {a.bank === 'MANDIRI' ? 'Mandiri' : a.bank}</Text>
                 <Ionicons name={selected ? 'radio-button-on' : 'radio-button-off'} size={20} color={selected ? colors.teal : colors.chevron} />
               </Pressable>
             );

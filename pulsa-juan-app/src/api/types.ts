@@ -131,17 +131,21 @@ export interface HomeData {
   config: { topUpMin: number; topUpMax: number; appName: string; maxReferralMarkup: number };
 }
 
-export type PayMethod = 'BRI' | 'BCA' | 'QRIS';
+export type BankTransfer = 'BRI' | 'BCA' | 'MANDIRI';
+export type PayMethod = BankTransfer | 'QRIS';
 
 export interface AgentConfig {
   prefixes: PrefixEntry[];
-  bankAccounts: { bank: 'BRI' | 'BCA'; accountNumber: string; accountName: string }[];
+  bankAccounts: { bank: BankTransfer; accountNumber: string; accountName: string }[];
   /** static QRIS top-ups; absent on older servers */
   qris?: { enabled: boolean; feePercent: number; feeAbove: number };
   /** whatsapp = CS Komplain (orders), financeWhatsapp = CS Finance (top-ups) */
   cs: { whatsapp: string; telegram: string; financeWhatsapp?: string };
   topUpMin: number;
   topUpMax: number;
+  /** forced update (1.3.0+): apps below this version must update; '' = off */
+  minAppVersion?: string;
+  appDownloadUrl?: string;
 }
 
 export interface TreeResponse {
@@ -169,7 +173,7 @@ export interface TopUpOrder {
   createdAt: string;
   rejectReason: string | null;
   isCredit: boolean;
-  account?: { bank: 'BRI' | 'BCA'; accountNumber: string; accountName: string } | null;
+  account?: { bank: BankTransfer; accountNumber: string; accountName: string } | null;
   qris?: { id: string; label: string; imageUrl: string } | null;
   waUrl?: string | null;
   waText?: string;

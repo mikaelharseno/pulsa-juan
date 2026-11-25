@@ -8,6 +8,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useClaimCommissions, useCommissions, useMe } from '../../src/api/hooks';
 import { useAuth } from '../../src/auth/useAuth';
 import { Button, Card, ErrorView, KeyValue, Loading, Screen, SectionBand } from '../../src/components/ui';
+import { PLUS_ENABLED } from '../../src/kyc/plus';
 import { colors, font, size } from '../../src/theme';
 
 // shown so agents can tell CS which build they run (matches releases.json on the landing page)
@@ -116,18 +117,20 @@ export default function ProfilScreen() {
         {/* Menu */}
         <Card style={{ padding: 0, overflow: 'hidden', marginBottom: 12 }}>
           <SectionBand>Akun</SectionBand>
-          <MenuRow icon="people-outline" label="Mitra & kode referral" sub={`Bagikan kode ${a.commisionUniqueId}, markup ${formatRp(a.referralMarkup)}/trx`} onPress={() => router.push('/mitra')} />
+          <MenuRow icon="people-outline" label="Mitra & kode referral" sub={`Bagikan kode ${a.commisionUniqueId}`} onPress={() => router.push('/mitra')} />
           <MenuRow icon="pricetag-outline" label="Harga jual & keuntungan" sub="Untung per transaksi untuk Rekap" onPress={() => router.push('/harga-jual')} />
           <MenuRow icon="paper-plane-outline" label="Transfer saldo" sub="Kirim saldo ke agen lain" onPress={() => router.push('/transfer' as never)} />
           <MenuRow icon="swap-vertical-outline" label="Riwayat saldo" sub="Semua saldo masuk & keluar" onPress={() => router.push('/saldo')} />
           <MenuRow icon="wallet-outline" label="Riwayat top up saldo" onPress={() => router.push('/topup/history')} />
           <MenuRow icon="keypad-outline" label={a.hasPin ? 'Ubah PIN' : 'Buat PIN'} onPress={() => router.push('/pin')} />
-          <MenuRow
-            icon="shield-checkmark-outline"
-            label="Verifikasi identitas (Plus)"
-            sub={{ VERIFIED: 'Terverifikasi', PENDING: 'Sedang diperiksa admin', REJECTED: 'Ditolak, silakan ulangi', NONE: 'Wajib untuk top up e-wallet' }[a.kycStatus ?? 'NONE']}
-            onPress={() => router.push('/verifikasi')}
-          />
+          {PLUS_ENABLED ? (
+            <MenuRow
+              icon="shield-checkmark-outline"
+              label="Verifikasi identitas (Plus)"
+              sub={{ VERIFIED: 'Terverifikasi', PENDING: 'Sedang diperiksa admin', REJECTED: 'Ditolak, silakan ulangi', NONE: 'Wajib untuk top up e-wallet' }[a.kycStatus ?? 'NONE']}
+              onPress={() => router.push('/verifikasi')}
+            />
+          ) : null}
           <MenuRow icon="create-outline" label="Ubah profil" sub="Nama, NIK, nomor HP" onPress={() => router.push('/mitra?edit=1')} last />
         </Card>
 

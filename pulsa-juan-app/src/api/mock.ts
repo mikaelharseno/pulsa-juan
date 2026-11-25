@@ -34,6 +34,7 @@ const CS = { whatsapp: '081234567890', telegram: 'pulsajuan_cs' };
 const BANKS = [
   { bank: 'BRI' as const, accountNumber: '0341-01-000123-56-7', accountName: 'PT PULSA JUAN' },
   { bank: 'BCA' as const, accountNumber: '4971770079', accountName: 'PT PULSA JUAN' },
+  { bank: 'MANDIRI' as const, accountNumber: '123-00-0000000-0', accountName: 'PT MURAH KUOTA' },
 ];
 const BANNERS = [
   { imageUrl: 'https://placehold.co/1200x500/0B7C70/ffffff/png?text=Promo+Pulsa+Juan&font=lato' },

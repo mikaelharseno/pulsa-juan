@@ -4,7 +4,7 @@ import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { formatRp, toInternationalMobile } from 'pulsa-juan-common';
 import React, { useEffect, useRef, useState } from 'react';
-import { Dimensions, FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Dimensions, FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { SegmentSummary, TopUpOrder } from '../api/types';
 import { ServiceTile } from '../icons/ServiceIcon';
@@ -58,7 +58,7 @@ function PillAction({ icon, label, onPress }: { icon: keyof typeof Ionicons.glyp
   );
 }
 
-export function AccountCard({ saldo, hutang, poin, commissionUnclaimed, saldoKomisi }: { saldo: number; hutang: number; poin: number; commissionUnclaimed: number; saldoKomisi: number }) {
+export function AccountCard({ saldo, hutang, poin, commissionUnclaimed, saldoKomisi, onRefresh, refreshing }: { saldo: number; hutang: number; poin: number; commissionUnclaimed: number; saldoKomisi: number; onRefresh?: () => void; refreshing?: boolean }) {
   const router = useRouter();
   const [tab, setTab] = useState<'saldo' | 'komisi'>('saldo');
   const amount = tab === 'saldo' ? saldo : commissionUnclaimed;
@@ -71,7 +71,14 @@ export function AccountCard({ saldo, hutang, poin, commissionUnclaimed, saldoKom
       <View style={styles.accountBody}>
         <View style={styles.panel}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.panelLabel}>{tab === 'saldo' ? 'Saldo Akun' : 'Komisi bisa diklaim'}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.panelLabel}>{tab === 'saldo' ? 'Saldo Akun' : 'Komisi bisa diklaim'}</Text>
+              {onRefresh ? (
+                <Pressable onPress={onRefresh} disabled={refreshing} hitSlop={10} accessibilityRole="button" accessibilityLabel="Muat ulang saldo" testID="refresh-saldo" style={styles.refreshBtn}>
+                  {refreshing ? <ActivityIndicator size="small" color={colors.teal} /> : <Ionicons name="refresh" size={15} color={colors.teal} />}
+                </Pressable>
+              ) : null}
+            </View>
             <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: 2 }}>
               <Text style={styles.rp}>Rp</Text>
               <Text style={styles.amount}>{formatRp(amount).replace('Rp ', '')}</Text>
@@ -291,6 +298,7 @@ const styles = StyleSheet.create({
   accountBody: { padding: 12 },
   panel: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F2F4', borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 12 },
   panelLabel: { fontSize: font.small, color: colors.muted, fontWeight: '500' },
+  refreshBtn: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.tealTint },
   rp: { fontSize: 15, color: colors.ink2, fontWeight: '400', marginRight: 2 },
   amount: { fontSize: 22, fontWeight: '700', color: colors.ink, letterSpacing: -0.6 },
   panelMeta: { fontSize: font.tiny, color: colors.muted },

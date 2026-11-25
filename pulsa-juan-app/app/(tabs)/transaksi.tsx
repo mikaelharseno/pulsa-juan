@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { formatRp } from 'pulsa-juan-common';
 import React, { useMemo, useState } from 'react';
 import { Modal, Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTransaction, useTransactions } from '../../src/api/hooks';
 import { Transaction } from '../../src/api/types';
@@ -46,6 +47,7 @@ interface Filters {
 
 export default function TransaksiScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [filters, setFilters] = useState<Filters>({ sort: 'createdAt', dir: 'desc' });
   const [draft, setDraft] = useState<Filters>(filters);
   const [open, setOpen] = useState(false);
@@ -157,7 +159,7 @@ export default function TransaksiScreen() {
       <BonSheet id={bonFor} onClose={() => setBonFor(null)} />
       <Modal visible={open} animationType="slide" transparent onRequestClose={() => setOpen(false)}>
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.4)' }} onPress={() => setOpen(false)} />
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: 20 + insets.bottom }]}>
           <View style={styles.grabber} />
           <Text style={styles.sheetTitle}>Filter transaksi</Text>
           <View style={{ flexDirection: 'row', gap: 10 }}>

@@ -3,11 +3,11 @@ import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { formatRp } from 'pulsa-juan-common';
 import React, { useState } from 'react';
-import { Image } from 'expo-image';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { useClaimTopUp, useTopUp } from '../../../src/api/hooks';
 import { openExternal } from '../../../src/components/home';
+import { QrisImage } from '../../../src/components/QrisImage';
 import { Button, Card, ErrorView, KeyValue, Loading, Screen, StatusPill } from '../../../src/components/ui';
 import { colors, font } from '../../../src/theme';
 
@@ -62,12 +62,7 @@ export default function TopUpPayScreen() {
               ? 'Scan QRIS di bawah dari aplikasi e-wallet atau m-banking, ketik nominal persis seperti di bawah, lalu tekan "Saya Sudah Bayar".'
               : 'Transfer ke rekening berikut, lalu tekan "Saya Sudah Bayar". Saldo bertambah setelah pembayaran kami verifikasi.'}
           </Text>
-          {isQris && o.qris ? (
-            <View style={{ alignItems: 'center', marginTop: 12 }}>
-              <Image source={{ uri: o.qris.imageUrl }} style={{ width: 260, height: 260, borderRadius: 8, backgroundColor: colors.white }} contentFit="contain" accessibilityLabel={`QRIS ${o.qris.label}`} />
-              <Text style={{ color: colors.ink, fontSize: font.small, fontWeight: '600', marginTop: 6 }}>{o.qris.label}</Text>
-            </View>
-          ) : null}
+          {isQris && o.qris ? <QrisImage url={o.qris.imageUrl} label={o.qris.label} /> : null}
           {o.account ? (
             <>
               <Text style={{ color: colors.ink, fontSize: font.body, marginTop: 12, fontWeight: '600' }}>
