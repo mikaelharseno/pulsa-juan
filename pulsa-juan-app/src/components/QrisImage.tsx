@@ -47,12 +47,14 @@ export function QrisImage({ url, label }: { url: string; label: string }) {
     }
   };
 
-  const actions = (
+  const actions = (inViewer: boolean) => (
     <View style={styles.actions}>
-      <Pressable onPress={() => setZoom(true)} style={styles.action} accessibilityRole="button" testID="qris-zoom">
-        <Ionicons name="search" size={16} color={colors.tealDark} />
-        <Text style={styles.actionText}>Perbesar</Text>
-      </Pressable>
+      {inViewer ? null : (
+        <Pressable onPress={() => setZoom(true)} style={styles.action} accessibilityRole="button" testID="qris-zoom">
+          <Ionicons name="search" size={16} color={colors.tealDark} />
+          <Text style={styles.actionText}>Perbesar</Text>
+        </Pressable>
+      )}
       <Pressable onPress={save} disabled={saving} style={styles.action} accessibilityRole="button" testID="qris-save">
         {saving ? <ActivityIndicator size="small" color={colors.tealDark} /> : <Ionicons name="download-outline" size={16} color={colors.tealDark} />}
         <Text style={styles.actionText}>Simpan ke galeri</Text>
@@ -66,7 +68,7 @@ export function QrisImage({ url, label }: { url: string; label: string }) {
         <Image source={{ uri: url }} style={styles.thumb} contentFit="contain" accessibilityLabel={`QRIS ${label}`} />
       </Pressable>
       <Text style={{ color: colors.ink, fontSize: font.small, fontWeight: '600', marginTop: 6 }}>{label}</Text>
-      {actions}
+      {actions(false)}
       {note ? <Text style={{ color: note.ok ? colors.tealDark : colors.danger, fontSize: font.small, marginTop: 6 }}>{note.text}</Text> : null}
 
       <Modal visible={zoom} animationType="fade" onRequestClose={() => setZoom(false)}>
@@ -80,7 +82,7 @@ export function QrisImage({ url, label }: { url: string; label: string }) {
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
             <Image source={{ uri: url }} style={{ width: width - 32, height: width - 32 }} contentFit="contain" />
           </View>
-          {actions}
+          {actions(true)}
           {note ? <Text style={{ color: note.ok ? colors.tealDark : colors.danger, fontSize: font.small, marginTop: 6, textAlign: 'center' }}>{note.text}</Text> : null}
         </View>
       </Modal>
