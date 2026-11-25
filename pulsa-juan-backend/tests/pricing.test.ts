@@ -90,6 +90,11 @@ describe('admin pricing sheet', () => {
     expect(one.body.rows[0]).toMatchObject({ id: ids[0], commission: 250, override: { hargaAgen: null, commission: 400 } });
     expect(await prisma.adminAuditLog.count({ where: { action: 'PRICING_COMMISSION' } })).toBeGreaterThan(0);
 
+    // a new product starts with the Rp 25 default commission
+    const created = await request(app).post('/api/admin/packages').set(auth(admin)).send({ code: 'NEW_KOMISI_1', name: 'Produk baru', category: 'TEST_BARU', hargaAgen: 10_000 });
+    expect(created.status).toBe(201);
+    expect((await prisma.package.findUniqueOrThrow({ where: { code: 'NEW_KOMISI_1' } })).commission).toBe(25);
+
     const staff = await adminToken('STAFF');
     expect((await request(app).get('/api/admin/pricing').set(auth(staff))).status).toBe(200);
     expect((await request(app).put('/api/admin/pricing').set(auth(staff)).send({ field: 'commission', rows: [{ packageId: ids[0], value: 1 }] })).status).toBe(403);

@@ -438,8 +438,9 @@ model Package {
   hargaAgen    Int
   /// supplier cost, admin-only
   hargaBeli    Int       @default(0)
-  /// default referral commission (Rp) paid to the buyer's upline for each order of this package
-  commission   Int       @default(0)
+  /// default referral commission (Rp) paid to the buyer's upline for each order of this package;
+  /// new packages (dashboard, CSV, Product Updater) start at Rp 25
+  commission   Int       @default(25)
   imageUrl     String?
   /// "OtomaX" = managed by the Product Updater (may be deactivated when missing from a sheet)
   supplierName String?
