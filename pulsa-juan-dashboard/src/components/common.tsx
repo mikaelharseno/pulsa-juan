@@ -5,7 +5,7 @@ import { ReactNode } from 'react';
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) {
   return (
     <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 2, gap: 2, flexWrap: 'wrap' }}>
-      <Box>
+      <Box sx={{ flex: '1 1 320px', minWidth: 0 }}>
         <Typography variant="h5" sx={{ fontWeight: 800 }}>
           {title}
         </Typography>
@@ -15,7 +15,7 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
           </Typography>
         )}
       </Box>
-      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>{actions}</Box>
+      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', flexShrink: 0 }}>{actions}</Box>
     </Box>
   );
 }
