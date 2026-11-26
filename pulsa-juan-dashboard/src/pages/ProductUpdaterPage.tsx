@@ -373,7 +373,7 @@ export default function ProductUpdaterPage() {
                             onChange={(e) => setOverrides({ ...overrides, [r.sku]: Number(e.target.value) || 0 })}
                             sx={{ width: 120 }}
                             inputProps={{ style: { textAlign: 'right' } }}
-                            InputProps={{ startAdornment: r.priceLocked || overrides[r.sku] ? <InputAdornment position="start" title="Harga dikunci (manual)">🔒</InputAdornment> : undefined }}
+                            InputProps={{ startAdornment: r.priceLocked || overrides[r.sku] ? <InputAdornment position="start" title="Harga diset manual">🔒</InputAdornment> : undefined }}
                           />
                         </>
                       )}
@@ -391,7 +391,7 @@ export default function ProductUpdaterPage() {
           </Box>
           {Object.keys(overrides).length > 0 && (
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', p: 1.5 }}>
-              {Object.keys(overrides).length} harga diubah manual akan dikunci (tidak ikut margin di upload berikutnya). Klik Pratinjau ulang untuk menghitung ulang ringkasan.
+              {Object.keys(overrides).length} harga akan menjadi diset manual (tidak ikut margin di upload berikutnya). Klik Pratinjau ulang untuk menghitung ulang ringkasan.
             </Typography>
           )}
         </Paper>

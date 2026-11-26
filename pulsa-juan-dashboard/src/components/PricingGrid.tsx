@@ -113,7 +113,7 @@ export default function PricingGrid({ field, title, subtitle }: { field: Pricing
       <Alert severity={agent ? 'warning' : 'info'} sx={{ mb: 2 }}>
         {agent
           ? <>Mengubah <b>{noun} spesial</b> untuk <b>{agent.name}</b>{field === 'commission' ? ' (yang ia terima saat mitranya membeli)' : ''}. Ketik angka di kolom <b>{field === 'hargaAgen' ? 'Harga spesial' : 'Komisi spesial'}</b> lalu klik <b>Simpan</b> (atau Enter); kosongkan lalu Simpan untuk kembali ke default. Baris kuning = spesial ({specialCount} produk).</>
-          : <>Mengubah <b>{noun} default</b> yang berlaku untuk semua agen. Untuk satu produk: ketik angka di kolom <b>{field === 'hargaAgen' ? 'Harga default' : 'Komisi default'}</b> lalu klik <b>Simpan</b> (atau Enter). Banyak produk sekaligus: <b>Ubah massal</b>. {field === 'hargaAgen' ? 'Harga yang diubah di sini dikunci dari Product Updater.' : 'Komisi dibayar ke pengajak (upline) per transaksi sukses, dari margin kita.'}</>}
+          : <>Mengubah <b>{noun} default</b> yang berlaku untuk semua agen. Untuk satu produk: ketik angka di kolom <b>{field === 'hargaAgen' ? 'Harga default' : 'Komisi default'}</b> lalu klik <b>Simpan</b> (atau Enter). Banyak produk sekaligus: <b>Ubah massal</b>. {field === 'hargaAgen' ? 'Harga yang diubah di sini menjadi "diset manual" dan tidak ditimpa Product Updater.' : 'Komisi dibayar ke pengajak (upline) per transaksi sukses, dari margin kita.'}</>}
       </Alert>
 
       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center', mb: 1.5 }}>
@@ -159,7 +159,7 @@ export default function PricingGrid({ field, title, subtitle }: { field: Pricing
                 <TableRow key={r.id} hover sx={sp !== null ? { bgcolor: YELLOW, '&:hover': { bgcolor: '#FFEC99 !important' } } : undefined}>
                   {canEdit && <TableCell padding="checkbox"><Checkbox size="small" checked={selected.has(r.id)} onChange={() => toggleRow(r.id)} /></TableCell>}
                   <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>{r.code}</TableCell>
-                  <TableCell sx={{ minWidth: 200 }}>{r.name}{r.priceLocked && field === 'hargaAgen' && <Chip size="small" label="dikunci" sx={{ ml: 1, height: 18 }} />}</TableCell>
+                  <TableCell sx={{ minWidth: 200 }}>{r.name}{r.priceLocked && field === 'hargaAgen' && <Chip size="small" label="diset manual" sx={{ ml: 1, height: 18 }} />}</TableCell>
                   <TableCell sx={{ fontSize: 11, color: 'text.secondary', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.category}>{r.category}</TableCell>
                   <TableCell align="right">{fmtRp(r.hargaBeli)}</TableCell>
                   {field === 'commission' && <TableCell align="right">{fmtRp(r.hargaAgen)}</TableCell>}

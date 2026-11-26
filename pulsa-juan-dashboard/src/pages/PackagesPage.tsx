@@ -76,7 +76,7 @@ export default function PackagesPage() {
                 <TableCell>{p.imageUrl && <img src={p.imageUrl} alt="" style={{ width: 24, height: 24, borderRadius: 4, verticalAlign: 'middle', marginRight: 6 }} />}{p.name}</TableCell>
                 <TableCell>{p.category}</TableCell>
                 <TableCell>{p.provider ?? '-'}</TableCell>
-                <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>{p.priceLocked && <span title="Harga dikunci: tidak ikut margin Product Updater">🔒 </span>}{fmtRp(p.hargaAgen)}</TableCell>
+                <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>{p.priceLocked && <span title="Harga diset manual: tidak ikut margin Product Updater">🔒 </span>}{fmtRp(p.hargaAgen)}</TableCell>
                 <TableCell align="right">{fmtRp(p.hargaBeli)}</TableCell>
                 <TableCell sx={{ whiteSpace: 'nowrap' }}>
                   {p.supplierSku ? <code>{p.supplierSku}</code> : '-'}
