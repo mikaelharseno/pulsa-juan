@@ -1,7 +1,8 @@
 import {
-  Alert, Autocomplete, Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, MenuItem, Paper, Select, Switch,
+  Alert, Autocomplete, Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, MenuItem, Paper, Select, Switch,
   Table, TableBody, TableCell, TableHead, TablePagination, TableRow, TextField, ToggleButton, ToggleButtonGroup, Typography,
 } from '@mui/material';
+import { Check, Close } from '@mui/icons-material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PRODUCT_TILES } from 'pulsa-juan-common';
 import { KeyboardEvent, useEffect, useMemo, useState } from 'react';
@@ -111,8 +112,8 @@ export default function PricingGrid({ field, title, subtitle }: { field: Pricing
 
       <Alert severity={agent ? 'warning' : 'info'} sx={{ mb: 2 }}>
         {agent
-          ? <>Mengubah <b>{noun} spesial</b> untuk <b>{agent.name}</b>{field === 'commission' ? ' (yang ia terima saat mitranya membeli)' : ''}. Kosongkan sel untuk kembali ke default. Baris kuning = spesial ({specialCount} produk).</>
-          : <>Mengubah <b>{noun} default</b> yang berlaku untuk semua agen. {field === 'hargaAgen' ? 'Harga yang diubah di sini dikunci dari Product Updater.' : 'Komisi dibayar ke pengajak (upline) per transaksi sukses, dari margin kita.'}</>}
+          ? <>Mengubah <b>{noun} spesial</b> untuk <b>{agent.name}</b>{field === 'commission' ? ' (yang ia terima saat mitranya membeli)' : ''}. Ketik angka di kolom <b>{field === 'hargaAgen' ? 'Harga spesial' : 'Komisi spesial'}</b> lalu klik <b>Simpan</b> (atau Enter); kosongkan lalu Simpan untuk kembali ke default. Baris kuning = spesial ({specialCount} produk).</>
+          : <>Mengubah <b>{noun} default</b> yang berlaku untuk semua agen. Untuk satu produk: ketik angka di kolom <b>{field === 'hargaAgen' ? 'Harga default' : 'Komisi default'}</b> lalu klik <b>Simpan</b> (atau Enter). Banyak produk sekaligus: <b>Ubah massal</b>. {field === 'hargaAgen' ? 'Harga yang diubah di sini dikunci dari Product Updater.' : 'Komisi dibayar ke pengajak (upline) per transaksi sukses, dari margin kita.'}</>}
       </Alert>
 
       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center', mb: 1.5 }}>
@@ -164,13 +165,13 @@ export default function PricingGrid({ field, title, subtitle }: { field: Pricing
                   {field === 'commission' && <TableCell align="right">{fmtRp(r.hargaAgen)}</TableCell>}
                   <TableCell align="right">
                     {agent || !canEdit ? fmtRp(r[field]) : (
-                      <MoneyCell value={r[field]} allowEmpty={false} onCommit={(v) => save.mutate([{ packageId: r.id, value: v }])} />
+                      <MoneyCell value={r[field]} allowEmpty={false} onCommit={(v) => save.mutateAsync([{ packageId: r.id, value: v }])} />
                     )}
                   </TableCell>
                   {agent && (
                     <TableCell align="right">
                       {canEdit
-                        ? <MoneyCell value={sp} allowEmpty placeholder={fmtRp(r[field])} onCommit={(v) => save.mutate([{ packageId: r.id, value: v }])} />
+                        ? <MoneyCell value={sp} allowEmpty placeholder={fmtRp(r[field])} onCommit={(v) => save.mutateAsync([{ packageId: r.id, value: v }])} />
                         : sp !== null ? fmtRp(sp) : '-'}
                     </TableCell>
                   )}
@@ -207,30 +208,61 @@ export default function PricingGrid({ field, title, subtitle }: { field: Pricing
   );
 }
 
-/** A rupiah input that saves on Enter or when leaving the field. */
-function MoneyCell({ value, allowEmpty, placeholder, onCommit }: { value: number | null; allowEmpty: boolean; placeholder?: string; onCommit: (v: number | null) => void }) {
-  const [text, setText] = useState(value === null ? '' : String(value));
+/**
+ * A rupiah input for one product. Typing a new number shows a "Simpan" button
+ * (Enter does the same, Esc cancels); a green tick confirms the save.
+ */
+function MoneyCell({ value, allowEmpty, placeholder, onCommit }: { value: number | null; allowEmpty: boolean; placeholder?: string; onCommit: (v: number | null) => Promise<unknown> }) {
+  const shown = value === null ? '' : String(value);
+  const [text, setText] = useState(shown);
+  const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   useEffect(() => setText(value === null ? '' : String(value)), [value]);
-  const commit = () => {
-    const clean = text.replace(/\D/g, '');
-    if (!clean) {
-      if (allowEmpty && value !== null) onCommit(null);
-      else setText(value === null ? '' : String(value));
-      return;
+  useEffect(() => {
+    if (status !== 'saved') return;
+    const t = setTimeout(() => setStatus('idle'), 2500);
+    return () => clearTimeout(t);
+  }, [status]);
+
+  const clean = text.replace(/\D/g, '');
+  const next = clean ? Number(clean) : null;
+  const dirty = next !== value && (next !== null || allowEmpty);
+  const cancel = () => { setText(shown); setStatus('idle'); };
+  const commit = async () => {
+    if (!dirty || status === 'saving') return;
+    setStatus('saving');
+    try {
+      await onCommit(next);
+      setStatus('saved');
+    } catch {
+      setStatus('error');
     }
-    const n = Number(clean);
-    if (n !== value) onCommit(n);
   };
+
   return (
-    <TextField
-      size="small"
-      value={text}
-      placeholder={placeholder}
-      onChange={(e) => setText(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { setText(value === null ? '' : String(value)); (e.target as HTMLInputElement).blur(); } }}
-      inputProps={{ inputMode: 'numeric', style: { textAlign: 'right', padding: '4px 8px', width: 90 } }}
-    />
+    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, justifyContent: 'flex-end' }}>
+      <TextField
+        size="small"
+        value={text}
+        placeholder={placeholder}
+        onChange={(e) => { setText(e.target.value); if (status !== 'saving') setStatus('idle'); }}
+        onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => { if (e.key === 'Enter') void commit(); if (e.key === 'Escape') cancel(); }}
+        error={status === 'error'}
+        sx={dirty ? { '& .MuiOutlinedInput-root': { bgcolor: 'background.paper' }, '& fieldset': { borderColor: 'warning.main', borderWidth: 2 } } : { '& .MuiOutlinedInput-root': { bgcolor: 'background.paper' } }}
+        inputProps={{ inputMode: 'numeric', style: { textAlign: 'right', padding: '4px 8px', width: 90 }, 'aria-label': 'Ubah nilai' }}
+      />
+      {dirty ? (
+        <>
+          <Button size="small" variant="contained" disabled={status === 'saving'} onClick={() => void commit()} sx={{ minWidth: 0, px: 1.25, py: 0.25 }}>
+            {status === 'saving' ? '...' : 'Simpan'}
+          </Button>
+          <IconButton size="small" onClick={cancel} disabled={status === 'saving'} title="Batal (Esc)"><Close fontSize="small" /></IconButton>
+        </>
+      ) : (
+        <Box sx={{ width: 24, display: 'inline-flex', justifyContent: 'center' }}>
+          {status === 'saved' && <Check fontSize="small" color="success" titleAccess="Tersimpan" />}
+        </Box>
+      )}
+    </Box>
   );
 }
 
